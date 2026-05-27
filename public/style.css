@@ -409,6 +409,62 @@ code.break { word-break: break-all; }
 
 .point-list code { word-break: break-all; font-size: 0.9rem; }
 
+/* Commentary */
+.comment-section { margin: 2rem 0; }
+
+.comment-body {
+  white-space: pre-wrap;
+  border-left: 3px solid var(--border);
+  padding: 0.5rem 0.75rem;
+  background: var(--panel-soft);
+  border-radius: 0 3px 3px 0;
+  margin: 0.5rem 0;
+}
+
+.comment-meta {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0.25rem 0;
+}
+
+.comment-meta a { color: var(--accent); }
+
+.comment-edit summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
+.comment-edit summary:hover { color: var(--accent); }
+
+.comment-edit textarea {
+  width: 100%;
+  margin: 0.5rem 0;
+  font: inherit;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  resize: vertical;
+}
+
+.comment-edit button {
+  padding: 0.4rem 1rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.comment-history { list-style: none; padding: 0; }
+
+.comment-history li {
+  margin: 1rem 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
 /* Profile & API tokens */
 .new-token {
   border: 1px solid var(--accent);

@@ -3,6 +3,7 @@
 // so GitHub login / profiles can slot in later without reworking the chrome.
 
 import type { VerifyResult } from './verify'
+import { COMMENT_MAX, type CommentView } from './store'
 
 export interface User {
   id: number
@@ -228,7 +229,48 @@ function weierstrassEq(ainvs: string[]): string {
   return `${lhs} = ${rhs}`
 }
 
-export function curveDetailPage(curve: CurveRow, user: User | null = null): string {
+// Escape commentary, turning `curve#<id>` tokens into links to that curve.
+function renderCommentContent(content: string): string {
+  let out = ''
+  let last = 0
+  for (const m of content.matchAll(/curve#(\d+)/g)) {
+    out += escapeHtml(content.slice(last, m.index))
+    out += `<a href="/curve/${m[1]}">curve#${m[1]}</a>`
+    last = (m.index ?? 0) + m[0].length
+  }
+  return out + escapeHtml(content.slice(last))
+}
+
+function commentSection(curveId: number, comment: CommentView | null, user: User | null): string {
+  const hasContent = !!comment && comment.content.length > 0
+  const body = hasContent
+    ? `<div class="comment-body">${renderCommentContent(comment!.content)}</div>`
+    : `<p class="muted">No commentary yet.</p>`
+  const meta = comment
+    ? `<p class="comment-meta">last edited ${comment.author ? `by ${escapeHtml(comment.author)} ` : ''}at ${escapeHtml(comment.created_at)} &middot; <a href="/curve/${curveId}/commentary-history">history</a></p>`
+    : ''
+  const editor = user
+    ? `<details class="comment-edit">
+          <summary>edit</summary>
+          <form method="post" action="/curve/${curveId}/commentary">
+            <textarea name="content" rows="6" maxlength="${COMMENT_MAX}">${escapeHtml(comment?.content ?? '')}</textarea>
+            <div><button type="submit">save</button> <span class="muted">submit empty to clear</span></div>
+          </form>
+        </details>`
+    : `<p class="muted"><a href="/auth/github">Log in</a> to add commentary.</p>`
+  return `<section class="comment-section">
+        <h3>Commentary</h3>
+        ${body}
+        ${meta}
+        ${editor}
+      </section>`
+}
+
+export function curveDetailPage(
+  curve: CurveRow,
+  comment: CommentView | null = null,
+  user: User | null = null,
+): string {
   let ainvs: string[] = []
   let points: [string, string][] = []
   try {
@@ -263,8 +305,32 @@ export function curveDetailPage(curve: CurveRow, user: User | null = null): stri
         <ul class="point-list">
           ${pointList}
         </ul>
-      </section>`
+      </section>
+      ${commentSection(curve.id, comment, user)}`
   return layout(`Rank ${curve.rank_lower_bound} curve — Elliptic Rank`, inner, user)
+}
+
+export function commentHistoryPage(
+  curve: CurveRow,
+  entries: CommentView[],
+  user: User | null = null,
+): string {
+  const list = entries.length
+    ? entries
+        .map(
+          (e) => `<li>
+          <p class="comment-meta">${e.author ? escapeHtml(e.author) : '<span class="muted">(deleted user)</span>'} &middot; ${escapeHtml(e.created_at)}</p>
+          ${e.content.length > 0 ? `<div class="comment-body">${renderCommentContent(e.content)}</div>` : `<p class="muted">(cleared)</p>`}
+        </li>`,
+        )
+        .join('\n')
+    : `<li class="muted">No commentary yet.</li>`
+  const inner = `
+      <p class="page-nav"><a href="/curve/${curve.id}">&larr; rank &ge; ${curve.rank_lower_bound} curve</a></p>
+      <h2>Commentary history</h2>
+      <p class="page-subtitle">${entries.length} edit${entries.length === 1 ? '' : 's'}.</p>
+      <ul class="comment-history">${list}</ul>`
+  return layout('Commentary history — Elliptic Rank', inner, user)
 }
 
 // Render a number-ish string, truncating very long values with an ellipsis.

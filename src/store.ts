@@ -5,6 +5,44 @@
 import type { Bindings } from './auth'
 import type { VerifyResult } from './verify'
 
+export const COMMENT_MAX = 4000
+
+export interface CommentView {
+  id: number
+  content: string
+  created_at: string
+  author: string | null
+}
+
+// Record an edit to a curve's commentary and point the curve at it.
+export async function postComment(
+  env: Bindings,
+  curveId: number,
+  userId: number,
+  content: string,
+): Promise<void> {
+  const ins = await env.DB.prepare(
+    'INSERT INTO comments_log (curve_id, user_id, content) VALUES (?, ?, ?)',
+  )
+    .bind(curveId, userId, content)
+    .run()
+  await env.DB.prepare('UPDATE curves SET current_comment_id = ? WHERE id = ?')
+    .bind(ins.meta.last_row_id, curveId)
+    .run()
+}
+
+// Full edit history for a curve, newest first.
+export function commentHistory(env: Bindings, curveId: number): Promise<CommentView[]> {
+  return env.DB.prepare(
+    `SELECT cl.id, cl.content, cl.created_at, u.display_name AS author
+       FROM comments_log cl LEFT JOIN users u ON u.id = cl.user_id
+       WHERE cl.curve_id = ? ORDER BY cl.id DESC`,
+  )
+    .bind(curveId)
+    .all<CommentView>()
+    .then((r) => r.results)
+}
+
 export type RecordStatus =
   | { status: 'created'; rank: number }
   | { status: 'improved'; rank: number; previousRank: number }

@@ -8,12 +8,13 @@ import {
   notFoundPage,
   profilePage,
   curveDetailPage,
+  commentHistoryPage,
   type TokenRow,
   type SubmitInfo,
   type PlotCurve,
   type CurveRow,
 } from './pages'
-import { recordCurve } from './store'
+import { recordCurve, postComment, commentHistory, COMMENT_MAX, type CommentView } from './store'
 import {
   type AppEnv,
   type Bindings,
@@ -47,14 +48,56 @@ app.get('/curve/:id', async (c) => {
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id)) return c.html(notFoundPage(c.get('user')), 404)
   const row = await c.env.DB.prepare(
-    `SELECT c.*, u.display_name AS submitter_name
-       FROM curves c LEFT JOIN users u ON u.id = c.submitter_user_id
+    `SELECT c.*, u.display_name AS submitter_name,
+            cl.id AS comment_id, cl.content AS comment_content,
+            cl.created_at AS comment_at, cu.display_name AS comment_author
+       FROM curves c
+       LEFT JOIN users u ON u.id = c.submitter_user_id
+       LEFT JOIN comments_log cl ON cl.id = c.current_comment_id
+       LEFT JOIN users cu ON cu.id = cl.user_id
        WHERE c.id = ?`,
   )
     .bind(id)
-    .first<CurveRow>()
+    .first<
+      CurveRow & {
+        comment_id: number | null
+        comment_content: string | null
+        comment_at: string | null
+        comment_author: string | null
+      }
+    >()
   if (!row) return c.html(notFoundPage(c.get('user')), 404)
-  return c.html(curveDetailPage(row, c.get('user')))
+  const comment: CommentView | null =
+    row.comment_id != null
+      ? {
+          id: row.comment_id,
+          content: row.comment_content ?? '',
+          created_at: row.comment_at ?? '',
+          author: row.comment_author,
+        }
+      : null
+  return c.html(curveDetailPage(row, comment, c.get('user')))
+})
+
+app.post('/curve/:id/commentary', async (c) => {
+  const user = c.get('user')
+  if (!user) return c.redirect('/auth/github', 302)
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.html(notFoundPage(user), 404)
+  const exists = await c.env.DB.prepare('SELECT id FROM curves WHERE id = ?').bind(id).first()
+  if (!exists) return c.html(notFoundPage(user), 404)
+  const form = await c.req.parseBody()
+  const content = (typeof form.content === 'string' ? form.content : '').slice(0, COMMENT_MAX)
+  await postComment(c.env, id, user.id, content)
+  return c.redirect(`/curve/${id}`, 302)
+})
+
+app.get('/curve/:id/commentary-history', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.html(notFoundPage(c.get('user')), 404)
+  const curve = await c.env.DB.prepare('SELECT * FROM curves WHERE id = ?').bind(id).first<CurveRow>()
+  if (!curve) return c.html(notFoundPage(c.get('user')), 404)
+  return c.html(commentHistoryPage(curve, await commentHistory(c.env, id), c.get('user')))
 })
 
 app.get('/api', (c) => c.html(apiDocsPage(c.get('user'))))
