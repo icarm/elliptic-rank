@@ -183,6 +183,10 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
             <span>points <span class="muted">&mdash; one per line, <code>x, y</code> (integers or rationals like <code>3/16</code>)</span></span>
             <textarea name="points" rows="12" ${user ? 'required' : 'disabled'}>${escapeHtml(SAMPLE_POINTS)}</textarea>
           </label>
+          <label class="field">
+            <span>bad primes <span class="muted">&mdash; optional; the primes dividing the discriminant, comma- or space-separated. If given, the conductor is recorded.</span></span>
+            <input type="text" name="primes" ${user ? '' : 'disabled'} placeholder="e.g. 2 3 389" />
+          </label>
           <div class="submit-row">${
             user
               ? '<button type="submit">Submit</button>'
@@ -204,6 +208,7 @@ export interface CurveRow {
   rank_lower_bound: number
   regulator: string
   points: string // JSON [[x,y],...]
+  conductor: string | null
   submitter_name: string | null
   created_at: string
   updated_at: string
@@ -299,6 +304,7 @@ export function curveDetailPage(
         <dt>a-invariants</dt><dd><code>[${ainvs.map(escapeHtml).join(', ')}]</code></dd>
         <dt>rank (lower bound)</dt><dd>&ge; ${curve.rank_lower_bound}</dd>
         <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}</dd>
+        ${curve.conductor ? `<dt>conductor</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code></dd>` : ''}
         <dt>curve key</dt><dd><code>${escapeHtml(curve.curve_key)}</code> <span class="muted">(reduced c4:c6)</span></dd>
         <dt>discriminant</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code></dd>
         <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
@@ -344,21 +350,33 @@ function clip(s: string, n = 60): string {
 }
 
 // Outcome of recording a submitted curve on the leaderboard.
-export type SubmitInfo =
-  | { status: 'created'; rank: number }
-  | { status: 'improved'; rank: number; previousRank: number }
-  | { status: 'unchanged'; rank: number }
+export interface SubmitInfo {
+  status: 'created' | 'improved' | 'unchanged'
+  rank: number
+  previousRank?: number
+  conductor?: boolean
+}
 
 function leaderboardStatus(submit: SubmitInfo | null): string {
   if (!submit) return ''
+  let msg: string
+  let added = true
   switch (submit.status) {
     case 'created':
-      return `<p class="leaderboard-status added">&#10003; Added to the leaderboard.</p>`
+      msg = 'Added to the leaderboard.'
+      break
     case 'improved':
-      return `<p class="leaderboard-status added">&#10003; Improved this curve's record from rank &ge; ${submit.previousRank} to rank &ge; ${submit.rank}.</p>`
+      msg = `Improved this curve's record from rank &ge; ${submit.previousRank} to rank &ge; ${submit.rank}.`
+      break
     case 'unchanged':
-      return `<p class="leaderboard-status">Already on the leaderboard at rank &ge; ${submit.rank}; this witness didn't improve it.</p>`
+      msg = `Already on the leaderboard at rank &ge; ${submit.rank}; this witness didn't improve it.`
+      added = false
+      break
   }
+  const cond = submit.conductor ? ' Conductor recorded.' : ''
+  const tick = added || submit.conductor ? '&#10003; ' : ''
+  const cls = added || submit.conductor ? 'leaderboard-status added' : 'leaderboard-status'
+  return `<p class="${cls}">${tick}${msg}${cond}</p>`
 }
 
 export function submitResultPage(
@@ -381,8 +399,10 @@ export function submitResultPage(
           <dt>min. eigenvalue</dt><dd><code>${escapeHtml(clip(ind.minEigenvalue))}</code></dd>
           <dt>naive height</dt><dd><code>${escapeHtml(clip(result.height!.naiveLogHeight))}</code></dd>
           <dt>discriminant</dt><dd><code>${escapeHtml(clip(c.discriminant, 80))}</code></dd>
+          ${result.conductor ? `<dt>conductor</dt><dd><code>${escapeHtml(clip(result.conductor, 80))}</code></dd>` : ''}
         </dl>
         <p class="result-method">${escapeHtml(ind.method)}.</p>
+        ${result.conductorNote ? `<p class="muted">Conductor not recorded: ${escapeHtml(result.conductorNote)}.</p>` : ''}
         ${leaderboardStatus(submit)}
       </div>`
   } else {
@@ -410,7 +430,8 @@ export function apiDocsPage(user: User | null = null): string {
   -H 'authorization: Bearer erank_...' \\
   -d '{
     "ainvs": ["0","0","1","-6349808647","193146346911036"],
-    "points": [["49421","200114"], ["49493","333458"], ...]
+    "points": [["49421","200114"], ["49493","333458"], ...],
+    "primes": ["2","3","211",...]
   }'`
   const verifyResp = `{
   "ok": true,
@@ -444,6 +465,10 @@ export function apiDocsPage(user: User | null = null): string {
       are independent in <em>E</em>(&#8474;), proving <code>rank &ge; #points</code>). On success the
       curve is <strong>recorded on the leaderboard</strong>, attributed to you. Body:
       <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>.</p>
+      <p>Optionally include <code>primes</code>: the primes dividing the discriminant. If they check out
+      (each prime, and together dividing the discriminant to a unit) the <strong>conductor</strong> is
+      computed and recorded &mdash; no factoring needed. Re-submitting an existing curve with
+      <code>primes</code> backfills its conductor even if the rank is unchanged.</p>
       <pre><code>${escapeHtml(verifyReq)}</code></pre>
       <p>Returns <code>200</code> with the result below, <code>422</code> if the submission is
       invalid (singular curve, point off curve, or not independent), <code>401</code> without a valid

@@ -26,6 +26,9 @@ export interface VerifyInput {
   ainvs: (string | number)[]
   // Affine points [x, y], each coordinate an integer or rational.
   points: [string | number, string | number][]
+  // Optional: the primes dividing the discriminant. If supplied and valid, the
+  // conductor is computed (no factoring needed) and recorded.
+  primes?: (string | number)[]
 }
 
 export interface PointResult {
@@ -66,6 +69,10 @@ export interface VerifyResult {
   allPointsOnCurve: boolean
   independence: IndependenceResult | null
   height: { naiveLogHeight: string } | null
+  // Conductor, computed only when valid primes were supplied; else null.
+  conductor: string | null
+  // Set when primes were supplied but failed validation (conductor not recorded).
+  conductorNote: string | null
 }
 
 // Integer or rational literal, e.g. "12", "-3", "800843008889340065933/16".
@@ -130,6 +137,31 @@ function reduceC4C6(gp: Gp): Canonical {
   return { c4, c6, key: `${c4}:${c6}` }
 }
 
+const MAX_PRIMES = 1024
+
+// Conductor of the curve `E` already loaded in `gp`, from a supplied list of
+// candidate primes. Returns the conductor only if the primes are each a
+// (BPSW) probable prime AND collectively divide the discriminant down to a unit
+// — which proves they include every bad prime, so the conductor is exact. No
+// factoring is done; per-prime exponents come from Tate's algorithm
+// (elllocalred). Good-reduction primes contribute exponent 0.
+function conductorFromPrimes(gp: Gp, primes: string[]): { conductor: string | null; note: string | null } {
+  if (primes.length === 0) return { conductor: null, note: null }
+  if (primes.length > MAX_PRIMES) return { conductor: null, note: `too many primes (max ${MAX_PRIMES})` }
+  evalGp(gp, `cps = [${primes.join(',')}]`)
+  const ok = evalGp(
+    gp,
+    'my(d=abs(E.disc), ok=1);' +
+      'for(i=1,#cps, if(!ispseudoprime(cps[i]), ok=0));' +
+      'if(ok, for(i=1,#cps, while(d%cps[i]==0, d=d\\cps[i])); if(d!=1, ok=0)); ok',
+  )
+  if (ok !== '1') {
+    return { conductor: null, note: 'supplied primes are not all prime, or do not divide the discriminant' }
+  }
+  const conductor = evalGp(gp, 'prod(i=1,#cps, cps[i]^elllocalred(E, cps[i])[1])')
+  return { conductor, note: null }
+}
+
 // Standalone canonical dedup key for a curve, without verifying points.
 export function canonicalKey(gp: Gp, ainvs: (string | number)[]): Canonical {
   const a = normalizeAinvs(ainvs)
@@ -148,11 +180,14 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     allPointsOnCurve: false,
     independence: null,
     height: null,
+    conductor: null,
+    conductorNote: null,
   }
 
   // --- 1. Parse & validate input (no GP evaluation of raw strings) ---
   let ainvs: [string, string, string, string, string]
   let pts: [string, string][]
+  let primes: string[]
   try {
     ainvs = normalizeAinvs(input.ainvs ?? [])
     const rawPts = input.points ?? []
@@ -161,6 +196,11 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     pts = rawPts.map((p, i) => {
       if (!Array.isArray(p) || p.length !== 2) throw new InputError(`point[${i}] must be [x,y]`)
       return [token(p[0], `point[${i}].x`), token(p[1], `point[${i}].y`)] as [string, string]
+    })
+    primes = (input.primes ?? []).map((p, i) => {
+      const s = token(p, `prime[${i}]`)
+      if (!/^\d+$/.test(s) || s === '0' || s === '1') throw new InputError(`prime[${i}] must be an integer > 1`)
+      return s
     })
   } catch (e) {
     result.errors.push(e instanceof Error ? e.message : String(e))
@@ -188,6 +228,11 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     result.height = {
       naiveLogHeight: evalGp(gp, 'log(vecmax([abs(E.c4)^3, E.c6^2]))*1.0'),
     }
+
+    // Conductor from supplied primes (optional; no factoring).
+    const cond = conductorFromPrimes(gp, primes)
+    result.conductor = cond.conductor
+    result.conductorNote = cond.note
 
     // --- 3. Check every point lies on the curve (exact) ---
     result.points = pts.map((p) => ({

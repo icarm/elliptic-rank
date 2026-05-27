@@ -43,10 +43,13 @@ export function commentHistory(env: Bindings, curveId: number): Promise<CommentV
     .then((r) => r.results)
 }
 
-export type RecordStatus =
-  | { status: 'created'; rank: number }
-  | { status: 'improved'; rank: number; previousRank: number }
-  | { status: 'unchanged'; rank: number }
+export interface RecordStatus {
+  status: 'created' | 'improved' | 'unchanged'
+  rank: number
+  previousRank?: number
+  // True when this submission newly recorded the conductor for the curve.
+  conductor?: boolean
+}
 
 // Parse a PARI real ("79.328...", "1.5 E-17") to a JS number for sorting.
 function toFloat(s: string): number {
@@ -66,19 +69,20 @@ export async function recordCurve(
   const points = JSON.stringify(result.points.map((p) => p.point))
   const height = toFloat(result.height!.naiveLogHeight)
   const regulator = result.independence!.regulator
+  const conductor = result.conductor // string | null
 
   const existing = await env.DB.prepare(
-    'SELECT id, rank_lower_bound FROM curves WHERE curve_key = ?',
+    'SELECT id, rank_lower_bound, conductor FROM curves WHERE curve_key = ?',
   )
     .bind(key)
-    .first<{ id: number; rank_lower_bound: number }>()
+    .first<{ id: number; rank_lower_bound: number; conductor: string | null }>()
 
   if (!existing) {
     await env.DB.prepare(
       `INSERT INTO curves
          (curve_key, c4, c6, ainvs, discriminant, naive_height, rank_lower_bound,
-          regulator, points, submitter_user_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          regulator, points, submitter_user_id, conductor)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
         key,
@@ -91,21 +95,33 @@ export async function recordCurve(
         regulator,
         points,
         userId,
+        conductor,
       )
       .run()
-    return { status: 'created', rank }
+    return { status: 'created', rank, conductor: !!conductor }
   }
+
+  // Backfill the conductor whenever we now have one and the curve lacks it,
+  // independent of whether the rank improves.
+  const setConductor = !!conductor && !existing.conductor
 
   if (rank > existing.rank_lower_bound) {
     await env.DB.prepare(
       `UPDATE curves SET rank_lower_bound = ?, regulator = ?, points = ?, ainvs = ?,
-         submitter_user_id = ?, updated_at = CURRENT_TIMESTAMP
+         submitter_user_id = ?, conductor = COALESCE(conductor, ?), updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
     )
-      .bind(rank, regulator, points, ainvs, userId, existing.id)
+      .bind(rank, regulator, points, ainvs, userId, conductor, existing.id)
       .run()
-    return { status: 'improved', rank, previousRank: existing.rank_lower_bound }
+    return { status: 'improved', rank, previousRank: existing.rank_lower_bound, conductor: setConductor }
   }
 
-  return { status: 'unchanged', rank: existing.rank_lower_bound }
+  if (setConductor) {
+    await env.DB.prepare(
+      'UPDATE curves SET conductor = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    )
+      .bind(conductor, existing.id)
+      .run()
+  }
+  return { status: 'unchanged', rank: existing.rank_lower_bound, conductor: setConductor }
 }

@@ -128,6 +128,7 @@ app.post('/submit-form', async (c) => {
   const input: VerifyInput = {
     ainvs: parseTokens(String(form.ainvs ?? '')),
     points: parsePoints(String(form.points ?? '')),
+    primes: parseTokens(String(form.primes ?? '')),
   }
   const gp = await getGp()
   const result = verify(gp, input)
