@@ -99,24 +99,39 @@ export interface PlotCurve {
   id: number
   rank_lower_bound: number
   naive_height: number
+  faltings_height: number | null
+  conductor: string | null
 }
 
-// Server-rendered SVG scatter of rank (y) vs naive height (x). Each dot is an
-// anchor to the curve's page, so the plot is fully clickable without any JS.
-function rankHeightPlot(curves: PlotCurve[]): string {
-  if (curves.length === 0) {
-    return `<p class="muted plot-empty">No curves on the board yet &mdash; submit one below to be the first.</p>`
+// Natural log of a non-negative big integer given as a decimal string.
+function logBigInt(s: string): number {
+  const t = s.replace('-', '')
+  const k = Math.min(15, t.length)
+  return Math.log(Number(t.slice(0, k))) + (t.length - k) * Math.LN10
+}
+
+interface PlotPoint {
+  id: number
+  rank: number
+  x: number
+}
+
+// Server-rendered SVG scatter of rank (y) vs `x` (e.g. Faltings height or log
+// conductor). Each dot is an anchor to the curve's page — clickable, no JS.
+function scatterPlot(pts: PlotPoint[], xLabel: string, xFmt: (v: number) => string): string {
+  if (pts.length === 0) {
+    return `<p class="muted plot-empty">No curves with a recorded ${xLabel} yet.</p>`
   }
   const W = 720, H = 440, L = 54, R = 18, T = 18, B = 46
   const plotW = W - L - R, plotH = H - T - B
-  const heights = curves.map((c) => c.naive_height)
-  let xmin = Math.min(...heights), xmax = Math.max(...heights)
+  const xs = pts.map((p) => p.x)
+  let xmin = Math.min(...xs), xmax = Math.max(...xs)
   if (xmin === xmax) { xmin -= 1; xmax += 1 }
   const xpad = (xmax - xmin) * 0.05
   xmin -= xpad
   xmax += xpad
-  const ymax = Math.max(...curves.map((c) => c.rank_lower_bound)) + 1
-  const X = (h: number) => L + ((h - xmin) / (xmax - xmin)) * plotW
+  const ymax = Math.max(...pts.map((p) => p.rank)) + 1
+  const X = (v: number) => L + ((v - xmin) / (xmax - xmin)) * plotW
   const Y = (r: number) => T + plotH - (r / ymax) * plotH
 
   let grid = ''
@@ -126,22 +141,22 @@ function rankHeightPlot(curves: PlotCurve[]): string {
     grid += `<line class="grid" x1="${L}" y1="${y}" x2="${W - R}" y2="${y}"/><text class="tick" x="${L - 8}" y="${(Y(r) + 4).toFixed(1)}" text-anchor="end">${r}</text>`
   }
   for (let i = 0; i <= 5; i++) {
-    const h = xmin + (i / 5) * (xmax - xmin)
-    const x = X(h).toFixed(1)
-    grid += `<line class="grid" x1="${x}" y1="${T}" x2="${x}" y2="${T + plotH}"/><text class="tick" x="${x}" y="${T + plotH + 18}" text-anchor="middle">${h.toFixed(0)}</text>`
+    const v = xmin + (i / 5) * (xmax - xmin)
+    const x = X(v).toFixed(1)
+    grid += `<line class="grid" x1="${x}" y1="${T}" x2="${x}" y2="${T + plotH}"/><text class="tick" x="${x}" y="${T + plotH + 18}" text-anchor="middle">${xFmt(v)}</text>`
   }
-  const dots = curves
-    .map((c) => {
-      const x = X(c.naive_height).toFixed(1)
-      const y = Y(c.rank_lower_bound).toFixed(1)
-      return `<a href="/curve/${c.id}"><circle class="dot" cx="${x}" cy="${y}" r="4"><title>rank &ge; ${c.rank_lower_bound}, height ${c.naive_height.toFixed(2)}</title></circle></a>`
+  const dots = pts
+    .map((p) => {
+      const x = X(p.x).toFixed(1)
+      const y = Y(p.rank).toFixed(1)
+      return `<a href="/curve/${p.id}"><circle class="dot" cx="${x}" cy="${y}" r="4"><title>rank &ge; ${p.rank}, ${xLabel} ${xFmt(p.x)}</title></circle></a>`
     })
     .join('')
-  return `<svg class="rank-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="Rank versus height scatter plot of all curves">
+  return `<svg class="rank-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="Rank versus ${xLabel} scatter plot">
       ${grid}
       <line class="axis" x1="${L}" y1="${T}" x2="${L}" y2="${T + plotH}"/>
       <line class="axis" x1="${L}" y1="${T + plotH}" x2="${W - R}" y2="${T + plotH}"/>
-      <text class="axis-title" x="${L + plotW / 2}" y="${H - 6}" text-anchor="middle">naive height &rarr;</text>
+      <text class="axis-title" x="${L + plotW / 2}" y="${H - 6}" text-anchor="middle">${xLabel} &rarr;</text>
       <text class="axis-title" transform="rotate(-90)" x="${-(T + plotH / 2)}" y="15" text-anchor="middle">rank (lower bound) &rarr;</text>
       ${dots}
     </svg>`
@@ -162,11 +177,29 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       without computing the exact rank: each point is checked to lie on the curve, and their
       N&eacute;ron&ndash;Tate height-pairing matrix is checked to be positive definite &mdash; so the points are
       independent in <em>E</em>(&#8474;), proving rank &ge; the number of points.</p>
-      <p>Height is the naive height <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span>.</p>
+      <p>Naive height is <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span>, recorded for
+      every curve. Conductor and Faltings height are recorded when a submission supplies the curve's bad primes.</p>
       <section class="board">
         <h2>The board</h2>
-        ${rankHeightPlot(curves)}
         <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is up and to the left: high rank, low height.</p>
+        <h3>rank vs naive height</h3>
+        ${scatterPlot(
+          curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
+          'naive height',
+          (v) => v.toFixed(0),
+        )}
+        <h3>rank vs Faltings height</h3>
+        ${scatterPlot(
+          curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
+          'Faltings height',
+          (v) => v.toFixed(1),
+        )}
+        <h3>rank vs log conductor</h3>
+        ${scatterPlot(
+          curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
+          'log conductor',
+          (v) => v.toFixed(0),
+        )}
       </section>
 
       <section class="submit">

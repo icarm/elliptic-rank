@@ -39,7 +39,7 @@ app.use('*', async (c, next) => {
 
 app.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(
-    'SELECT id, rank_lower_bound, naive_height FROM curves',
+    'SELECT id, rank_lower_bound, naive_height, faltings_height, conductor FROM curves',
   ).all<PlotCurve>()
   return c.html(landingPage(c.get('user'), results))
 })
