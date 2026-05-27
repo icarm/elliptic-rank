@@ -165,7 +165,7 @@ function scatterPlot(pts: PlotPoint[], xLabel: string, xFmt: (v: number) => stri
 export function landingPage(user: User | null = null, curves: PlotCurve[] = []): string {
   const inner = `
       <section class="hero">
-        <p class="lede">Can we find elliptic curves of <em>high rank</em> and <em>low height</em>?</p>
+        <p class="lede">Can we find elliptic curves of <em>high rank</em> and <em>small height or conductor</em>?</p>
         <div class="eq-line">
           <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
         </div>
