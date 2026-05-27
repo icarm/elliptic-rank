@@ -169,7 +169,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       </section>
 
       <section class="submit">
-        <h2>Verify a rank lower bound</h2>
+        <h2>Submit a rank lower bound</h2>
         <p class="submit-help">Give the Weierstrass coefficients and a set of independent rational points.
         We confirm the points lie on the curve and are linearly independent.</p>
         <form method="post" action="/verify-form">
@@ -181,7 +181,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
             <span>points <span class="muted">&mdash; one per line, <code>x, y</code> (integers or rationals like <code>3/16</code>)</span></span>
             <textarea name="points" rows="12" required>${escapeHtml(SAMPLE_POINTS)}</textarea>
           </label>
-          <div class="submit-row"><button type="submit">Verify</button></div>
+          <div class="submit-row"><button type="submit">Submit</button></div>
         </form>
       </section>`
   return layout('Elliptic Rank', inner, user)
