@@ -69,20 +69,30 @@ export async function recordCurve(
   const points = JSON.stringify(result.points.map((p) => p.point))
   const height = toFloat(result.height!.naiveLogHeight)
   const regulator = result.independence!.regulator
+  // Factoring-gated invariants, present together iff valid primes were supplied.
   const conductor = result.conductor // string | null
+  const minDisc = result.minimalDiscriminant // string | null
+  const faltings = result.faltingsHeight != null ? toFloat(result.faltingsHeight) : null
 
   const existing = await env.DB.prepare(
-    'SELECT id, rank_lower_bound, conductor FROM curves WHERE curve_key = ?',
+    `SELECT id, rank_lower_bound, conductor, minimal_discriminant, faltings_height
+       FROM curves WHERE curve_key = ?`,
   )
     .bind(key)
-    .first<{ id: number; rank_lower_bound: number; conductor: string | null }>()
+    .first<{
+      id: number
+      rank_lower_bound: number
+      conductor: string | null
+      minimal_discriminant: string | null
+      faltings_height: number | null
+    }>()
 
   if (!existing) {
     await env.DB.prepare(
       `INSERT INTO curves
          (curve_key, c4, c6, ainvs, discriminant, naive_height, rank_lower_bound,
-          regulator, points, submitter_user_id, conductor)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          regulator, points, submitter_user_id, conductor, minimal_discriminant, faltings_height)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
         key,
@@ -96,32 +106,41 @@ export async function recordCurve(
         points,
         userId,
         conductor,
+        minDisc,
+        faltings,
       )
       .run()
     return { status: 'created', rank, conductor: !!conductor }
   }
 
-  // Backfill the conductor whenever we now have one and the curve lacks it,
-  // independent of whether the rank improves.
-  const setConductor = !!conductor && !existing.conductor
+  // Backfill the factoring-gated invariants whenever we now have them and the
+  // curve is missing any of them, independent of whether the rank improves.
+  const setInvariants =
+    !!conductor &&
+    (existing.conductor == null ||
+      existing.minimal_discriminant == null ||
+      existing.faltings_height == null)
 
   if (rank > existing.rank_lower_bound) {
     await env.DB.prepare(
       `UPDATE curves SET rank_lower_bound = ?, regulator = ?, points = ?, ainvs = ?,
-         submitter_user_id = ?, conductor = COALESCE(conductor, ?), updated_at = CURRENT_TIMESTAMP
+         submitter_user_id = ?, conductor = COALESCE(conductor, ?),
+         minimal_discriminant = COALESCE(minimal_discriminant, ?),
+         faltings_height = COALESCE(faltings_height, ?), updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
     )
-      .bind(rank, regulator, points, ainvs, userId, conductor, existing.id)
+      .bind(rank, regulator, points, ainvs, userId, conductor, minDisc, faltings, existing.id)
       .run()
-    return { status: 'improved', rank, previousRank: existing.rank_lower_bound, conductor: setConductor }
+    return { status: 'improved', rank, previousRank: existing.rank_lower_bound, conductor: setInvariants }
   }
 
-  if (setConductor) {
+  if (setInvariants) {
     await env.DB.prepare(
-      'UPDATE curves SET conductor = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+      `UPDATE curves SET conductor = ?, minimal_discriminant = ?, faltings_height = ?,
+         updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
     )
-      .bind(conductor, existing.id)
+      .bind(conductor, minDisc, faltings, existing.id)
       .run()
   }
-  return { status: 'unchanged', rank: existing.rank_lower_bound, conductor: setConductor }
+  return { status: 'unchanged', rank: existing.rank_lower_bound, conductor: setInvariants }
 }

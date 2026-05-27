@@ -184,7 +184,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
             <textarea name="points" rows="12" ${user ? 'required' : 'disabled'}>${escapeHtml(SAMPLE_POINTS)}</textarea>
           </label>
           <label class="field">
-            <span>bad primes <span class="muted">&mdash; optional; the primes dividing the discriminant, comma- or space-separated. If given, the conductor is recorded.</span></span>
+            <span>bad primes <span class="muted">&mdash; optional; the primes dividing the discriminant, comma- or space-separated. If given, the conductor, minimal discriminant, and Faltings height are recorded.</span></span>
             <input type="text" name="primes" ${user ? '' : 'disabled'} placeholder="e.g. 2 3 389" />
           </label>
           <div class="submit-row">${
@@ -209,6 +209,8 @@ export interface CurveRow {
   regulator: string
   points: string // JSON [[x,y],...]
   conductor: string | null
+  minimal_discriminant: string | null
+  faltings_height: number | null
   submitter_name: string | null
   created_at: string
   updated_at: string
@@ -304,9 +306,11 @@ export function curveDetailPage(
         <dt>a-invariants</dt><dd><code>[${ainvs.map(escapeHtml).join(', ')}]</code></dd>
         <dt>rank (lower bound)</dt><dd>&ge; ${curve.rank_lower_bound}</dd>
         <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}</dd>
+        ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}</dd>` : ''}
         ${curve.conductor ? `<dt>conductor</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code></dd>` : ''}
         <dt>curve key</dt><dd><code>${escapeHtml(curve.curve_key)}</code> <span class="muted">(reduced c4:c6)</span></dd>
         <dt>discriminant</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code></dd>
+        ${curve.minimal_discriminant ? `<dt>minimal discriminant</dt><dd><code class="break">${escapeHtml(curve.minimal_discriminant)}</code></dd>` : ''}
         <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
         <dt>submitted by</dt><dd>${submitter}</dd>
         <dt>last updated</dt><dd>${escapeHtml(curve.updated_at)}</dd>
@@ -373,7 +377,7 @@ function leaderboardStatus(submit: SubmitInfo | null): string {
       added = false
       break
   }
-  const cond = submit.conductor ? ' Conductor recorded.' : ''
+  const cond = submit.conductor ? ' Conductor, minimal discriminant &amp; Faltings height recorded.' : ''
   const tick = added || submit.conductor ? '&#10003; ' : ''
   const cls = added || submit.conductor ? 'leaderboard-status added' : 'leaderboard-status'
   return `<p class="${cls}">${tick}${msg}${cond}</p>`
@@ -398,8 +402,10 @@ export function submitResultPage(
           <dt>regulator</dt><dd><code>${escapeHtml(clip(ind.regulator))}</code></dd>
           <dt>min. eigenvalue</dt><dd><code>${escapeHtml(clip(ind.minEigenvalue))}</code></dd>
           <dt>naive height</dt><dd><code>${escapeHtml(clip(result.height!.naiveLogHeight))}</code></dd>
+          ${result.faltingsHeight ? `<dt>Faltings height</dt><dd><code>${escapeHtml(clip(result.faltingsHeight))}</code></dd>` : ''}
           <dt>discriminant</dt><dd><code>${escapeHtml(clip(c.discriminant, 80))}</code></dd>
           ${result.conductor ? `<dt>conductor</dt><dd><code>${escapeHtml(clip(result.conductor, 80))}</code></dd>` : ''}
+          ${result.minimalDiscriminant ? `<dt>minimal discriminant</dt><dd><code>${escapeHtml(clip(result.minimalDiscriminant, 80))}</code></dd>` : ''}
         </dl>
         <p class="result-method">${escapeHtml(ind.method)}.</p>
         ${result.conductorNote ? `<p class="muted">Conductor not recorded: ${escapeHtml(result.conductorNote)}.</p>` : ''}
@@ -445,6 +451,7 @@ export function apiDocsPage(user: User | null = null): string {
     "precisionDigits": 62, "stable": true, "method": "..."
   },
   "height": { "naiveLogHeight": "79.3286..." },
+  "conductor": "...", "minimalDiscriminant": "...", "faltingsHeight": "...",  // if primes valid
   "leaderboard": { "status": "created", "rank": 12 }
 }`
   const commentReq = `curl -X POST https://elliptic-rank.icarm.cloud/curve/123/commentary \\
@@ -466,9 +473,10 @@ export function apiDocsPage(user: User | null = null): string {
       curve is <strong>recorded on the leaderboard</strong>, attributed to you. Body:
       <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>.</p>
       <p>Optionally include <code>primes</code>: the primes dividing the discriminant. If they check out
-      (each prime, and together dividing the discriminant to a unit) the <strong>conductor</strong> is
-      computed and recorded &mdash; no factoring needed. Re-submitting an existing curve with
-      <code>primes</code> backfills its conductor even if the rank is unchanged.</p>
+      (each prime, and together dividing the discriminant to a unit) the <strong>conductor</strong>,
+      <strong>minimal discriminant</strong>, and <strong>Faltings height</strong> are computed and
+      recorded &mdash; no factoring needed. Re-submitting an existing curve with <code>primes</code>
+      backfills these even if the rank is unchanged.</p>
       <pre><code>${escapeHtml(verifyReq)}</code></pre>
       <p>Returns <code>200</code> with the result below, <code>422</code> if the submission is
       invalid (singular curve, point off curve, or not independent), <code>401</code> without a valid

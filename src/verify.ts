@@ -69,9 +69,11 @@ export interface VerifyResult {
   allPointsOnCurve: boolean
   independence: IndependenceResult | null
   height: { naiveLogHeight: string } | null
-  // Conductor, computed only when valid primes were supplied; else null.
+  // Computed only when valid primes were supplied; else null.
   conductor: string | null
-  // Set when primes were supplied but failed validation (conductor not recorded).
+  minimalDiscriminant: string | null
+  faltingsHeight: string | null
+  // Set when primes were supplied but failed validation (nothing recorded).
   conductorNote: string | null
 }
 
@@ -139,15 +141,27 @@ function reduceC4C6(gp: Gp): Canonical {
 
 const MAX_PRIMES = 1024
 
-// Conductor of the curve `E` already loaded in `gp`, from a supplied list of
-// candidate primes. Returns the conductor only if the primes are each a
-// (BPSW) probable prime AND collectively divide the discriminant down to a unit
-// — which proves they include every bad prime, so the conductor is exact. No
-// factoring is done; per-prime exponents come from Tate's algorithm
-// (elllocalred). Good-reduction primes contribute exponent 0.
-function conductorFromPrimes(gp: Gp, primes: string[]): { conductor: string | null; note: string | null } {
-  if (primes.length === 0) return { conductor: null, note: null }
-  if (primes.length > MAX_PRIMES) return { conductor: null, note: `too many primes (max ${MAX_PRIMES})` }
+interface Invariants {
+  conductor: string | null
+  minDisc: string | null
+  faltings: string | null
+  note: string | null
+}
+
+// Invariants of the curve `E` (already loaded in `gp`) that otherwise require
+// factoring the discriminant, computed instead from a supplied list of candidate
+// primes — but only if the primes are each a (BPSW) probable prime AND together
+// divide the discriminant down to a unit, which proves they include every bad
+// prime. No factoring is done. Per-prime Tate's algorithm (elllocalred) gives
+// the conductor exponents f_p and the local minimal-model scalings u_p; with
+// U = prod p^v_p(u_p):
+//   conductor = prod p^f_p
+//   minimal discriminant = disc / U^12
+//   Faltings height = -1/2 log(area(period lattice) * U^2)   [LMFDB normalization]
+function invariantsFromPrimes(gp: Gp, primes: string[]): Invariants {
+  const none: Invariants = { conductor: null, minDisc: null, faltings: null, note: null }
+  if (primes.length === 0) return none
+  if (primes.length > MAX_PRIMES) return { ...none, note: `too many primes (max ${MAX_PRIMES})` }
   evalGp(gp, `cps = [${primes.join(',')}]`)
   const ok = evalGp(
     gp,
@@ -156,10 +170,14 @@ function conductorFromPrimes(gp: Gp, primes: string[]): { conductor: string | nu
       'if(ok, for(i=1,#cps, while(d%cps[i]==0, d=d\\cps[i])); if(d!=1, ok=0)); ok',
   )
   if (ok !== '1') {
-    return { conductor: null, note: 'supplied primes are not all prime, or do not divide the discriminant' }
+    return { ...none, note: 'supplied primes are not all prime, or do not divide the discriminant' }
   }
-  const conductor = evalGp(gp, 'prod(i=1,#cps, cps[i]^elllocalred(E, cps[i])[1])')
-  return { conductor, note: null }
+  evalGp(gp, 'lr = vector(#cps, i, elllocalred(E, cps[i]))')
+  evalGp(gp, 'Umin = prod(i=1, #cps, cps[i]^valuation(lr[i][3][1], cps[i]))')
+  const conductor = evalGp(gp, 'prod(i=1, #cps, cps[i]^lr[i][1])')
+  const minDisc = evalGp(gp, 'E.disc / Umin^12')
+  const faltings = evalGp(gp, 'my(A=abs(imag(conj(E.omega[1])*E.omega[2]))); -(1/2)*log(A*Umin^2)')
+  return { conductor, minDisc, faltings, note: null }
 }
 
 // Standalone canonical dedup key for a curve, without verifying points.
@@ -181,6 +199,8 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     independence: null,
     height: null,
     conductor: null,
+    minimalDiscriminant: null,
+    faltingsHeight: null,
     conductorNote: null,
   }
 
@@ -229,10 +249,13 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
       naiveLogHeight: evalGp(gp, 'log(vecmax([abs(E.c4)^3, E.c6^2]))*1.0'),
     }
 
-    // Conductor from supplied primes (optional; no factoring).
-    const cond = conductorFromPrimes(gp, primes)
-    result.conductor = cond.conductor
-    result.conductorNote = cond.note
+    // Conductor / minimal discriminant / Faltings height from supplied primes
+    // (optional; no factoring).
+    const inv = invariantsFromPrimes(gp, primes)
+    result.conductor = inv.conductor
+    result.minimalDiscriminant = inv.minDisc
+    result.faltingsHeight = inv.faltings
+    result.conductorNote = inv.note
 
     // --- 3. Check every point lies on the curve (exact) ---
     result.points = pts.map((p) => ({
