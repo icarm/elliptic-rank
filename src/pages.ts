@@ -135,7 +135,33 @@ function clip(s: string, n = 60): string {
   return s.length > n ? s.slice(0, n) + '…' : s
 }
 
-export function verifyResultPage(result: VerifyResult, user: User | null = null): string {
+// Outcome of recording the verified curve to the leaderboard (or a prompt to
+// log in when the verifier was anonymous).
+export type SubmitInfo =
+  | { status: 'anonymous' }
+  | { status: 'created'; rank: number }
+  | { status: 'improved'; rank: number; previousRank: number }
+  | { status: 'unchanged'; rank: number }
+
+function leaderboardStatus(submit: SubmitInfo | null): string {
+  if (!submit) return ''
+  switch (submit.status) {
+    case 'anonymous':
+      return `<p class="leaderboard-status"><a href="/auth/github">Log in with GitHub</a> to add this curve to the leaderboard.</p>`
+    case 'created':
+      return `<p class="leaderboard-status added">&#10003; Added to the leaderboard.</p>`
+    case 'improved':
+      return `<p class="leaderboard-status added">&#10003; Improved this curve's record from rank &ge; ${submit.previousRank} to rank &ge; ${submit.rank}.</p>`
+    case 'unchanged':
+      return `<p class="leaderboard-status">Already on the leaderboard at rank &ge; ${submit.rank}; this witness didn't improve it.</p>`
+  }
+}
+
+export function verifyResultPage(
+  result: VerifyResult,
+  user: User | null = null,
+  submit: SubmitInfo | null = null,
+): string {
   let inner: string
   if (result.ok && result.independence) {
     const ind = result.independence
@@ -153,6 +179,7 @@ export function verifyResultPage(result: VerifyResult, user: User | null = null)
           <dt>discriminant</dt><dd><code>${escapeHtml(clip(c.discriminant, 80))}</code></dd>
         </dl>
         <p class="result-method">${escapeHtml(ind.method)}.</p>
+        ${leaderboardStatus(submit)}
       </div>`
   } else {
     const offCurve = result.points.filter((p) => !p.onCurve).length

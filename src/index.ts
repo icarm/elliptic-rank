@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
 import { getGp } from './pari'
 import { verify, type VerifyInput } from './verify'
-import { landingPage, verifyResultPage, apiDocsPage, notFoundPage, profilePage, type TokenRow } from './pages'
+import { landingPage, verifyResultPage, apiDocsPage, notFoundPage, profilePage, type TokenRow, type SubmitInfo } from './pages'
+import { recordCurve } from './store'
 import {
   type AppEnv,
   type Bindings,
@@ -38,7 +39,10 @@ app.post('/api/verify', async (c) => {
   }
   const gp = await getGp()
   const result = verify(gp, body)
-  return c.json(result, result.ok ? 200 : 422)
+  // Authenticated requests (bearer token) record to the leaderboard.
+  const user = c.get('user')
+  const leaderboard = result.ok && user ? await recordCurve(c.env, user.id, result) : undefined
+  return c.json({ ...result, leaderboard }, result.ok ? 200 : 422)
 })
 
 // HTML form on the landing page posts here; renders a result page.
@@ -50,7 +54,11 @@ app.post('/verify-form', async (c) => {
   }
   const gp = await getGp()
   const result = verify(gp, input)
-  return c.html(verifyResultPage(result, c.get('user')), result.ok ? 200 : 422)
+  // Logged-in users record to the leaderboard; anonymous users get a prompt.
+  const user = c.get('user')
+  let submit: SubmitInfo | null = null
+  if (result.ok) submit = user ? await recordCurve(c.env, user.id, result) : { status: 'anonymous' }
+  return c.html(verifyResultPage(result, user, submit), result.ok ? 200 : 422)
 })
 
 // --- Auth ---

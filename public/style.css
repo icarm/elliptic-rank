@@ -316,6 +316,17 @@ main p code, .result code, pre code, .submit-help code {
   margin-bottom: 0;
 }
 
+.leaderboard-status {
+  margin: 1rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+  font-weight: 500;
+}
+
+.leaderboard-status.added {
+  color: #1d7a36;
+}
+
 .result-errors {
   margin: 0.5rem 0 0 1.25rem;
   color: var(--fg);
