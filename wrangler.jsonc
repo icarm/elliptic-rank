@@ -11,6 +11,26 @@
   "assets": {
     "directory": "./public"
   },
+  // Replace the placeholder ids with the real ones from:
+  //   wrangler d1 create elliptic-rank
+  //   wrangler kv namespace create SESSIONS
+  // and set the OAuth secrets:
+  //   wrangler secret put GITHUB_CLIENT_ID
+  //   wrangler secret put GITHUB_CLIENT_SECRET
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "elliptic-rank",
+      "database_id": "PLACEHOLDER_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "kv_namespaces": [
+    {
+      "binding": "SESSIONS",
+      "id": "PLACEHOLDER_KV_NAMESPACE_ID"
+    }
+  ],
   "observability": {
     "enabled": true
   }

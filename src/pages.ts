@@ -5,8 +5,20 @@
 import type { VerifyResult } from './verify'
 
 export interface User {
-  display_name?: string
-  email?: string
+  id: number
+  provider: string
+  email?: string | null
+  display_name?: string | null
+  avatar_url?: string | null
+}
+
+export interface TokenRow {
+  id: number
+  name: string | null
+  prefix: string
+  created_at: string
+  last_used_at: string | null
+  revoked_at: string | null
 }
 
 export function escapeHtml(s: unknown): string {
@@ -177,8 +189,71 @@ export function apiDocsPage(user: User | null = null): string {
       <code>[a1,a2,a3,a4,a6]</code>; <code>points</code> is a list of <code>[x,y]</code>. All values are
       integers or rationals, given as strings. Returns <code>200</code> with the verification result, or
       <code>422</code> if the submission is invalid.</p>
-      <pre><code>${escapeHtml(example)}</code></pre>`
+      <pre><code>${escapeHtml(example)}</code></pre>
+      <h3>Authentication</h3>
+      <p>Verification is open and needs no auth. To act as yourself (e.g. for attribution),
+      add an <code>Authorization: Bearer &lt;token&gt;</code> header. Create a token on your
+      <a href="/profile">profile</a> page.</p>`
   return layout('API — Elliptic Rank', inner, user)
+}
+
+export function profilePage(
+  user: User,
+  tokens: TokenRow[],
+  newToken: { token: string; prefix: string } | null,
+): string {
+  const newTokenBlock = newToken
+    ? `<div class="new-token">
+        <p><strong>New token created.</strong> Copy it now &mdash; this is the only time it will be shown.</p>
+        <pre class="token-secret">${escapeHtml(newToken.token)}</pre>
+        <p class="muted">Send it as <code>Authorization: Bearer ${escapeHtml(newToken.token)}</code> when calling the API.</p>
+      </div>`
+    : ''
+  const tokenRows = tokens.length
+    ? tokens
+        .map((t) => {
+          const label = t.name ? escapeHtml(t.name) : '<span class="muted">(unnamed)</span>'
+          const status = t.revoked_at
+            ? `<span class="muted">revoked ${escapeHtml(t.revoked_at)}</span>`
+            : `<form method="post" action="/profile/tokens/${t.id}/revoke" class="inline-form"><button type="submit" class="link-button">revoke</button></form>`
+          const lastUsed = t.last_used_at
+            ? escapeHtml(t.last_used_at)
+            : '<span class="muted">never</span>'
+          return `<tr>
+            <td><code>${escapeHtml(t.prefix)}&hellip;</code></td>
+            <td>${label}</td>
+            <td>${escapeHtml(t.created_at)}</td>
+            <td>${lastUsed}</td>
+            <td>${status}</td>
+          </tr>`
+        })
+        .join('\n')
+    : `<tr><td colspan="5" class="muted">No tokens yet.</td></tr>`
+  const inner = `
+      <p class="page-nav"><a href="/">&larr; home</a></p>
+      <h2>Profile</h2>
+      <p class="page-subtitle">Signed in as ${escapeHtml(user.display_name || user.email || 'user')} (via ${escapeHtml(user.provider)}).</p>
+      ${newTokenBlock}
+      <section class="profile-name">
+        <h3>Display name</h3>
+        <form method="post" action="/profile/name" class="profile-name-form">
+          <input type="text" name="name" value="${escapeHtml(user.display_name || '')}" maxlength="100" required />
+          <button type="submit">save</button>
+        </form>
+      </section>
+      <section class="tokens">
+        <h3>API tokens</h3>
+        <p>Send a token in the <code>Authorization: Bearer &hellip;</code> header to call the <a href="/api">API</a> as yourself.</p>
+        <table class="tokens-table">
+          <thead><tr><th>Prefix</th><th>Name</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+          <tbody>${tokenRows}</tbody>
+        </table>
+        <form method="post" action="/profile/tokens" class="new-token-form">
+          <label>Name (optional) <input type="text" name="name" maxlength="100" placeholder="e.g. laptop CLI" /></label>
+          <button type="submit">Generate new token</button>
+        </form>
+      </section>`
+  return layout('Profile — Elliptic Rank', inner, user)
 }
 
 export function notFoundPage(user: User | null = null): string {

@@ -1,17 +1,32 @@
 import { Hono } from 'hono'
 import { getGp } from './pari'
 import { verify, type VerifyInput } from './verify'
-import { landingPage, verifyResultPage, apiDocsPage, notFoundPage } from './pages'
+import { landingPage, verifyResultPage, apiDocsPage, notFoundPage, profilePage, type TokenRow } from './pages'
+import {
+  type AppEnv,
+  type Bindings,
+  loadCurrentUser,
+  loadUserFromToken,
+  startOAuth,
+  handleCallback,
+  logout,
+  generateApiToken,
+  updateSessionUser,
+} from './auth'
 
-const app = new Hono()
+const app = new Hono<AppEnv>()
 
-// TODO: once GitHub OAuth + KV sessions land, resolve the current user here and
-// pass it to the page renderers (the layout already renders an auth nav).
-const currentUser = null
+// Resolve the current user (session cookie, else API bearer token) for every
+// request. Both lookups short-circuit cheaply when their credential is absent.
+app.use('*', async (c, next) => {
+  const user = (await loadCurrentUser(c)) ?? (await loadUserFromToken(c))
+  c.set('user', user)
+  await next()
+})
 
-app.get('/', (c) => c.html(landingPage(currentUser)))
+app.get('/', (c) => c.html(landingPage(c.get('user'))))
 
-app.get('/api', (c) => c.html(apiDocsPage(currentUser)))
+app.get('/api', (c) => c.html(apiDocsPage(c.get('user'))))
 
 // JSON API: certify a rank lower bound. Body: { ainvs, points }.
 app.post('/api/verify', async (c) => {
@@ -35,10 +50,67 @@ app.post('/verify-form', async (c) => {
   }
   const gp = await getGp()
   const result = verify(gp, input)
-  return c.html(verifyResultPage(result, currentUser), result.ok ? 200 : 422)
+  return c.html(verifyResultPage(result, c.get('user')), result.ok ? 200 : 422)
 })
 
-app.notFound((c) => c.html(notFoundPage(currentUser), 404))
+// --- Auth ---
+app.get('/auth/:provider', startOAuth)
+app.get('/auth/:provider/callback', handleCallback)
+app.post('/auth/logout', logout)
+
+// --- Profile & API tokens ---
+app.get('/profile', async (c) => {
+  const user = c.get('user')
+  if (!user) return c.redirect('/auth/github', 302)
+  return c.html(profilePage(user, await listTokens(c.env, user.id), null))
+})
+
+app.post('/profile/tokens', async (c) => {
+  const user = c.get('user')
+  if (!user) return c.redirect('/auth/github', 302)
+  const form = await c.req.parseBody()
+  const name = String(form.name ?? '').trim().slice(0, 100) || null
+  const newToken = await generateApiToken(c.env, user.id, name)
+  return c.html(profilePage(user, await listTokens(c.env, user.id), newToken))
+})
+
+app.post('/profile/tokens/:id/revoke', async (c) => {
+  const user = c.get('user')
+  if (!user) return c.redirect('/auth/github', 302)
+  const id = Number(c.req.param('id'))
+  if (Number.isInteger(id)) {
+    await c.env.DB.prepare(
+      'UPDATE api_tokens SET revoked_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ? AND revoked_at IS NULL',
+    )
+      .bind(id, user.id)
+      .run()
+  }
+  return c.redirect('/profile', 302)
+})
+
+app.post('/profile/name', async (c) => {
+  const user = c.get('user')
+  if (!user) return c.redirect('/auth/github', 302)
+  const form = await c.req.parseBody()
+  const name = String(form.name ?? '').trim().slice(0, 100)
+  if (name) {
+    await c.env.DB.prepare('UPDATE users SET display_name = ? WHERE id = ?').bind(name, user.id).run()
+    await updateSessionUser(c, { display_name: name })
+  }
+  return c.redirect('/profile', 302)
+})
+
+app.notFound((c) => c.html(notFoundPage(c.get('user') ?? null), 404))
+
+function listTokens(env: Bindings, userId: number): Promise<TokenRow[]> {
+  return env.DB.prepare(
+    `SELECT id, name, prefix, created_at, last_used_at, revoked_at
+       FROM api_tokens WHERE user_id = ? ORDER BY id DESC`,
+  )
+    .bind(userId)
+    .all<TokenRow>()
+    .then((r) => r.results)
+}
 
 // Split free-form text into integer/rational tokens (commas or whitespace).
 function parseTokens(s: string): string[] {
