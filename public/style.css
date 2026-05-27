@@ -147,8 +147,8 @@ main p code, .result code, pre code, .submit-help code {
 
 .hero .lede em {
   font-style: normal;
-  font-weight: 600;
-  color: var(--accent);
+  font-weight: 700;
+  color: inherit;
 }
 
 .eq-line {
