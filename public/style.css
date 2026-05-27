@@ -347,6 +347,68 @@ pre code {
   padding: 0;
 }
 
+/* Rank-vs-height scatter plot */
+.board { margin: 2rem 0; }
+
+.rank-plot {
+  width: 100%;
+  height: auto;
+  margin: 0.5rem 0;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.rank-plot .grid { stroke: var(--border); stroke-width: 1; }
+.rank-plot .axis { stroke: var(--muted); stroke-width: 1.5; }
+.rank-plot .tick {
+  fill: var(--muted);
+  font-size: 12px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.rank-plot .axis-title {
+  fill: var(--muted);
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.rank-plot .dot { fill: var(--accent); cursor: pointer; transition: r 0.1s ease; }
+.rank-plot a:hover .dot { r: 7; fill: #1a4fc4; }
+
+.board-caption { font-size: 0.95rem; margin-top: 0.25rem; }
+.plot-empty { margin: 1.5rem 0; }
+
+/* Curve detail page */
+.curve-eq {
+  margin: 0.5rem 0 1.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 1.1rem;
+}
+
+code.break { word-break: break-all; }
+
+.point-list {
+  list-style: none;
+  padding: 0;
+  max-height: 24rem;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.point-list li {
+  padding: 0.3rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.point-list li:last-child { border-bottom: none; }
+
+.point-list code { word-break: break-all; font-size: 0.9rem; }
+
 /* Profile & API tokens */
 .new-token {
   border: 1px solid var(--accent);

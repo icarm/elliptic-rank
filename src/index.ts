@@ -1,7 +1,18 @@
 import { Hono } from 'hono'
 import { getGp } from './pari'
 import { verify, type VerifyInput } from './verify'
-import { landingPage, verifyResultPage, apiDocsPage, notFoundPage, profilePage, type TokenRow, type SubmitInfo } from './pages'
+import {
+  landingPage,
+  verifyResultPage,
+  apiDocsPage,
+  notFoundPage,
+  profilePage,
+  curveDetailPage,
+  type TokenRow,
+  type SubmitInfo,
+  type PlotCurve,
+  type CurveRow,
+} from './pages'
 import { recordCurve } from './store'
 import {
   type AppEnv,
@@ -25,7 +36,26 @@ app.use('*', async (c, next) => {
   await next()
 })
 
-app.get('/', (c) => c.html(landingPage(c.get('user'))))
+app.get('/', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    'SELECT id, rank_lower_bound, naive_height FROM curves',
+  ).all<PlotCurve>()
+  return c.html(landingPage(c.get('user'), results))
+})
+
+app.get('/curve/:id', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.html(notFoundPage(c.get('user')), 404)
+  const row = await c.env.DB.prepare(
+    `SELECT c.*, u.display_name AS submitter_name
+       FROM curves c LEFT JOIN users u ON u.id = c.submitter_user_id
+       WHERE c.id = ?`,
+  )
+    .bind(id)
+    .first<CurveRow>()
+  if (!row) return c.html(notFoundPage(c.get('user')), 404)
+  return c.html(curveDetailPage(row, c.get('user')))
+})
 
 app.get('/api', (c) => c.html(apiDocsPage(c.get('user'))))
 

@@ -94,7 +94,59 @@ const SAMPLE_POINTS = `49421, 200114
 51108, 1454591
 -3659, 14708205`
 
-export function landingPage(user: User | null = null): string {
+export interface PlotCurve {
+  id: number
+  rank_lower_bound: number
+  naive_height: number
+}
+
+// Server-rendered SVG scatter of rank (y) vs naive height (x). Each dot is an
+// anchor to the curve's page, so the plot is fully clickable without any JS.
+function rankHeightPlot(curves: PlotCurve[]): string {
+  if (curves.length === 0) {
+    return `<p class="muted plot-empty">No curves on the board yet &mdash; verify one below to be the first.</p>`
+  }
+  const W = 720, H = 440, L = 54, R = 18, T = 18, B = 46
+  const plotW = W - L - R, plotH = H - T - B
+  const heights = curves.map((c) => c.naive_height)
+  let xmin = Math.min(...heights), xmax = Math.max(...heights)
+  if (xmin === xmax) { xmin -= 1; xmax += 1 }
+  const xpad = (xmax - xmin) * 0.05
+  xmin -= xpad
+  xmax += xpad
+  const ymax = Math.max(...curves.map((c) => c.rank_lower_bound)) + 1
+  const X = (h: number) => L + ((h - xmin) / (xmax - xmin)) * plotW
+  const Y = (r: number) => T + plotH - (r / ymax) * plotH
+
+  let grid = ''
+  const yStep = ymax <= 14 ? 1 : Math.ceil(ymax / 10)
+  for (let r = 0; r <= ymax; r += yStep) {
+    const y = Y(r).toFixed(1)
+    grid += `<line class="grid" x1="${L}" y1="${y}" x2="${W - R}" y2="${y}"/><text class="tick" x="${L - 8}" y="${(Y(r) + 4).toFixed(1)}" text-anchor="end">${r}</text>`
+  }
+  for (let i = 0; i <= 5; i++) {
+    const h = xmin + (i / 5) * (xmax - xmin)
+    const x = X(h).toFixed(1)
+    grid += `<line class="grid" x1="${x}" y1="${T}" x2="${x}" y2="${T + plotH}"/><text class="tick" x="${x}" y="${T + plotH + 18}" text-anchor="middle">${h.toFixed(0)}</text>`
+  }
+  const dots = curves
+    .map((c) => {
+      const x = X(c.naive_height).toFixed(1)
+      const y = Y(c.rank_lower_bound).toFixed(1)
+      return `<a href="/curve/${c.id}"><circle class="dot" cx="${x}" cy="${y}" r="4"><title>rank &ge; ${c.rank_lower_bound}, height ${c.naive_height.toFixed(2)}</title></circle></a>`
+    })
+    .join('')
+  return `<svg class="rank-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="Rank versus height scatter plot of all curves">
+      ${grid}
+      <line class="axis" x1="${L}" y1="${T}" x2="${L}" y2="${T + plotH}"/>
+      <line class="axis" x1="${L}" y1="${T + plotH}" x2="${W - R}" y2="${T + plotH}"/>
+      <text class="axis-title" x="${L + plotW / 2}" y="${H - 6}" text-anchor="middle">naive height &rarr;</text>
+      <text class="axis-title" transform="rotate(-90)" x="${-(T + plotH / 2)}" y="15" text-anchor="middle">rank (lower bound) &rarr;</text>
+      ${dots}
+    </svg>`
+}
+
+export function landingPage(user: User | null = null, curves: PlotCurve[] = []): string {
   const inner = `
       <section class="hero">
         <p class="lede">Can we find elliptic curves of <em>high rank</em> and <em>low height</em>?</p>
@@ -103,14 +155,18 @@ export function landingPage(user: User | null = null): string {
         </div>
       </section>
       <p>This site tracks elliptic curves <em>E</em>/&#8474; of high Mordell&ndash;Weil rank relative to their
-      height &mdash; a leaderboard in the spirit of <a class="external" href="https://web.math.pmf.unizg.hr/~duje/tors/tors.html">Dujella's rank tables</a>,
+      height &mdash; a leaderboard in the spirit of <a class="external" href="https://web.math.pmf.unizg.hr/~duje/tors/rankhist.html">Dujella's rank tables</a>,
       but ranking by height as well.</p>
       <p>Every entry is backed by an explicit list of rational points. We certify a <strong>rank lower bound</strong>
       without computing the exact rank: each point is checked to lie on the curve, and their
       N&eacute;ron&ndash;Tate height-pairing matrix is verified to be positive definite &mdash; so the points are
       independent in <em>E</em>(&#8474;), proving rank &ge; the number of points.</p>
       <p>Height is the naive height <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span>.</p>
-      <p class="browse-cta"><span class="muted">Leaderboard coming soon &mdash;</span> for now, verify a curve below.</p>
+      <section class="board">
+        <h2>The board</h2>
+        ${rankHeightPlot(curves)}
+        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is up and to the left: high rank, low height.</p>
+      </section>
 
       <section class="submit">
         <h2>Verify a rank lower bound</h2>
@@ -129,6 +185,62 @@ export function landingPage(user: User | null = null): string {
         </form>
       </section>`
   return layout('Elliptic Rank', inner, user)
+}
+
+export interface CurveRow {
+  id: number
+  curve_key: string
+  c4: string
+  c6: string
+  ainvs: string // JSON [a1..a6]
+  discriminant: string
+  naive_height: number
+  rank_lower_bound: number
+  regulator: string
+  points: string // JSON [[x,y],...]
+  submitter_name: string | null
+  created_at: string
+  updated_at: string
+}
+
+export function curveDetailPage(curve: CurveRow, user: User | null = null): string {
+  let ainvs: string[] = []
+  let points: [string, string][] = []
+  try {
+    ainvs = JSON.parse(curve.ainvs)
+    points = JSON.parse(curve.points)
+  } catch {
+    /* leave empty */
+  }
+  const [a1, a2, a3, a4, a6] = ainvs
+  const eq = `y<sup>2</sup> + ${escapeHtml(a1)}xy + ${escapeHtml(a3)}y = x<sup>3</sup> + ${escapeHtml(a2)}x<sup>2</sup> + ${escapeHtml(a4)}x + ${escapeHtml(a6)}`
+  const pointList = points
+    .map(([x, y]) => `<li><code>(${escapeHtml(x)}, ${escapeHtml(y)})</code></li>`)
+    .join('\n          ')
+  const submitter = curve.submitter_name
+    ? escapeHtml(curve.submitter_name)
+    : '<span class="muted">anonymous</span>'
+  const inner = `
+      <p class="page-nav"><a href="/">&larr; the board</a></p>
+      <h2>Rank &ge; ${curve.rank_lower_bound} curve</h2>
+      <div class="curve-eq eq">${eq}</div>
+      <dl class="result-meta">
+        <dt>a-invariants</dt><dd><code>[${ainvs.map(escapeHtml).join(', ')}]</code></dd>
+        <dt>rank (lower bound)</dt><dd>&ge; ${curve.rank_lower_bound}</dd>
+        <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}</dd>
+        <dt>curve key</dt><dd><code>${escapeHtml(curve.curve_key)}</code> <span class="muted">(reduced c4:c6)</span></dd>
+        <dt>discriminant</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code></dd>
+        <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
+        <dt>submitted by</dt><dd>${submitter}</dd>
+        <dt>last updated</dt><dd>${escapeHtml(curve.updated_at)}</dd>
+      </dl>
+      <section class="witness">
+        <h3>Witness: ${points.length} independent points</h3>
+        <ul class="point-list">
+          ${pointList}
+        </ul>
+      </section>`
+  return layout(`Rank ${curve.rank_lower_bound} curve — Elliptic Rank`, inner, user)
 }
 
 // Render a number-ish string, truncating very long values with an ellipsis.
