@@ -116,48 +116,49 @@ interface PlotPoint {
   x: number
 }
 
-// Server-rendered SVG scatter of rank (y) vs `x` (e.g. Faltings height or log
-// conductor). Each dot is an anchor to the curve's page — clickable, no JS.
-function scatterPlot(pts: PlotPoint[], xLabel: string, xFmt: (v: number) => string): string {
+// Server-rendered SVG scatter of a quantity `q` (e.g. naive/Faltings height or
+// log conductor, on the vertical axis) against rank (horizontal). Each dot is an
+// anchor to the curve's page — clickable, no JS.
+function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => string): string {
   if (pts.length === 0) {
-    return `<p class="muted plot-empty">No curves with a recorded ${xLabel} yet.</p>`
+    return `<p class="muted plot-empty">No curves with a recorded ${qLabel} yet.</p>`
   }
-  const W = 720, H = 440, L = 54, R = 18, T = 18, B = 46
+  const W = 720, H = 440, L = 60, R = 18, T = 18, B = 46
   const plotW = W - L - R, plotH = H - T - B
-  const xs = pts.map((p) => p.x)
-  let xmin = Math.min(...xs), xmax = Math.max(...xs)
-  if (xmin === xmax) { xmin -= 1; xmax += 1 }
-  const xpad = (xmax - xmin) * 0.05
-  xmin -= xpad
-  xmax += xpad
-  const ymax = Math.max(...pts.map((p) => p.rank)) + 1
-  const X = (v: number) => L + ((v - xmin) / (xmax - xmin)) * plotW
-  const Y = (r: number) => T + plotH - (r / ymax) * plotH
+  const qs = pts.map((p) => p.x)
+  let qmin = Math.min(...qs), qmax = Math.max(...qs)
+  if (qmin === qmax) { qmin -= 1; qmax += 1 }
+  const qpad = (qmax - qmin) * 0.05
+  qmin -= qpad
+  qmax += qpad
+  const rankMax = Math.max(...pts.map((p) => p.rank)) + 1
+  const X = (r: number) => L + (r / rankMax) * plotW
+  const Y = (q: number) => T + plotH - ((q - qmin) / (qmax - qmin)) * plotH
 
   let grid = ''
-  const yStep = ymax <= 14 ? 1 : Math.ceil(ymax / 10)
-  for (let r = 0; r <= ymax; r += yStep) {
-    const y = Y(r).toFixed(1)
-    grid += `<line class="grid" x1="${L}" y1="${y}" x2="${W - R}" y2="${y}"/><text class="tick" x="${L - 8}" y="${(Y(r) + 4).toFixed(1)}" text-anchor="end">${r}</text>`
+  const rStep = rankMax <= 16 ? 1 : Math.ceil(rankMax / 12)
+  for (let r = 0; r <= rankMax; r += rStep) {
+    const x = X(r).toFixed(1)
+    grid += `<line class="grid" x1="${x}" y1="${T}" x2="${x}" y2="${T + plotH}"/><text class="tick" x="${x}" y="${T + plotH + 18}" text-anchor="middle">${r}</text>`
   }
   for (let i = 0; i <= 5; i++) {
-    const v = xmin + (i / 5) * (xmax - xmin)
-    const x = X(v).toFixed(1)
-    grid += `<line class="grid" x1="${x}" y1="${T}" x2="${x}" y2="${T + plotH}"/><text class="tick" x="${x}" y="${T + plotH + 18}" text-anchor="middle">${xFmt(v)}</text>`
+    const q = qmin + (i / 5) * (qmax - qmin)
+    const y = Y(q).toFixed(1)
+    grid += `<line class="grid" x1="${L}" y1="${y}" x2="${W - R}" y2="${y}"/><text class="tick" x="${L - 8}" y="${(Y(q) + 4).toFixed(1)}" text-anchor="end">${qFmt(q)}</text>`
   }
   const dots = pts
     .map((p) => {
-      const x = X(p.x).toFixed(1)
-      const y = Y(p.rank).toFixed(1)
-      return `<a href="/curve/${p.id}"><circle class="dot" cx="${x}" cy="${y}" r="4"><title>rank &ge; ${p.rank}, ${xLabel} ${xFmt(p.x)}</title></circle></a>`
+      const x = X(p.rank).toFixed(1)
+      const y = Y(p.x).toFixed(1)
+      return `<a href="/curve/${p.id}"><circle class="dot" cx="${x}" cy="${y}" r="4"><title>rank &ge; ${p.rank}, ${qLabel} ${qFmt(p.x)}</title></circle></a>`
     })
     .join('')
-  return `<svg class="rank-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="Rank versus ${xLabel} scatter plot">
+  return `<svg class="rank-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${qLabel} versus rank scatter plot">
       ${grid}
       <line class="axis" x1="${L}" y1="${T}" x2="${L}" y2="${T + plotH}"/>
       <line class="axis" x1="${L}" y1="${T + plotH}" x2="${W - R}" y2="${T + plotH}"/>
-      <text class="axis-title" x="${L + plotW / 2}" y="${H - 6}" text-anchor="middle">${xLabel} &rarr;</text>
-      <text class="axis-title" transform="rotate(-90)" x="${-(T + plotH / 2)}" y="15" text-anchor="middle">rank (lower bound) &rarr;</text>
+      <text class="axis-title" x="${L + plotW / 2}" y="${H - 6}" text-anchor="middle">rank (lower bound) &rarr;</text>
+      <text class="axis-title" transform="rotate(-90)" x="${-(T + plotH / 2)}" y="15" text-anchor="middle">${qLabel} &rarr;</text>
       ${dots}
     </svg>`
 }
@@ -181,7 +182,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       every curve. Conductor and Faltings height are recorded when a submission supplies the curve's bad primes.</p>
       <section class="board">
         <h2>The board</h2>
-        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is up and to the left: high rank, low height. <a href="/database.json" download>Download the database (JSON) &darr;</a></p>
+        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor. <a href="/database.json" download>Download the database (JSON) &darr;</a></p>
         <h3>rank vs naive height</h3>
         ${scatterPlot(
           curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
