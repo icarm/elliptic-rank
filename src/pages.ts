@@ -86,7 +86,7 @@ export function landingPage(user: User | null = null): string {
       <section class="hero">
         <p class="lede">Which elliptic curves over &#8474; pack the most <em>rank</em> into the least <em>height</em>?</p>
         <div class="eq-line">
-          <span class="eq">y&sup2; + a&#8321;xy + a&#8323;y = x&sup3; + a&#8322;x&sup2; + a&#8324;x + a&#8326;</span>
+          <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
         </div>
       </section>
       <p>This site tracks elliptic curves <em>E</em>/&#8474; of high Mordell&ndash;Weil rank relative to their
@@ -96,7 +96,7 @@ export function landingPage(user: User | null = null): string {
       without computing the exact rank: each point is checked to lie on the curve, and their
       N&eacute;ron&ndash;Tate height-pairing matrix is verified to be positive definite &mdash; so the points are
       independent in <em>E</em>(&#8474;), proving rank &ge; the number of points.</p>
-      <p>Height is the naive height <span class="eq">log&#8201;max(|c&#8324;|&sup3;, |c&#8326;|&sup2;)</span>.</p>
+      <p>Height is the naive height <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span>.</p>
       <p class="browse-cta"><span class="muted">Leaderboard coming soon &mdash;</span> for now, verify a curve below.</p>
 
       <section class="submit">
@@ -105,7 +105,7 @@ export function landingPage(user: User | null = null): string {
         We confirm the points lie on the curve and are linearly independent.</p>
         <form method="post" action="/verify-form">
           <label class="field">
-            <span>a-invariants <span class="muted">&mdash; [a&#8324;, a&#8326;] or [a&#8321;, a&#8322;, a&#8323;, a&#8324;, a&#8326;], comma- or space-separated</span></span>
+            <span>a-invariants <span class="muted">&mdash; [a<sub>4</sub>, a<sub>6</sub>] or [a<sub>1</sub>, a<sub>2</sub>, a<sub>3</sub>, a<sub>4</sub>, a<sub>6</sub>], comma- or space-separated</span></span>
             <input type="text" name="ainvs" required value="${escapeHtml(SAMPLE_AINVS)}" />
           </label>
           <label class="field">
