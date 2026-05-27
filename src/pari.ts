@@ -7,9 +7,12 @@ import createPariModule from '@sagemath/pari/dist/gp-sta.js'
 // @ts-expect-error - wrangler imports .wasm as a compiled WebAssembly.Module
 import wasmModule from '@sagemath/pari/dist/gp-sta.wasm'
 
-// PARI stack size. Even the rank-28 record curve verifies in <4MB, and Workers
-// cap total memory at 128MB, so 64MB is comfortable with huge headroom.
-const PARI_SIZE = 64 * 1024 * 1024
+// PARI stack size (used for both parisize and parisizemax — the embedded build
+// requires them equal). gp_embedded_init commits ~2x this much real memory, and
+// a Worker is capped at 128MB total, so this must stay small: 64MB committed
+// ~130MB and the runtime kills the Worker as "hung". 16MB commits ~32MB, which
+// still verifies the rank-28 record curve with ~2x headroom (it needs <8MB).
+const PARI_SIZE = 16 * 1024 * 1024
 
 export type Gp = (cmd: string) => string
 
