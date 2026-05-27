@@ -5,6 +5,9 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-05-27",
   "compatibility_flags": ["nodejs_compat"],
+  "routes": [
+    { "pattern": "elliptic-rank.icarm.cloud", "custom_domain": true }
+  ],
   "observability": {
     "enabled": true
   }
