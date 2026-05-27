@@ -203,6 +203,31 @@ export interface CurveRow {
   updated_at: string
 }
 
+// Format the Weierstrass equation from a-invariants [a1,a2,a3,a4,a6], dropping
+// zero terms, omitting a coefficient of 1, and using real +/- operators.
+function weierstrassEq(ainvs: string[]): string {
+  const [a1, a2, a3, a4, a6] = ainvs.length === 2 ? ['0', '0', '0', ...ainvs] : ainvs
+  // A term with coefficient `coeff` multiplying `v` (HTML; '' for the constant).
+  const term = (coeff: string, v: string): { neg: boolean; body: string } | null => {
+    const neg = coeff.startsWith('-')
+    const mag = coeff.replace(/^[+-]/, '')
+    if (mag === '0') return null
+    if (v === '') return { neg, body: escapeHtml(mag) } // constant: keep magnitude
+    if (mag === '1') return { neg, body: v } // 1·v → v
+    return { neg, body: escapeHtml(mag) + v }
+  }
+  const append = (base: string, t: ReturnType<typeof term>): string =>
+    t ? `${base} ${t.neg ? '&minus;' : '+'} ${t.body}` : base
+  let lhs = 'y<sup>2</sup>'
+  lhs = append(lhs, term(a1, 'xy'))
+  lhs = append(lhs, term(a3, 'y'))
+  let rhs = 'x<sup>3</sup>'
+  rhs = append(rhs, term(a2, 'x<sup>2</sup>'))
+  rhs = append(rhs, term(a4, 'x'))
+  rhs = append(rhs, term(a6, ''))
+  return `${lhs} = ${rhs}`
+}
+
 export function curveDetailPage(curve: CurveRow, user: User | null = null): string {
   let ainvs: string[] = []
   let points: [string, string][] = []
@@ -212,8 +237,7 @@ export function curveDetailPage(curve: CurveRow, user: User | null = null): stri
   } catch {
     /* leave empty */
   }
-  const [a1, a2, a3, a4, a6] = ainvs
-  const eq = `y<sup>2</sup> + ${escapeHtml(a1)}xy + ${escapeHtml(a3)}y = x<sup>3</sup> + ${escapeHtml(a2)}x<sup>2</sup> + ${escapeHtml(a4)}x + ${escapeHtml(a6)}`
+  const eq = weierstrassEq(ainvs)
   const pointList = points
     .map(([x, y]) => `<li><code>(${escapeHtml(x)}, ${escapeHtml(y)})</code></li>`)
     .join('\n          ')
