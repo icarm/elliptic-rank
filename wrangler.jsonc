@@ -21,7 +21,7 @@
     {
       "binding": "DB",
       "database_name": "elliptic-rank",
-      "database_id": "PLACEHOLDER_D1_DATABASE_ID",
+      "database_id": "a7e92df8-b781-4efe-a914-f466fe152991",
       "migrations_dir": "migrations"
     }
   ],
