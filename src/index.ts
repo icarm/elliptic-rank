@@ -102,6 +102,63 @@ app.get('/curve/:id/commentary-history', async (c) => {
 
 app.get('/api', (c) => c.html(apiDocsPage(c.get('user'))))
 
+// Full database as downloadable JSON.
+app.get('/database.json', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT c.id, c.curve_key, c.ainvs, c.discriminant, c.naive_height, c.rank_lower_bound,
+            c.regulator, c.points, c.conductor, c.minimal_discriminant, c.faltings_height,
+            c.created_at, c.updated_at, u.display_name AS submitter, cl.content AS commentary
+       FROM curves c
+       LEFT JOIN users u ON u.id = c.submitter_user_id
+       LEFT JOIN comments_log cl ON cl.id = c.current_comment_id
+       ORDER BY c.rank_lower_bound DESC, c.naive_height ASC`,
+  ).all<{
+    id: number
+    curve_key: string
+    ainvs: string
+    discriminant: string
+    naive_height: number
+    rank_lower_bound: number
+    regulator: string
+    points: string
+    conductor: string | null
+    minimal_discriminant: string | null
+    faltings_height: number | null
+    created_at: string
+    updated_at: string
+    submitter: string | null
+    commentary: string | null
+  }>()
+  const parse = (s: string): unknown => {
+    try {
+      return JSON.parse(s)
+    } catch {
+      return s
+    }
+  }
+  const curves = results.map((r) => ({
+    id: r.id,
+    curve_key: r.curve_key,
+    ainvs: parse(r.ainvs),
+    rank_lower_bound: r.rank_lower_bound,
+    naive_height: r.naive_height,
+    faltings_height: r.faltings_height,
+    conductor: r.conductor,
+    discriminant: r.discriminant,
+    minimal_discriminant: r.minimal_discriminant,
+    regulator: r.regulator,
+    points: parse(r.points),
+    submitter: r.submitter,
+    commentary: r.commentary || null,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  }))
+  return c.json({ count: curves.length, curves }, 200, {
+    'content-disposition': 'attachment; filename="elliptic-rank-database.json"',
+    'cache-control': 'public, max-age=300',
+  })
+})
+
 // JSON API: submit a curve + witness points. Requires a bearer token; the
 // verified curve is recorded on the leaderboard. Body: { ainvs, points }.
 app.post('/api/submit', async (c) => {

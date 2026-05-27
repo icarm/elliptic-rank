@@ -181,7 +181,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       every curve. Conductor and Faltings height are recorded when a submission supplies the curve's bad primes.</p>
       <section class="board">
         <h2>The board</h2>
-        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is up and to the left: high rank, low height.</p>
+        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is up and to the left: high rank, low height. <a href="/database.json" download>Download the database (JSON) &darr;</a></p>
         <h3>rank vs naive height</h3>
         ${scatterPlot(
           curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
@@ -520,6 +520,11 @@ export function apiDocsPage(user: User | null = null): string {
       <code>"unchanged"</code> (a curve's record only changes when a witness proves a strictly higher
       rank).</p>
       <pre><code>${escapeHtml(verifyResp)}</code></pre>
+
+      <h3>GET <code>/database.json</code></h3>
+      <p>The entire database as one JSON download: <code>{ count, curves }</code>, each curve with its
+      a-invariants, witness points, rank lower bound, naive height, and (when recorded) conductor,
+      minimal discriminant, Faltings height, submitter, and commentary. No auth required.</p>
 
       <h3>POST <code>/curve/:id/commentary</code></h3>
       <p>Edit a curve's commentary. Form-encoded <code>content</code>; an empty value clears it. Each
