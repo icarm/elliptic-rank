@@ -1,0 +1,372 @@
+:root {
+  --bg: #f3f6fb;
+  --fg: #1a1a1a;
+  --muted: #566370;
+  --accent: #2a6df4;
+  --border: #dbe3ec;
+  --panel: #fafcfe;
+  --panel-soft: #f6f8fb;
+  --code-bg: #eef2f7;
+  --accent-soft: #eaf1fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  line-height: 1.6;
+}
+
+header {
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+header .inner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+header h1 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+header h1 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+header h1 a:hover {
+  color: var(--accent);
+}
+
+header nav .auth-nav {
+  margin-left: 1rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+header nav .auth-nav a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+header nav .auth-nav a:hover {
+  color: var(--accent);
+}
+
+.auth-user {
+  font-weight: 600;
+}
+
+.auth-logout {
+  display: inline;
+  margin-left: 0.6rem;
+}
+
+.auth-logout button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.auth-logout button:hover {
+  color: var(--accent);
+}
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem;
+}
+
+main h2 {
+  margin-top: 0;
+  font-size: 2rem;
+  letter-spacing: -0.01em;
+}
+
+main p {
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+main a {
+  color: var(--accent);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+code, .eq {
+  font-family: "Cambria Math", Cambria, Georgia, serif;
+}
+
+main p code, .result code, pre code, .submit-help code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  background: var(--code-bg);
+  padding: 0.05rem 0.3rem;
+  border-radius: 3px;
+}
+
+/* Hero / question callout */
+.hero {
+  margin: 0 0 2rem;
+  padding: 1.75rem 2rem;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: 4px;
+}
+
+.hero .lede {
+  margin: 0;
+  color: var(--fg);
+  font-size: 1.25rem;
+}
+
+.hero .lede em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.eq-line {
+  text-align: center;
+  margin: 1rem 0 0;
+}
+
+.eq {
+  font-size: 1.2rem;
+  color: var(--fg);
+}
+
+.browse-cta {
+  margin: 1.75rem 0;
+  font-size: 1.1rem;
+}
+
+.browse-cta a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.browse-cta a:hover {
+  text-decoration: underline;
+}
+
+.page-nav {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+}
+
+.page-nav a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.page-nav a:hover {
+  text-decoration: underline;
+}
+
+/* Submit / verify form */
+.submit {
+  margin-top: 3rem;
+  padding-top: 1.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.submit h2 {
+  font-size: 1.4rem;
+}
+
+.submit-help {
+  color: var(--muted);
+  font-size: 0.95rem;
+  margin-top: 0.25rem;
+}
+
+.field {
+  display: block;
+  margin: 1.25rem 0;
+}
+
+.field > span {
+  display: block;
+  margin-bottom: 0.4rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.field > span .muted {
+  font-weight: 400;
+}
+
+.field input[type="text"],
+.field textarea {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.95rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--panel);
+  resize: vertical;
+  line-height: 1.5;
+}
+
+.field input[type="text"]:focus,
+.field textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+
+.submit-row {
+  margin-top: 0.75rem;
+}
+
+.submit-row button {
+  padding: 0.55rem 1.4rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.submit-row button:hover {
+  filter: brightness(1.08);
+}
+
+/* Verification result */
+.result {
+  padding: 1.25rem 1.5rem;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  margin: 1rem 0;
+}
+
+.result h2 {
+  margin-top: 0;
+  font-size: 1.5rem;
+}
+
+.result-accepted {
+  border-left: 4px solid #2a9d48;
+}
+
+.result-accepted h2 {
+  color: #1d7a36;
+}
+
+.result-rejected {
+  border-left: 4px solid #c0392b;
+}
+
+.result-rejected h2 {
+  color: #a5281b;
+}
+
+.result-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1rem;
+  margin: 1rem 0;
+}
+
+.result-meta dt {
+  font-weight: 600;
+}
+
+.result-meta dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.result-method {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin-bottom: 0;
+}
+
+.result-errors {
+  margin: 0.5rem 0 0 1.25rem;
+  color: var(--fg);
+}
+
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+pre code {
+  background: transparent;
+  padding: 0;
+}
+
+footer {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
+footer a {
+  color: var(--muted);
+}
+
+/* Wikipedia-style external-link glyph */
+a.external::after {
+  content: "";
+  display: inline-block;
+  width: 0.75em;
+  height: 0.75em;
+  margin-left: 0.25em;
+  background-color: currentColor;
+  opacity: 0.6;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M6 1h5v5L8.86 3.85 4.7 8 4 7.3l4.15-4.15zM2 3h2v1H3v6h6V8h1v3H2z'/></svg>") no-repeat center / contain;
+          mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'><path d='M6 1h5v5L8.86 3.85 4.7 8 4 7.3l4.15-4.15zM2 3h2v1H3v6h6V8h1v3H2z'/></svg>") no-repeat center / contain;
+}
+
+@media (max-width: 600px) {
+  main { padding: 2rem 1.25rem; }
+  .hero { padding: 1.25rem 1rem; }
+  .eq { font-size: 1rem; word-break: break-word; }
+  .result-meta { grid-template-columns: 1fr; gap: 0.1rem; }
+  .result-meta dt { margin-top: 0.5rem; }
+}

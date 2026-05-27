@@ -8,6 +8,9 @@
   "routes": [
     { "pattern": "elliptic-rank.icarm.cloud", "custom_domain": true }
   ],
+  "assets": {
+    "directory": "./public"
+  },
   "observability": {
     "enabled": true
   }
