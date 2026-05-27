@@ -134,6 +134,7 @@ export function verifyResultPage(result: VerifyResult, user: User | null = null)
         <h2>&#10003; Verified: rank &ge; ${ind.rankLowerBound}</h2>
         <dl class="result-meta">
           <dt>points</dt><dd>${result.points.length}, all on the curve and independent</dd>
+          <dt>curve key</dt><dd><code>${escapeHtml(clip(result.canonical?.key ?? '—', 60))}</code> <span class="muted">(reduced c4:c6)</span></dd>
           <dt>regulator</dt><dd><code>${escapeHtml(clip(ind.regulator))}</code></dd>
           <dt>min. eigenvalue</dt><dd><code>${escapeHtml(clip(ind.minEigenvalue))}</code></dd>
           <dt>naive height</dt><dd><code>${escapeHtml(clip(result.height!.naiveLogHeight))}</code></dd>

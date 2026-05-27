@@ -43,6 +43,14 @@ export interface IndependenceResult {
   method: string
 }
 
+// Canonical representative of the Q-isomorphism class: the reduced (c4,c6).
+// `key` is the dedup identity — same key iff the same curve.
+export interface Canonical {
+  c4: string
+  c6: string
+  key: string
+}
+
 export interface VerifyResult {
   ok: boolean
   errors: string[]
@@ -53,6 +61,7 @@ export interface VerifyResult {
     discriminant: string
     nonsingular: boolean
   } | null
+  canonical: Canonical | null
   points: PointResult[]
   allPointsOnCurve: boolean
   independence: IndependenceResult | null
@@ -101,11 +110,40 @@ function normalizeAinvs(ainvs: (string | number)[]): [string, string, string, st
   throw new InputError('ainvs must have length 2 ([a4,a6]) or 5 ([a1,a2,a3,a4,a6])')
 }
 
+// Canonical (c4,c6) for the curve `E` already loaded in the gp session.
+//
+// Two curves over Q are isomorphic iff (c4,c6) = (u^4 c4', u^6 c6') for some
+// u in Q*. We reduce to the orbit representative by dividing out the largest u
+// (built from small primes) with u^4|c4 and u^6|c6. This is trial division, not
+// factoring: it can't hang, and it is complete in practice — minimal models give
+// u=1, non-minimal submissions scale by a small u, and any large prime in
+// gcd(c4,c6) necessarily has exponent 0 in u so is correctly left untouched.
+function reduceC4C6(gp: Gp): Canonical {
+  const vec = evalGp(
+    gp,
+    'my(c4=E.c4,c6=E.c6); forprime(p=2,100000, while(c4%p^4==0 && c6%p^6==0, c4=c4/p^4; c6=c6/p^6)); [c4,c6]',
+  )
+  const m = vec.match(/^\[(.+),\s*(.+)\]$/)
+  if (!m) throw new Error(`unexpected canonical form: ${vec.slice(0, 80)}`)
+  const c4 = m[1].trim()
+  const c6 = m[2].trim()
+  return { c4, c6, key: `${c4}:${c6}` }
+}
+
+// Standalone canonical dedup key for a curve, without verifying points.
+export function canonicalKey(gp: Gp, ainvs: (string | number)[]): Canonical {
+  const a = normalizeAinvs(ainvs)
+  evalGp(gp, `E = ellinit([${a.join(',')}])`)
+  if (evalGp(gp, '#E') === '0') throw new Error('singular curve (discriminant 0)')
+  return reduceC4C6(gp)
+}
+
 export function verify(gp: Gp, input: VerifyInput): VerifyResult {
   const result: VerifyResult = {
     ok: false,
     errors: [],
     curve: null,
+    canonical: null,
     points: [],
     allPointsOnCurve: false,
     independence: null,
@@ -142,6 +180,9 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
       result.errors.push('curve is singular (discriminant 0): not an elliptic curve')
       return result
     }
+
+    // Canonical dedup key: reduced (c4,c6), identifying the Q-isomorphism class.
+    result.canonical = reduceC4C6(gp)
 
     // Naive height log max(|c4|^3, |c6|^2) — cheap, no factoring.
     result.height = {
