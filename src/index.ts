@@ -3,7 +3,7 @@ import { getGp } from './pari'
 import { verify, type VerifyInput } from './verify'
 import {
   landingPage,
-  verifyResultPage,
+  submitResultPage,
   apiDocsPage,
   notFoundPage,
   profilePage,
@@ -102,8 +102,11 @@ app.get('/curve/:id/commentary-history', async (c) => {
 
 app.get('/api', (c) => c.html(apiDocsPage(c.get('user'))))
 
-// JSON API: certify a rank lower bound. Body: { ainvs, points }.
-app.post('/api/verify', async (c) => {
+// JSON API: submit a curve + witness points. Requires a bearer token; the
+// verified curve is recorded on the leaderboard. Body: { ainvs, points }.
+app.post('/api/submit', async (c) => {
+  const user = c.get('user')
+  if (!user) return c.json({ ok: false, errors: ['authentication required'] }, 401)
   let body: VerifyInput
   try {
     body = await c.req.json()
@@ -112,14 +115,15 @@ app.post('/api/verify', async (c) => {
   }
   const gp = await getGp()
   const result = verify(gp, body)
-  // Authenticated requests (bearer token) record to the leaderboard.
-  const user = c.get('user')
-  const leaderboard = result.ok && user ? await recordCurve(c.env, user.id, result) : undefined
+  const leaderboard = result.ok ? await recordCurve(c.env, user.id, result) : undefined
   return c.json({ ...result, leaderboard }, result.ok ? 200 : 422)
 })
 
-// HTML form on the landing page posts here; renders a result page.
-app.post('/verify-form', async (c) => {
+// HTML form on the landing page posts here; requires login, records, and
+// renders a result page.
+app.post('/submit-form', async (c) => {
+  const user = c.get('user')
+  if (!user) return c.redirect('/auth/github', 302)
   const form = await c.req.parseBody()
   const input: VerifyInput = {
     ainvs: parseTokens(String(form.ainvs ?? '')),
@@ -127,11 +131,8 @@ app.post('/verify-form', async (c) => {
   }
   const gp = await getGp()
   const result = verify(gp, input)
-  // Logged-in users record to the leaderboard; anonymous users get a prompt.
-  const user = c.get('user')
-  let submit: SubmitInfo | null = null
-  if (result.ok) submit = user ? await recordCurve(c.env, user.id, result) : { status: 'anonymous' }
-  return c.html(verifyResultPage(result, user, submit), result.ok ? 200 : 422)
+  const submit: SubmitInfo | null = result.ok ? await recordCurve(c.env, user.id, result) : null
+  return c.html(submitResultPage(result, user, submit), result.ok ? 200 : 422)
 })
 
 // --- Auth ---

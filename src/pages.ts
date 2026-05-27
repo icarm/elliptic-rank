@@ -105,7 +105,7 @@ export interface PlotCurve {
 // anchor to the curve's page, so the plot is fully clickable without any JS.
 function rankHeightPlot(curves: PlotCurve[]): string {
   if (curves.length === 0) {
-    return `<p class="muted plot-empty">No curves on the board yet &mdash; verify one below to be the first.</p>`
+    return `<p class="muted plot-empty">No curves on the board yet &mdash; submit one below to be the first.</p>`
   }
   const W = 720, H = 440, L = 54, R = 18, T = 18, B = 46
   const plotW = W - L - R, plotH = H - T - B
@@ -160,7 +160,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       but ranking by height as well.</p>
       <p>Every entry is backed by an explicit list of rational points. We certify a <strong>rank lower bound</strong>
       without computing the exact rank: each point is checked to lie on the curve, and their
-      N&eacute;ron&ndash;Tate height-pairing matrix is verified to be positive definite &mdash; so the points are
+      N&eacute;ron&ndash;Tate height-pairing matrix is checked to be positive definite &mdash; so the points are
       independent in <em>E</em>(&#8474;), proving rank &ge; the number of points.</p>
       <p>Height is the naive height <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span>.</p>
       <section class="board">
@@ -172,17 +172,22 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       <section class="submit">
         <h2>Submit a rank lower bound</h2>
         <p class="submit-help">Give the Weierstrass coefficients and a set of independent rational points.
-        We confirm the points lie on the curve and are linearly independent.</p>
-        <form method="post" action="/verify-form">
+        On submission we confirm the points lie on the curve and are linearly independent, then record
+        the curve on the board.</p>
+        <form method="post" action="/submit-form">
           <label class="field">
             <span>a-invariants <span class="muted">&mdash; [a<sub>4</sub>, a<sub>6</sub>] or [a<sub>1</sub>, a<sub>2</sub>, a<sub>3</sub>, a<sub>4</sub>, a<sub>6</sub>], comma- or space-separated</span></span>
-            <input type="text" name="ainvs" required value="${escapeHtml(SAMPLE_AINVS)}" />
+            <input type="text" name="ainvs" ${user ? 'required' : 'disabled'} value="${escapeHtml(SAMPLE_AINVS)}" />
           </label>
           <label class="field">
             <span>points <span class="muted">&mdash; one per line, <code>x, y</code> (integers or rationals like <code>3/16</code>)</span></span>
-            <textarea name="points" rows="12" required>${escapeHtml(SAMPLE_POINTS)}</textarea>
+            <textarea name="points" rows="12" ${user ? 'required' : 'disabled'}>${escapeHtml(SAMPLE_POINTS)}</textarea>
           </label>
-          <div class="submit-row"><button type="submit">Submit</button></div>
+          <div class="submit-row">${
+            user
+              ? '<button type="submit">Submit</button>'
+              : '<a class="login-to-submit" href="/auth/github">Log in to submit</a>'
+          }</div>
         </form>
       </section>`
   return layout('Elliptic Rank', inner, user)
@@ -338,10 +343,8 @@ function clip(s: string, n = 60): string {
   return s.length > n ? s.slice(0, n) + '…' : s
 }
 
-// Outcome of recording the verified curve to the leaderboard (or a prompt to
-// log in when the verifier was anonymous).
+// Outcome of recording a submitted curve on the leaderboard.
 export type SubmitInfo =
-  | { status: 'anonymous' }
   | { status: 'created'; rank: number }
   | { status: 'improved'; rank: number; previousRank: number }
   | { status: 'unchanged'; rank: number }
@@ -349,8 +352,6 @@ export type SubmitInfo =
 function leaderboardStatus(submit: SubmitInfo | null): string {
   if (!submit) return ''
   switch (submit.status) {
-    case 'anonymous':
-      return `<p class="leaderboard-status"><a href="/auth/github">Log in with GitHub</a> to add this curve to the leaderboard.</p>`
     case 'created':
       return `<p class="leaderboard-status added">&#10003; Added to the leaderboard.</p>`
     case 'improved':
@@ -360,7 +361,7 @@ function leaderboardStatus(submit: SubmitInfo | null): string {
   }
 }
 
-export function verifyResultPage(
+export function submitResultPage(
   result: VerifyResult,
   user: User | null = null,
   submit: SubmitInfo | null = null,
@@ -370,9 +371,9 @@ export function verifyResultPage(
     const ind = result.independence
     const c = result.curve!
     inner = `
-      <p class="page-nav"><a href="/">&larr; verify another</a></p>
+      <p class="page-nav"><a href="/">&larr; submit another</a></p>
       <div class="result result-accepted">
-        <h2>&#10003; Verified: rank &ge; ${ind.rankLowerBound}</h2>
+        <h2>&#10003; Submitted: rank &ge; ${ind.rankLowerBound}</h2>
         <dl class="result-meta">
           <dt>points</dt><dd>${result.points.length}, all on the curve and independent</dd>
           <dt>curve key</dt><dd><code>${escapeHtml(clip(result.canonical?.key ?? '—', 60))}</code> <span class="muted">(reduced c4:c6)</span></dd>
@@ -393,37 +394,71 @@ export function verifyResultPage(
     inner = `
       <p class="page-nav"><a href="/">&larr; back</a></p>
       <div class="result result-rejected">
-        <h2>&#10007; Not verified</h2>
+        <h2>&#10007; Not accepted</h2>
         <ul class="result-errors">
           ${result.errors.map((e) => `<li>${escapeHtml(e)}</li>`).join('\n          ')}
         </ul>
         ${detail}
       </div>`
   }
-  return layout('Verification result', inner, user)
+  return layout('Submission result', inner, user)
 }
 
 export function apiDocsPage(user: User | null = null): string {
-  const example = `curl -X POST https://elliptic-rank.icarm.cloud/api/verify \\
+  const verifyReq = `curl -X POST https://elliptic-rank.icarm.cloud/api/submit \\
   -H 'content-type: application/json' \\
+  -H 'authorization: Bearer erank_...' \\
   -d '{
     "ainvs": ["0","0","1","-6349808647","193146346911036"],
-    "points": [["49421","200114"], ["49493","333458"]]
+    "points": [["49421","200114"], ["49493","333458"], ...]
   }'`
+  const verifyResp = `{
+  "ok": true,
+  "curve":   { "ainvs": [...], "c4": "...", "c6": "...", "discriminant": "...", "nonsingular": true },
+  "canonical": { "c4": "...", "c6": "...", "key": "304790815056:-166878443731135320" },
+  "points":  [ { "point": ["49421","200114"], "onCurve": true }, ... ],
+  "allPointsOnCurve": true,
+  "independence": {
+    "independent": true, "rankLowerBound": 12,
+    "regulator": "...", "minEigenvalue": "...",
+    "precisionDigits": 62, "stable": true, "method": "..."
+  },
+  "height": { "naiveLogHeight": "79.3286..." },
+  "leaderboard": { "status": "created", "rank": 12 }
+}`
+  const commentReq = `curl -X POST https://elliptic-rank.icarm.cloud/curve/123/commentary \\
+  -H 'authorization: Bearer erank_...' \\
+  --data-urlencode 'content=Found by Mestre (1982).'`
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>API</h2>
-      <p>One endpoint certifies a rank lower bound from a curve and witness points.</p>
-      <h3>POST <code>/api/verify</code></h3>
-      <p>Body: JSON <code>{ ainvs, points }</code>. <code>ainvs</code> is <code>[a4,a6]</code> or
-      <code>[a1,a2,a3,a4,a6]</code>; <code>points</code> is a list of <code>[x,y]</code>. All values are
-      integers or rationals, given as strings. Returns <code>200</code> with the verification result, or
-      <code>422</code> if the submission is invalid.</p>
-      <pre><code>${escapeHtml(example)}</code></pre>
-      <h3>Authentication</h3>
-      <p>Verification is open and needs no auth. To act as yourself (e.g. for attribution),
-      add an <code>Authorization: Bearer &lt;token&gt;</code> header. Create a token on your
-      <a href="/profile">profile</a> page.</p>`
+      <p>All numbers are exact integers or rationals (e.g. <code>"49/4"</code>), passed
+      <strong>as strings</strong> to avoid precision loss. <code>ainvs</code> may be the short
+      <code>[a4, a6]</code> or full <code>[a1, a2, a3, a4, a6]</code> Weierstrass form. Every endpoint
+      requires an <code>Authorization: Bearer &lt;token&gt;</code> header &mdash; create a token on
+      your <a href="/profile">profile</a> page.</p>
+
+      <h3>POST <code>/api/submit</code></h3>
+      <p>Submits a curve with a set of witness points. The points are checked to lie on the curve, and
+      their N&eacute;ron&ndash;Tate height-pairing matrix is checked to be positive definite (so they
+      are independent in <em>E</em>(&#8474;), proving <code>rank &ge; #points</code>). On success the
+      curve is <strong>recorded on the leaderboard</strong>, attributed to you. Body:
+      <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>.</p>
+      <pre><code>${escapeHtml(verifyReq)}</code></pre>
+      <p>Returns <code>200</code> with the result below, <code>422</code> if the submission is
+      invalid (singular curve, point off curve, or not independent), <code>401</code> without a valid
+      token, or <code>400</code> if the body isn't JSON. <code>independence.rankLowerBound</code> is
+      the proven bound, <code>canonical.key</code> identifies the curve up to &#8474;-isomorphism, and
+      the <code>leaderboard</code> field reports the outcome &mdash; <code>status</code> is
+      <code>"created"</code>, <code>"improved"</code> (with <code>previousRank</code>), or
+      <code>"unchanged"</code> (a curve's record only changes when a witness proves a strictly higher
+      rank).</p>
+      <pre><code>${escapeHtml(verifyResp)}</code></pre>
+
+      <h3>POST <code>/curve/:id/commentary</code></h3>
+      <p>Edit a curve's commentary. Form-encoded <code>content</code>; an empty value clears it. Each
+      edit is kept in the curve's commentary history.</p>
+      <pre><code>${escapeHtml(commentReq)}</code></pre>`
   return layout('API — Elliptic Rank', inner, user)
 }
 

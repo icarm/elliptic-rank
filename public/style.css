@@ -247,7 +247,9 @@ main p code, .result code, pre code, .submit-help code {
   margin-top: 0.75rem;
 }
 
-.submit-row button {
+.submit-row button,
+.submit-row .login-to-submit {
+  display: inline-block;
   padding: 0.55rem 1.4rem;
   background: var(--accent);
   color: #fff;
@@ -256,9 +258,11 @@ main p code, .result code, pre code, .submit-help code {
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
+  text-decoration: none;
 }
 
-.submit-row button:hover {
+.submit-row button:hover,
+.submit-row .login-to-submit:hover {
   filter: brightness(1.08);
 }
 
