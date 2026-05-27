@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "elliptic-rank",
+  "account_id": "641ee17fdc075e1c2f3b2cfc7ffdea81",
   "main": "src/index.ts",
   "compatibility_date": "2025-05-27",
   "observability": {
