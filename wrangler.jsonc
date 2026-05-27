@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "elliptic-rank",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-05-27",
+  "observability": {
+    "enabled": true
+  }
+}
