@@ -153,10 +153,27 @@ app.get('/database.json', async (c) => {
     created_at: r.created_at,
     updated_at: r.updated_at,
   }))
-  return c.json({ count: curves.length, curves }, 200, {
+  const payload = JSON.stringify({ count: curves.length, curves })
+  // Strong ETag over the exact body so clients can revalidate cheaply: the body
+  // changes only when a submission does, so unchanged downloads return a 304.
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload))
+  const etag =
+    '"' +
+    [...new Uint8Array(digest)]
+      .slice(0, 16)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('') +
+    '"'
+  const headers = {
+    'content-type': 'application/json; charset=UTF-8',
     'content-disposition': 'attachment; filename="elliptic-rank-database.json"',
-    'cache-control': 'public, max-age=300',
-  })
+    // no-cache = clients may store but must revalidate every time; paired with
+    // the ETag, a fresh request returns 304 (no body) when nothing changed.
+    'cache-control': 'no-cache',
+    etag,
+  }
+  if (c.req.header('if-none-match') === etag) return c.body(null, 304, headers)
+  return c.body(payload, 200, headers)
 })
 
 // JSON API: submit a curve + witness points. Requires a bearer token; the
