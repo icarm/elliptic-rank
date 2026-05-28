@@ -167,9 +167,6 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
   const inner = `
       <section class="hero">
         <p class="lede">Can we find elliptic curves of <em>high <a class="external" href="https://en.wikipedia.org/wiki/Rank_of_an_elliptic_curve">rank</a></em> and <em>small height or <a class="external" href="https://en.wikipedia.org/wiki/Conductor_of_an_elliptic_curve">conductor</a></em>?</p>
-        <div class="eq-line">
-          <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
-        </div>
       </section>
       <p>This site tracks elliptic curves <em>E</em>/&#8474; of high Mordell&ndash;Weil rank relative to their
       height &mdash; a leaderboard in the spirit of <a class="external" href="https://web.math.pmf.unizg.hr/~duje/tors/rankhist.html">Dujella's rank tables</a>,
@@ -209,6 +206,9 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
         <p class="submit-help">Give the Weierstrass coefficients and a set of independent rational points.
         On submission we confirm the points lie on the curve and are linearly independent, then record
         the curve on the board.</p>
+        <div class="eq-line">
+          <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
+        </div>
         <form method="post" action="/submit-form">
           <label class="field">
             <span>a-invariants <span class="muted">&mdash; [a<sub>4</sub>, a<sub>6</sub>] or [a<sub>1</sub>, a<sub>2</sub>, a<sub>3</sub>, a<sub>4</sub>, a<sub>6</sub>], comma- or space-separated</span></span>
