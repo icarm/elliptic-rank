@@ -178,24 +178,25 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       without computing the exact rank: each point is checked to lie on the curve, and their
       N&eacute;ron&ndash;Tate height-pairing matrix is checked to be positive definite &mdash; so the points are
       independent in <em>E</em>(&#8474;), proving rank &ge; the number of points.</p>
-      <p>Naive height is <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span>, recorded for
-      every curve. Conductor and Faltings height are recorded when a submission supplies the curve's bad primes.</p>
       <section class="board">
-        <h2>The board</h2>
+        <h2>Plots</h2>
         <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor. <a href="/database.json" download>Download the database (JSON) &darr;</a></p>
         <h3>naive height vs rank</h3>
+        <p class="muted board-caption">Naive height = <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span>. Recorded for every curve.</p>
         ${scatterPlot(
           curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
           'naive height',
           (v) => v.toFixed(0),
         )}
         <h3>Faltings height vs rank</h3>
+        <p class="muted board-caption">Stable Faltings height (LMFDB normalization), computed from the period lattice and the minimal discriminant. Recorded when a submission supplies the curve's bad primes.</p>
         ${scatterPlot(
           curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
           'Faltings height',
           (v) => v.toFixed(1),
         )}
         <h3>log conductor vs rank</h3>
+        <p class="muted board-caption">Natural log of the conductor <em>N</em> = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup> over bad primes. Recorded when a submission supplies the curve's bad primes.</p>
         ${scatterPlot(
           curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
           'log conductor',
