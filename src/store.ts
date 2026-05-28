@@ -44,6 +44,7 @@ export function commentHistory(env: Bindings, curveId: number): Promise<CommentV
 }
 
 export interface RecordStatus {
+  id: number
   status: 'created' | 'improved' | 'unchanged'
   rank: number
   previousRank?: number
@@ -88,7 +89,7 @@ export async function recordCurve(
     }>()
 
   if (!existing) {
-    await env.DB.prepare(
+    const ins = await env.DB.prepare(
       `INSERT INTO curves
          (curve_key, c4, c6, ainvs, discriminant, naive_height, rank_lower_bound,
           regulator, points, submitter_user_id, conductor, minimal_discriminant, faltings_height)
@@ -110,7 +111,7 @@ export async function recordCurve(
         faltings,
       )
       .run()
-    return { status: 'created', rank, conductor: !!conductor }
+    return { id: ins.meta.last_row_id as number, status: 'created', rank, conductor: !!conductor }
   }
 
   // Backfill the factoring-gated invariants whenever we now have them and the
@@ -131,7 +132,7 @@ export async function recordCurve(
     )
       .bind(rank, regulator, points, ainvs, userId, conductor, minDisc, faltings, existing.id)
       .run()
-    return { status: 'improved', rank, previousRank: existing.rank_lower_bound, conductor: setInvariants }
+    return { id: existing.id, status: 'improved', rank, previousRank: existing.rank_lower_bound, conductor: setInvariants }
   }
 
   if (setInvariants) {
@@ -142,5 +143,5 @@ export async function recordCurve(
       .bind(conductor, minDisc, faltings, existing.id)
       .run()
   }
-  return { status: 'unchanged', rank: existing.rank_lower_bound, conductor: setInvariants }
+  return { id: existing.id, status: 'unchanged', rank: existing.rank_lower_bound, conductor: setInvariants }
 }

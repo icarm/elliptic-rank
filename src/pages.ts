@@ -390,6 +390,7 @@ function clip(s: string, n = 60): string {
 
 // Outcome of recording a submitted curve on the leaderboard.
 export interface SubmitInfo {
+  id: number
   status: 'created' | 'improved' | 'unchanged'
   rank: number
   previousRank?: number
@@ -415,7 +416,8 @@ function leaderboardStatus(submit: SubmitInfo | null): string {
   const cond = submit.conductor ? ' Conductor, minimal discriminant &amp; Faltings height recorded.' : ''
   const tick = added || submit.conductor ? '&#10003; ' : ''
   const cls = added || submit.conductor ? 'leaderboard-status added' : 'leaderboard-status'
-  return `<p class="${cls}">${tick}${msg}${cond}</p>`
+  const link = ` <a href="/curve/${submit.id}">view the curve &rarr;</a>`
+  return `<p class="${cls}">${tick}${msg}${cond}${link}</p>`
 }
 
 export function submitResultPage(
