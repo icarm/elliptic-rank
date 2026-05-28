@@ -327,7 +327,7 @@ export function curveDetailPage(
     : '<span class="muted">anonymous</span>'
   const inner = `
       <p class="page-nav"><a href="/">&larr; the board</a></p>
-      <h2>Rank &ge; ${curve.rank_lower_bound} curve</h2>
+      <h2>curve #${curve.id}</h2>
       <div class="curve-eq eq">${eq}</div>
       <dl class="result-meta">
         <dt>a-invariants</dt><dd><code>[${ainvs.map(escapeHtml).join(', ')}]</code></dd>
@@ -349,7 +349,7 @@ export function curveDetailPage(
         </ul>
       </section>
       ${commentSection(curve.id, comment, user)}`
-  return layout(`Rank ${curve.rank_lower_bound} curve — Elliptic Rank`, inner, user)
+  return layout(`curve #${curve.id} — Elliptic Rank`, inner, user)
 }
 
 export function commentHistoryPage(
@@ -368,7 +368,7 @@ export function commentHistoryPage(
         .join('\n')
     : `<li class="muted">No commentary yet.</li>`
   const inner = `
-      <p class="page-nav"><a href="/curve/${curve.id}">&larr; rank &ge; ${curve.rank_lower_bound} curve</a></p>
+      <p class="page-nav"><a href="/curve/${curve.id}">&larr; curve #${curve.id}</a></p>
       <h2>Commentary history</h2>
       <p class="page-subtitle">${entries.length} edit${entries.length === 1 ? '' : 's'}.</p>
       <ul class="comment-history">${list}</ul>`
