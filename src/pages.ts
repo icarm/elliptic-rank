@@ -183,19 +183,19 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       <section class="board">
         <h2>The board</h2>
         <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor. <a href="/database.json" download>Download the database (JSON) &darr;</a></p>
-        <h3>rank vs naive height</h3>
+        <h3>naive height vs rank</h3>
         ${scatterPlot(
           curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
           'naive height',
           (v) => v.toFixed(0),
         )}
-        <h3>rank vs Faltings height</h3>
+        <h3>Faltings height vs rank</h3>
         ${scatterPlot(
           curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
           'Faltings height',
           (v) => v.toFixed(1),
         )}
-        <h3>rank vs log conductor</h3>
+        <h3>log conductor vs rank</h3>
         ${scatterPlot(
           curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
           'log conductor',
