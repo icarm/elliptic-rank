@@ -66,7 +66,7 @@ export function layout(title: string, bodyInner: string, user: User | null = nul
   <body>
     <header>
       <div class="inner">
-        <h1><a href="/">Elliptic Rank</a></h1>
+        <h1><a href="/">Elliptic Rank Leaderboard</a></h1>
         <nav><span class="auth-nav">${authNav(user)}</span></nav>
       </div>
     </header>
