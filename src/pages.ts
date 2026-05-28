@@ -32,16 +32,6 @@ export function escapeHtml(s: unknown): string {
     .replace(/'/g, '&#39;')
 }
 
-// Inline SVG favicon: a stylized elliptic curve (oval component + open branch).
-const FAVICON =
-  "data:image/svg+xml," +
-  encodeURIComponent(
-    `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'>` +
-      `<g fill='none' stroke='%232a6df4' stroke-width='2.4'>` +
-      `<ellipse cx='11' cy='16' rx='5' ry='8'/>` +
-      `<path d='M21 3 C 15 10, 15 22, 21 29'/></g></svg>`,
-  )
-
 function authNav(user: User | null): string {
   if (user) {
     const name = escapeHtml(user.display_name || user.email || 'user')
@@ -60,7 +50,7 @@ export function layout(title: string, bodyInner: string, user: User | null = nul
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)}</title>
-    <link rel="icon" type="image/svg+xml" href="${FAVICON}" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="stylesheet" href="/style.css" />
   </head>
   <body>
