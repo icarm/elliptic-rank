@@ -58,7 +58,7 @@ export function layout(title: string, bodyInner: string, user: User | null = nul
   <body>
     <header>
       <div class="inner">
-        <h1><a href="/">Elliptic Rank Leaderboard</a></h1>
+        <h1><a href="/">Elliptic Curve Rank Leaderboard</a></h1>
         <nav><span class="auth-nav">${authNav(user)}</span></nav>
       </div>
     </header>
@@ -212,7 +212,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
           </label>
           <label class="field">
             <span>bad primes <span class="muted">&mdash; optional; the primes dividing the discriminant, comma- or space-separated. If given, the conductor, minimal discriminant, and Faltings height are recorded.</span></span>
-            <input type="text" name="primes" ${user ? '' : 'disabled'} placeholder="e.g. 2, 3, 389" />
+            <input type="text" name="primes" ${user ? '' : 'disabled'} placeholder="2, 3, 389" />
           </label>
           <div class="submit-row">${
             user
@@ -221,7 +221,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
           }</div>
         </form>
       </section>`
-  return layout('Elliptic Rank', inner, user)
+  return layout('Elliptic Curve Rank Leaderboard', inner, user)
 }
 
 export interface CurveRow {
@@ -349,7 +349,7 @@ export function curveDetailPage(
         </ul>
       </section>
       ${commentSection(curve.id, comment, user)}`
-  return layout(`curve #${curve.id} — Elliptic Rank`, inner, user)
+  return layout(`curve #${curve.id} — Elliptic Curve Rank Leaderboard`, inner, user)
 }
 
 export function commentHistoryPage(
@@ -372,7 +372,7 @@ export function commentHistoryPage(
       <h2>Commentary history</h2>
       <p class="page-subtitle">${entries.length} edit${entries.length === 1 ? '' : 's'}.</p>
       <ul class="comment-history">${list}</ul>`
-  return layout('Commentary history — Elliptic Rank', inner, user)
+  return layout('Commentary history — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
 // Render a number-ish string, truncating very long values with an ellipsis.
@@ -526,7 +526,7 @@ export function apiDocsPage(user: User | null = null): string {
       <p>Edit a curve's commentary. Form-encoded <code>content</code>; an empty value clears it. Each
       edit is kept in the curve's commentary history.</p>
       <pre><code>${escapeHtml(commentReq)}</code></pre>`
-  return layout('API — Elliptic Rank', inner, user)
+  return layout('API — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
 export function profilePage(
@@ -585,7 +585,7 @@ export function profilePage(
           <button type="submit">Generate new token</button>
         </form>
       </section>`
-  return layout('Profile — Elliptic Rank', inner, user)
+  return layout('Profile — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
 export function notFoundPage(user: User | null = null): string {
