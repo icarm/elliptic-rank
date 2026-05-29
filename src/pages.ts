@@ -212,7 +212,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
           </label>
           <label class="field">
             <span>bad primes <span class="muted">&mdash; optional; the primes dividing the discriminant, comma- or space-separated. If given, the conductor, minimal discriminant, and Faltings height are recorded.</span></span>
-            <input type="text" name="primes" ${user ? '' : 'disabled'} placeholder="2, 3, 389" />
+            <input type="text" name="primes" ${user ? '' : 'disabled'} />
           </label>
           <div class="submit-row">${
             user
