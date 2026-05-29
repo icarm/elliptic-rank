@@ -204,15 +204,15 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
         <form method="post" action="/submit-form">
           <label class="field">
             <span>a-invariants <span class="muted">&mdash; [a<sub>4</sub>, a<sub>6</sub>] or [a<sub>1</sub>, a<sub>2</sub>, a<sub>3</sub>, a<sub>4</sub>, a<sub>6</sub>], comma- or space-separated</span></span>
-            <input type="text" name="ainvs" ${user ? 'required' : 'disabled'} value="${escapeHtml(SAMPLE_AINVS)}" />
+            <input type="text" name="ainvs" ${user ? 'required' : 'disabled'} placeholder="${escapeHtml(SAMPLE_AINVS)}" />
           </label>
           <label class="field">
             <span>points <span class="muted">&mdash; one per line, <code>x, y</code> (integers or rationals like <code>3/16</code>)</span></span>
-            <textarea name="points" rows="12" ${user ? 'required' : 'disabled'}>${escapeHtml(SAMPLE_POINTS)}</textarea>
+            <textarea name="points" rows="12" ${user ? 'required' : 'disabled'} placeholder="${escapeHtml(SAMPLE_POINTS)}"></textarea>
           </label>
           <label class="field">
             <span>bad primes <span class="muted">&mdash; optional; the primes dividing the discriminant, comma- or space-separated. If given, the conductor, minimal discriminant, and Faltings height are recorded.</span></span>
-            <input type="text" name="primes" ${user ? '' : 'disabled'} placeholder="e.g. 2 3 389" />
+            <input type="text" name="primes" ${user ? '' : 'disabled'} placeholder="e.g. 2, 3, 389" />
           </label>
           <div class="submit-row">${
             user
