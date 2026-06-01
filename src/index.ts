@@ -181,15 +181,18 @@ app.get('/database.json', async (c) => {
 app.post('/api/submit', async (c) => {
   const user = c.get('user')
   if (!user) return c.json({ ok: false, errors: ['authentication required'] }, 401)
-  let body: VerifyInput
+  let body: VerifyInput & { commentary?: unknown }
   try {
     body = await c.req.json()
   } catch {
     return c.json({ ok: false, errors: ['request body must be JSON'] }, 400)
   }
+  // Optional initial commentary; recorded only for curves with none yet.
+  const commentary =
+    typeof body.commentary === 'string' ? body.commentary.slice(0, COMMENT_MAX) : undefined
   const gp = await getGp()
   const result = verify(gp, body)
-  const leaderboard = result.ok ? await recordCurve(c.env, user.id, result) : undefined
+  const leaderboard = result.ok ? await recordCurve(c.env, user.id, result, commentary) : undefined
   return c.json({ ...result, leaderboard }, result.ok ? 200 : 422)
 })
 

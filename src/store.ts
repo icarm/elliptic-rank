@@ -63,6 +63,10 @@ export async function recordCurve(
   env: Bindings,
   userId: number,
   result: VerifyResult,
+  // Optional initial commentary. Applied only when the curve has no commentary
+  // yet (a fresh curve, or an existing one nobody has annotated) — never
+  // overwrites commentary that already exists.
+  commentary?: string,
 ): Promise<RecordStatus> {
   const key = result.canonical!.key
   const rank = result.independence!.rankLowerBound
@@ -75,8 +79,10 @@ export async function recordCurve(
   const minDisc = result.minimalDiscriminant // string | null
   const faltings = result.faltingsHeight != null ? toFloat(result.faltingsHeight) : null
 
+  const hasCommentary = !!commentary && commentary.trim().length > 0
+
   const existing = await env.DB.prepare(
-    `SELECT id, rank_lower_bound, conductor, minimal_discriminant, faltings_height
+    `SELECT id, rank_lower_bound, conductor, minimal_discriminant, faltings_height, current_comment_id
        FROM curves WHERE curve_key = ?`,
   )
     .bind(key)
@@ -86,6 +92,7 @@ export async function recordCurve(
       conductor: string | null
       minimal_discriminant: string | null
       faltings_height: number | null
+      current_comment_id: number | null
     }>()
 
   if (!existing) {
@@ -111,7 +118,14 @@ export async function recordCurve(
         faltings,
       )
       .run()
-    return { id: ins.meta.last_row_id as number, status: 'created', rank, conductor: !!conductor }
+    const id = ins.meta.last_row_id as number
+    if (hasCommentary) await postComment(env, id, userId, commentary!)
+    return { id, status: 'created', rank, conductor: !!conductor }
+  }
+
+  // Existing curve: attach the supplied commentary only if it has none yet.
+  if (hasCommentary && existing.current_comment_id == null) {
+    await postComment(env, existing.id, userId, commentary!)
   }
 
   // Backfill the factoring-gated invariants whenever we now have them and the

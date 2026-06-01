@@ -466,7 +466,8 @@ export function apiDocsPage(user: User | null = null): string {
   -d '{
     "ainvs": ["0","0","1","-6349808647","193146346911036"],
     "points": [["49421","200114"], ["49493","333458"], ...],
-    "primes": ["2","3","211",...]
+    "primes": ["2","3","211",...],
+    "commentary": "Found by Mestre (1982)."
   }'`
   const verifyResp = `{
   "ok": true,
@@ -506,6 +507,11 @@ export function apiDocsPage(user: User | null = null): string {
       <strong>minimal discriminant</strong>, and <strong>Faltings height</strong> are computed and
       recorded &mdash; no factoring needed. Re-submitting an existing curve with <code>primes</code>
       backfills these even if the rank is unchanged.</p>
+      <p>Optionally include <code>commentary</code>: a string recorded as the curve's initial
+      commentary, attributed to you. It is applied only when the curve has no commentary yet
+      &mdash; if the curve already exists and already has commentary, this field is
+      <strong>ignored</strong> (use <code>POST /curve/:id/commentary</code> to edit existing
+      commentary).</p>
       <pre><code>${escapeHtml(verifyReq)}</code></pre>
       <p>Returns <code>200</code> with the result below, <code>422</code> if the submission is
       invalid (singular curve, point off curve, or not independent), <code>401</code> without a valid
