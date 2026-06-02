@@ -9,12 +9,13 @@ import {
   profilePage,
   curveDetailPage,
   commentHistoryPage,
+  activityPage,
   type TokenRow,
   type SubmitInfo,
   type PlotCurve,
   type CurveRow,
 } from './pages'
-import { recordCurve, postComment, commentHistory, COMMENT_MAX, type CommentView } from './store'
+import { recordCurve, postComment, commentHistory, recentActivity, COMMENT_MAX, type CommentView } from './store'
 import {
   type AppEnv,
   type Bindings,
@@ -42,6 +43,12 @@ app.get('/', async (c) => {
     'SELECT id, rank_lower_bound, naive_height, faltings_height, conductor FROM curves',
   ).all<PlotCurve>()
   return c.html(landingPage(c.get('user'), results))
+})
+
+app.get('/recent', async (c) => {
+  const p = Math.max(0, Math.floor(Number(c.req.query('p')) || 0))
+  const { items, page, hasOlder } = await recentActivity(c.env, p)
+  return c.html(activityPage(items, page, hasOlder, c.get('user')))
 })
 
 app.get('/curve/:id', async (c) => {

@@ -43,6 +43,50 @@ export function commentHistory(env: Bindings, curveId: number): Promise<CommentV
     .then((r) => r.results)
 }
 
+// One row in the recent-activity feed: either a curve submission (its creation)
+// or a commentary edit. Both carry the curve's current rank/height for context.
+export interface ActivityItem {
+  kind: 'submission' | 'comment'
+  ts: string
+  curve_id: number
+  rank: number
+  height: number
+  user: string | null
+  content: string | null
+}
+
+export const ACTIVITY_PAGE_SIZE = 30
+
+// Recent activity, newest first, paginated. Merges curve creations and
+// commentary edits in one timeline. `hasOlder` reports whether a further page
+// exists (we fetch one extra row to find out).
+export async function recentActivity(
+  env: Bindings,
+  page = 0,
+): Promise<{ items: ActivityItem[]; page: number; hasOlder: boolean }> {
+  const size = ACTIVITY_PAGE_SIZE
+  const { results } = await env.DB.prepare(
+    `SELECT kind, ts, curve_id, rank, height, user, content FROM (
+         SELECT 'submission' AS kind, c.created_at AS ts, c.id AS curve_id,
+                c.rank_lower_bound AS rank, c.naive_height AS height,
+                u.display_name AS user, NULL AS content
+           FROM curves c LEFT JOIN users u ON u.id = c.submitter_user_id
+         UNION ALL
+         SELECT 'comment' AS kind, cl.created_at AS ts, cl.curve_id AS curve_id,
+                cv.rank_lower_bound AS rank, cv.naive_height AS height,
+                cu.display_name AS user, cl.content AS content
+           FROM comments_log cl
+           LEFT JOIN users cu ON cu.id = cl.user_id
+           JOIN curves cv ON cv.id = cl.curve_id
+       )
+       ORDER BY ts DESC, kind DESC
+       LIMIT ? OFFSET ?`,
+  )
+    .bind(size + 1, page * size)
+    .all<ActivityItem>()
+  return { items: results.slice(0, size), page, hasOlder: results.length > size }
+}
+
 export interface RecordStatus {
   id: number
   status: 'created' | 'improved' | 'unchanged'

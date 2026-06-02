@@ -469,6 +469,32 @@ code.break { word-break: break-all; }
   border-bottom: 1px solid var(--border);
 }
 
+/* Recent activity */
+.activity { list-style: none; padding: 0; }
+
+.activity li {
+  margin: 1rem 0;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.activity-meta {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0 0 0.25rem;
+}
+
+.activity-line { margin: 0.25rem 0; }
+
+.pager {
+  margin: 1.5rem 0;
+  display: flex;
+  gap: 0.9rem;
+  align-items: baseline;
+}
+
+.pager a { color: var(--accent); }
+
 /* Profile & API tokens */
 .new-token {
   border: 1px solid var(--accent);

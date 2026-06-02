@@ -3,7 +3,7 @@
 // so GitHub login / profiles can slot in later without reworking the chrome.
 
 import type { VerifyResult } from './verify'
-import { COMMENT_MAX, type CommentView } from './store'
+import { COMMENT_MAX, type CommentView, type ActivityItem } from './store'
 
 export interface User {
   id: number
@@ -64,6 +64,7 @@ export function layout(title: string, bodyInner: string, user: User | null = nul
     </header>
     <main>${bodyInner}</main>
     <footer>
+      <a href="/recent">recent activity</a> &nbsp;&middot;&nbsp;
       <a href="/api">API</a> &nbsp;&middot;&nbsp;
       <a class="external" href="https://github.com/icarm/elliptic-rank">source</a> &nbsp;&middot;&nbsp;
       <a class="external" href="https://icarm.io">icarm.io</a>
@@ -169,7 +170,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       independent in <em>E</em>(&#8474;), proving rank &ge; the number of points.</p>
       <section class="board">
         <h2>Plots</h2>
-        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor. <a href="/database.json" download>Download the database (JSON) &darr;</a></p>
+        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor. <a href="/database.json" download>Download the database (JSON) &darr;</a> &middot; <a href="/recent">See recent activity &rarr;</a></p>
         <h3>naive height vs rank</h3>
         <p class="muted board-caption">Naive height = <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span>. Recorded for every curve.</p>
         ${scatterPlot(
@@ -373,6 +374,49 @@ export function commentHistoryPage(
       <p class="page-subtitle">${entries.length} edit${entries.length === 1 ? '' : 's'}.</p>
       <ul class="comment-history">${list}</ul>`
   return layout('Commentary history — Elliptic Curve Rank Leaderboard', inner, user)
+}
+
+// Recent-activity feed: submissions and commentary edits, newest first.
+export function activityPage(
+  items: ActivityItem[],
+  page: number,
+  hasOlder: boolean,
+  user: User | null = null,
+): string {
+  const who = (u: string | null) => (u ? escapeHtml(u) : '<span class="muted">anonymous</span>')
+  const entry = (a: ActivityItem): string => {
+    const link = `<a href="/curve/${a.curve_id}">curve #${a.curve_id}</a>`
+    const meta = `<p class="activity-meta">${escapeHtml(a.ts)} &middot; ${who(a.user)}</p>`
+    if (a.kind === 'submission') {
+      return `<li>
+          ${meta}
+          <p class="activity-line">submitted ${link} &mdash; rank &ge; ${a.rank}, naive height ${a.height.toFixed(2)}</p>
+        </li>`
+    }
+    const cleared = !a.content || a.content.length === 0
+    return `<li>
+          ${meta}
+          <p class="activity-line">${cleared ? `cleared commentary on ${link}` : `commented on ${link}`}</p>
+          ${cleared ? '' : `<div class="comment-body">${renderCommentContent(clip(a.content!, 280))}</div>`}
+        </li>`
+  }
+  const list = items.length
+    ? `<ul class="activity">${items.map(entry).join('\n')}</ul>`
+    : `<p class="muted">No activity yet.</p>`
+  const newer =
+    page > 0
+      ? `<a href="/recent${page - 1 === 0 ? '' : `?p=${page - 1}`}">&larr; newer</a>`
+      : `<span class="muted">&larr; newer</span>`
+  const older = hasOlder
+    ? `<a href="/recent?p=${page + 1}">older &rarr;</a>`
+    : `<span class="muted">older &rarr;</span>`
+  const inner = `
+      <p class="page-nav"><a href="/">&larr; the board</a></p>
+      <h2>Recent activity</h2>
+      <p class="page-subtitle">New submissions and commentary edits, newest first.</p>
+      ${list}
+      <nav class="pager">${newer} <span class="muted">page ${page + 1}</span> ${older}</nav>`
+  return layout('Recent activity — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
 // Render a number-ish string, truncating very long values with an ellipsis.
