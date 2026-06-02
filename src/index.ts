@@ -153,7 +153,9 @@ app.get('/database.json', async (c) => {
     created_at: r.created_at,
     updated_at: r.updated_at,
   }))
-  const payload = JSON.stringify({ count: curves.length, curves })
+  // Pretty-printed (2-space indent) so the download is readable line-by-line —
+  // a single 60+ KB line is awkward for humans and tools alike.
+  const payload = JSON.stringify({ count: curves.length, curves }, null, 2)
   // Strong ETag over the exact body so clients can revalidate cheaply: the body
   // changes only when a submission does, so unchanged downloads return a 304.
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload))
