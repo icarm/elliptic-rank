@@ -1,13 +1,18 @@
 :root {
-  --bg: #f3f6fb;
-  --fg: #1a1a1a;
-  --muted: #566370;
-  --accent: #2a6df4;
-  --border: #dbe3ec;
-  --panel: #fafcfe;
-  --panel-soft: #f6f8fb;
-  --code-bg: #eef2f7;
-  --accent-soft: #eaf1fb;
+  --bg: #faf7f1;          /* warm ivory page background */
+  --fg: #241f17;
+  --muted: #6b6354;
+  --accent: #0e6b4a;      /* deep emerald */
+  --accent-dark: #0a523a;
+  --border: #e3dccd;
+  --panel: #fffdf8;       /* cards, inputs */
+  --panel-soft: #f5f1e8;  /* faintly recessed panels */
+  --code-bg: #f1ebdd;
+  --accent-soft: #e7f2ec; /* pale accent callouts */
+  --header-bg: #1d3328;   /* dark green header band */
+  --header-fg: #f4f1e9;
+  --header-muted: #b7c6ba;
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
 }
 
 * {
@@ -25,14 +30,14 @@ html, body {
 }
 
 header {
-  border-bottom: 1px solid var(--border);
-  background: var(--panel);
+  background: var(--header-bg);
+  color: var(--header-fg);
 }
 
 header .inner {
   max-width: 900px;
   margin: 0 auto;
-  padding: 1rem 1.5rem;
+  padding: 1.1rem 1.5rem;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -40,8 +45,10 @@ header .inner {
 
 header h1 {
   margin: 0;
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   font-weight: 600;
+  font-family: var(--serif);
+  letter-spacing: 0.01em;
 }
 
 header h1 a {
@@ -50,27 +57,28 @@ header h1 a {
 }
 
 header h1 a:hover {
-  color: var(--accent);
+  color: #fff;
 }
 
 header nav .auth-nav {
   margin-left: 1rem;
   font-size: 0.9rem;
-  color: var(--muted);
+  color: var(--header-muted);
   white-space: nowrap;
 }
 
 header nav .auth-nav a {
-  color: var(--muted);
+  color: var(--header-muted);
   text-decoration: none;
 }
 
 header nav .auth-nav a:hover {
-  color: var(--accent);
+  color: #fff;
 }
 
 .auth-user {
   font-weight: 600;
+  color: var(--header-fg);
 }
 
 .auth-logout {
@@ -81,7 +89,7 @@ header nav .auth-nav a:hover {
 .auth-logout button {
   background: none;
   border: none;
-  color: var(--muted);
+  color: var(--header-muted);
   cursor: pointer;
   font: inherit;
   padding: 0;
@@ -89,7 +97,7 @@ header nav .auth-nav a:hover {
 }
 
 .auth-logout button:hover {
-  color: var(--accent);
+  color: #fff;
 }
 
 main {
@@ -101,6 +109,8 @@ main {
 main h2 {
   margin-top: 0;
   font-size: 2rem;
+  font-family: var(--serif);
+  font-weight: 600;
   letter-spacing: -0.01em;
 }
 
@@ -129,20 +139,21 @@ main p code, .result code, pre code, .submit-help code {
   border-radius: 3px;
 }
 
-/* Hero / question callout */
+/* Hero / question callout — theorem-block style: rules above and below */
 .hero {
   margin: 0 0 2rem;
   padding: 1.75rem 2rem;
-  background: var(--panel);
+  background: var(--accent-soft);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
-  border-radius: 4px;
+  border-top: 3px solid var(--accent);
+  border-radius: 0 0 6px 6px;
 }
 
 .hero .lede {
   margin: 0;
   color: var(--fg);
   font-size: 1.25rem;
+  font-family: var(--serif);
 }
 
 .hero .lede em {
@@ -230,7 +241,7 @@ main p code, .result code, pre code, .submit-help code {
   font-size: 0.95rem;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   background: var(--panel);
   resize: vertical;
   line-height: 1.5;
@@ -250,11 +261,11 @@ main p code, .result code, pre code, .submit-help code {
 .submit-row button,
 .submit-row .login-to-submit {
   display: inline-block;
-  padding: 0.55rem 1.4rem;
+  padding: 0.55rem 1.5rem;
   background: var(--accent);
   color: #fff;
   border: none;
-  border-radius: 4px;
+  border-radius: 999px;
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
@@ -263,13 +274,13 @@ main p code, .result code, pre code, .submit-help code {
 
 .submit-row button:hover,
 .submit-row .login-to-submit:hover {
-  filter: brightness(1.08);
+  background: var(--accent-dark);
 }
 
 /* Verification result */
 .result {
   padding: 1.25rem 1.5rem;
-  border-radius: 4px;
+  border-radius: 6px;
   border: 1px solid var(--border);
   background: var(--panel);
   margin: 1rem 0;
@@ -339,7 +350,7 @@ main p code, .result code, pre code, .submit-help code {
 pre {
   background: var(--code-bg);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
   padding: 0.75rem 1rem;
   overflow-x: auto;
   font-size: 0.9rem;
@@ -360,7 +371,7 @@ pre code {
   margin: 0.5rem 0;
   background: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 .rank-plot .grid { stroke: var(--border); stroke-width: 1; }
@@ -376,7 +387,7 @@ pre code {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 .rank-plot .dot { fill: var(--accent); cursor: pointer; transition: r 0.1s ease; }
-.rank-plot a:hover .dot { r: 7; fill: #1a4fc4; }
+.rank-plot a:hover .dot { r: 7; fill: var(--accent-dark); }
 
 .board-caption { font-size: 0.95rem; margin-top: 0.25rem; }
 .plot-empty { margin: 1.5rem 0; }
@@ -385,10 +396,10 @@ pre code {
 .curve-eq {
   margin: 0.5rem 0 1.5rem;
   padding: 0.75rem 1rem;
-  background: var(--panel);
+  background: var(--accent-soft);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--accent);
-  border-radius: 4px;
+  border-top: 3px solid var(--accent);
+  border-radius: 0 0 6px 6px;
   overflow-x: auto;
   font-size: 1.1rem;
 }
@@ -401,7 +412,7 @@ code.break { word-break: break-all; }
   max-height: 24rem;
   overflow-y: auto;
   border: 1px solid var(--border);
-  border-radius: 4px;
+  border-radius: 6px;
 }
 
 .point-list li {
@@ -418,7 +429,7 @@ code.break { word-break: break-all; }
 
 .comment-body {
   white-space: pre-wrap;
-  border-left: 3px solid var(--border);
+  border-left: 3px solid var(--accent);
   padding: 0.5rem 0.75rem;
   background: var(--panel-soft);
   border-radius: 0 3px 3px 0;
@@ -452,14 +463,16 @@ code.break { word-break: break-all; }
 }
 
 .comment-edit button {
-  padding: 0.4rem 1rem;
+  padding: 0.4rem 1.1rem;
   background: var(--accent);
   color: #fff;
   border: none;
-  border-radius: 4px;
+  border-radius: 999px;
   font: inherit;
   cursor: pointer;
 }
+
+.comment-edit button:hover { background: var(--accent-dark); }
 
 .comment-history { list-style: none; padding: 0; }
 
@@ -500,7 +513,7 @@ code.break { word-break: break-all; }
   border: 1px solid var(--accent);
   background: var(--accent-soft);
   padding: 0.75rem 1rem;
-  border-radius: 4px;
+  border-radius: 6px;
   margin: 1rem 0;
 }
 
@@ -562,13 +575,18 @@ code.break { word-break: break-all; }
 
 .new-token-form button,
 .profile-name-form button {
-  padding: 0.4rem 1rem;
+  padding: 0.4rem 1.1rem;
   background: var(--accent);
   color: #fff;
   border: none;
-  border-radius: 4px;
+  border-radius: 999px;
   font: inherit;
   cursor: pointer;
+}
+
+.new-token-form button:hover,
+.profile-name-form button:hover {
+  background: var(--accent-dark);
 }
 
 .profile-name-form {
