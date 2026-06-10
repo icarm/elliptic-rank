@@ -1,17 +1,17 @@
 :root {
-  --bg: #faf7f1;          /* warm ivory page background */
-  --fg: #241f17;
-  --muted: #6b6354;
-  --accent: #0e6b4a;      /* deep emerald */
-  --accent-dark: #0a523a;
-  --border: #e3dccd;
-  --panel: #fffdf8;       /* cards, inputs */
-  --panel-soft: #f5f1e8;  /* faintly recessed panels */
-  --code-bg: #f1ebdd;
-  --accent-soft: #e7f2ec; /* pale accent callouts */
-  --header-bg: #1d3328;   /* dark green header band */
-  --header-fg: #f4f1e9;
-  --header-muted: #b7c6ba;
+  --bg: #f5f7f5;          /* light stone page background, faint green cast */
+  --fg: #1d2421;
+  --muted: #5c6862;
+  --accent: #0f766e;      /* deep teal */
+  --accent-dark: #0b5a54;
+  --border: #dce3dd;
+  --panel: #fcfdfb;       /* cards, inputs */
+  --panel-soft: #f0f3f0;  /* faintly recessed panels */
+  --code-bg: #e9efec;
+  --accent-soft: #e0f0ee; /* pale teal callouts */
+  --header-bg: #15363a;   /* dark teal header band */
+  --header-fg: #eff4f2;
+  --header-muted: #a9c4c2;
   --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
 }
 
