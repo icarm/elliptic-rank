@@ -77,6 +77,36 @@ function show(name, input) {
 
 show('rank-12 (valid)', RK12)
 show('rank-28 record (valid)', RK28)
+
+// Naive height must be model-independent: the same curve (Elkies' 2009 rank-13
+// Mordell curve) in its original non-minimal model y^2 = x^3 + 16m and in its
+// minimal model y^2 + y = x^3 + (m-1)/4, with one witness point mapped through
+// (X,Y) -> (X/4, (Y-4)/8). Same canonical key, so same naive height (95.847...).
+const ELKIES_NONMIN = {
+  ainvs: ['0', '0', '0', '0', '48163745551486811536'],
+  points: [['-3427960', '-2807507244']],
+}
+const ELKIES_MIN = {
+  ainvs: ['0', '0', '1', '0', '752558524241981430'],
+  points: [['-856990', '-350938406']],
+}
+const rNonMin = verify(gp, ELKIES_NONMIN)
+const rMin = verify(gp, ELKIES_MIN)
+show('elkies-13 non-minimal', ELKIES_NONMIN)
+show('elkies-13 minimal', ELKIES_MIN)
+// Compare heights numerically: gp precision (\p) persists across verify calls,
+// so the strings can carry different digit counts for the same value.
+const h = (r) => Number(r.height.naiveLogHeight.replace(/\s+/g, '').replace(/E/i, 'e'))
+if (
+  !rNonMin.ok || !rMin.ok ||
+  rNonMin.canonical.key !== rMin.canonical.key ||
+  Math.abs(h(rNonMin) - h(rMin)) > 1e-9
+) {
+  console.error('FAIL: naive height / key differ between models of the same curve')
+  process.exitCode = 1
+} else {
+  console.log(`model-independence OK: key=${rMin.canonical.key.slice(0, 30)}… naiveH=${rMin.height.naiveLogHeight.slice(0, 10)}`)
+}
 // failure cases
 show('singular curve', { ainvs: ['0', '0'], points: [['0', '0']] })
 show('point off curve', { ainvs: ['0', '0', '1', '-6349808647', '193146346911036'], points: [['1', '1']] })

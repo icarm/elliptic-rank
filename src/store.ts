@@ -126,13 +126,14 @@ export async function recordCurve(
   const hasCommentary = !!commentary && commentary.trim().length > 0
 
   const existing = await env.DB.prepare(
-    `SELECT id, rank_lower_bound, conductor, minimal_discriminant, faltings_height, current_comment_id
+    `SELECT id, rank_lower_bound, naive_height, conductor, minimal_discriminant, faltings_height, current_comment_id
        FROM curves WHERE curve_key = ?`,
   )
     .bind(key)
     .first<{
       id: number
       rank_lower_bound: number
+      naive_height: number
       conductor: string | null
       minimal_discriminant: string | null
       faltings_height: number | null
@@ -170,6 +171,15 @@ export async function recordCurve(
   // Existing curve: attach the supplied commentary only if it has none yet.
   if (hasCommentary && existing.current_comment_id == null) {
     await postComment(env, existing.id, userId, commentary!)
+  }
+
+  // The naive height is an invariant of the curve (computed from the canonical
+  // (c4,c6)), so a stored value that disagrees predates that rule — it was
+  // computed from a non-minimal submitted model. Correct it in place.
+  if (Math.abs(existing.naive_height - height) > 1e-9) {
+    await env.DB.prepare('UPDATE curves SET naive_height = ? WHERE id = ?')
+      .bind(height, existing.id)
+      .run()
   }
 
   // Backfill the factoring-gated invariants whenever we now have them and the

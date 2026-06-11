@@ -11,7 +11,8 @@
 //
 // (2) automatically quotients out torsion (torsion has canonical height 0), so
 // independence of r points proves rank E(Q) >= r without computing the exact
-// rank. We also compute the naive height log max(|c4|^3,|c6|^2) of the model.
+// rank. We also compute the naive height log max(|c4|^3,|c6|^2) of the
+// canonical (reduced) model, so the height is model-independent like the key.
 //
 // IMPORTANT: we never call ellglobalred / compute the conductor here — that
 // factors the discriminant and is intractable for record-scale curves. None of
@@ -244,9 +245,15 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     // Canonical dedup key: reduced (c4,c6), identifying the Q-isomorphism class.
     result.canonical = reduceC4C6(gp)
 
-    // Naive height log max(|c4|^3, |c6|^2) — cheap, no factoring.
+    // Naive height log max(|c4|^3, |c6|^2), computed from the canonical (c4,c6)
+    // rather than the submitted model's — an invariant of the Q-isomorphism
+    // class, so a non-minimal submission can't inflate it. (The substituted
+    // strings are PARI integer output, not submitter input.)
     result.height = {
-      naiveLogHeight: evalGp(gp, 'log(vecmax([abs(E.c4)^3, E.c6^2]))*1.0'),
+      naiveLogHeight: evalGp(
+        gp,
+        `log(vecmax([abs(${result.canonical.c4})^3, (${result.canonical.c6})^2]))*1.0`,
+      ),
     }
 
     // Conductor / minimal discriminant / Faltings height from supplied primes

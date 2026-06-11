@@ -174,7 +174,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
         <h2>Plots</h2>
         <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor.</p>
         <h3>naive height vs rank</h3>
-        <p class="muted board-caption">Naive height = <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span>. Recorded for every curve.</p>
+        <p class="muted board-caption">Naive height = <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span> of the canonical (reduced) model, so it doesn't depend on how the curve was submitted. Recorded for every curve.</p>
         ${scatterPlot(
           curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
           'naive height',
