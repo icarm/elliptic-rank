@@ -705,6 +705,8 @@ a.external::after {
 @media (max-width: 600px) {
   main { padding: 2rem 1.25rem; }
   .hero { padding: 1.25rem 1rem; }
+  .browse-cta a { display: block; margin: 0.35rem 0; }
+  .browse-cta .cta-sep { display: none; }
   .eq { font-size: 1rem; word-break: break-word; }
   .result-meta { grid-template-columns: 1fr; gap: 0.1rem; }
   .result-meta dt { margin-top: 0.5rem; }
