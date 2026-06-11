@@ -440,6 +440,13 @@ code.break { word-break: break-all; }
   white-space: nowrap;
   margin-left: 0.35rem;
   vertical-align: 0.1em;
+  text-decoration: none;
+}
+
+a.record-badge:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
 .point-list {
