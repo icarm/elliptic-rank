@@ -411,6 +411,20 @@ pre code {
 
 code.break { word-break: break-all; }
 
+.record-badge {
+  display: inline-block;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  margin-left: 0.35rem;
+  vertical-align: 0.1em;
+}
+
 .point-list {
   list-style: none;
   padding: 0;

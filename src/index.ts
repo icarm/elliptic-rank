@@ -16,6 +16,7 @@ import {
   type PlotCurve,
   type TableCurve,
   type CurveRow,
+  type RecordFlags,
 } from './pages'
 import { recordCurve, postComment, commentHistory, recentActivity, COMMENT_MAX, type CommentView } from './store'
 import {
@@ -107,8 +108,34 @@ app.get('/curve/:id', async (c) => {
           author: row.comment_author,
         }
       : null
-  return c.html(curveDetailPage(row, comment, c.get('user')))
+  return c.html(curveDetailPage(row, comment, c.get('user'), await recordFlags(c.env, row)))
 })
+
+// a < b for non-negative decimal integer strings of any size.
+function lessDecimal(a: string, b: string): boolean {
+  return a.length !== b.length ? a.length < b.length : a < b
+}
+
+// Which of the curve's metrics are records for its rank: a metric is a record
+// when no curve of equal or higher rank has a strictly smaller value (i.e. the
+// curve is on the rank-vs-metric Pareto frontier).
+async function recordFlags(env: Bindings, curve: CurveRow): Promise<RecordFlags> {
+  const { results: rivals } = await env.DB.prepare(
+    `SELECT naive_height, faltings_height, conductor FROM curves
+       WHERE rank_lower_bound >= ? AND id != ?`,
+  )
+    .bind(curve.rank_lower_bound, curve.id)
+    .all<{ naive_height: number; faltings_height: number | null; conductor: string | null }>()
+  return {
+    naive: !rivals.some((o) => o.naive_height < curve.naive_height),
+    faltings:
+      curve.faltings_height != null &&
+      !rivals.some((o) => o.faltings_height != null && o.faltings_height < curve.faltings_height!),
+    conductor:
+      curve.conductor != null &&
+      !rivals.some((o) => o.conductor != null && lessDecimal(o.conductor, curve.conductor!)),
+  }
+}
 
 app.post('/curve/:id/commentary', async (c) => {
   const user = c.get('user')

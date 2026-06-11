@@ -394,6 +394,13 @@ function weierstrassEq(ainvs: string[]): string {
   return `${lhs} = ${rhs}`
 }
 
+// Record badge for a curve-page metric: shown when no curve of equal or higher
+// rank has a smaller value.
+function badge(isRecord: boolean, rank: number): string {
+  if (!isRecord) return ''
+  return ` <span class="record-badge" title="smallest on the board among curves of rank &ge; ${rank}">&#9733; record for rank &ge; ${rank}</span>`
+}
+
 // Escape commentary, turning `curve#<id>` tokens into links to that curve.
 function renderCommentContent(content: string): string {
   let out = ''
@@ -431,10 +438,19 @@ function commentSection(curveId: number, comment: CommentView | null, user: User
       </section>`
 }
 
+// Which of a curve's metrics are records for its rank (no curve of equal or
+// higher rank does better). Computed by the route; rendered as badges.
+export interface RecordFlags {
+  naive: boolean
+  faltings: boolean
+  conductor: boolean
+}
+
 export function curveDetailPage(
   curve: CurveRow,
   comment: CommentView | null = null,
   user: User | null = null,
+  records: RecordFlags = { naive: false, faltings: false, conductor: false },
 ): string {
   let ainvs: string[] = []
   let points: [string, string][] = []
@@ -458,9 +474,9 @@ export function curveDetailPage(
       <dl class="result-meta">
         <dt>a-invariants</dt><dd><code>[${ainvs.map(escapeHtml).join(', ')}]</code></dd>
         <dt>rank (lower bound)</dt><dd>&ge; ${curve.rank_lower_bound}</dd>
-        <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}</dd>
-        ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}</dd>` : ''}
-        ${curve.conductor ? `<dt>conductor</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code></dd>` : ''}
+        <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badge(records.naive, curve.rank_lower_bound)}</dd>
+        ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}${badge(records.faltings, curve.rank_lower_bound)}</dd>` : ''}
+        ${curve.conductor ? `<dt>conductor</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code>${badge(records.conductor, curve.rank_lower_bound)}</dd>` : ''}
         <dt>curve key</dt><dd><code>${escapeHtml(curve.curve_key)}</code> <span class="muted">(reduced c4:c6)</span></dd>
         <dt>discriminant</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code></dd>
         ${curve.minimal_discriminant ? `<dt>minimal discriminant</dt><dd><code class="break">${escapeHtml(curve.minimal_discriminant)}</code></dd>` : ''}
