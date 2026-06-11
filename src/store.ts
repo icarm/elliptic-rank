@@ -79,7 +79,11 @@ export async function recentActivity(
            LEFT JOIN users cu ON cu.id = cl.user_id
            JOIN curves cv ON cv.id = cl.curve_id
        )
-       ORDER BY ts DESC, kind DESC
+       -- kind ASC tiebreak: a submission with initial commentary writes both
+       -- rows at the same second-precision timestamp; the comment ('comment' <
+       -- 'submission') must sort first, i.e. display above = after, in this
+       -- newest-first feed, since the commentary logically follows the curve.
+       ORDER BY ts DESC, kind ASC
        LIMIT ? OFFSET ?`,
   )
     .bind(size + 1, page * size)
