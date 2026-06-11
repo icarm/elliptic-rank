@@ -293,12 +293,14 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         var rankInput = document.getElementById('rank-filter');
         var count = document.getElementById('curve-count');
         var buttons = document.querySelectorAll('button.sort');
-        var sortKey = 'naive';
-        var sortDir = 1; // 1 = ascending, -1 = descending
+        var sortKey = 'rank';
+        var sortDir = -1; // 1 = ascending, -1 = descending; default: high rank first
 
         var params = new URLSearchParams(location.search);
-        if (KEYS.indexOf(params.get('sort')) >= 0) sortKey = params.get('sort');
-        if (params.get('dir') === 'desc') sortDir = -1;
+        if (KEYS.indexOf(params.get('sort')) >= 0) {
+          sortKey = params.get('sort');
+          sortDir = params.get('dir') === 'desc' ? -1 : 1;
+        }
         if (/^[0-9]+$/.test(params.get('minrank') || '')) rankInput.value = params.get('minrank');
 
         function apply() {
@@ -320,7 +322,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             b.className = 'sort' + (b.dataset.key === sortKey ? (sortDir === 1 ? ' asc' : ' desc') : '');
           });
           var q = new URLSearchParams();
-          if (sortKey !== 'naive' || sortDir !== 1) {
+          if (sortKey !== 'rank' || sortDir !== -1) {
             q.set('sort', sortKey);
             if (sortDir === -1) q.set('dir', 'desc');
           }
