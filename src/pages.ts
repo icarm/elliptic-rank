@@ -449,7 +449,7 @@ export function curveDetailPage(
     ? escapeHtml(curve.submitter_name)
     : '<span class="muted">anonymous</span>'
   const inner = `
-      <p class="page-nav"><a href="/">&larr; home</a></p>
+      <p class="page-nav"><a href="/">&larr; home</a> &nbsp;&middot;&nbsp; <a href="/curves">all curves</a></p>
       <h2>curve #${curve.id}</h2>
       <div class="curve-eq eq">${eq}</div>
       <dl class="result-meta">
