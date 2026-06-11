@@ -1,13 +1,13 @@
 :root {
-  --bg: #f5f7f5;          /* light stone page background, faint green cast */
-  --fg: #1d2421;
-  --muted: #5c6862;
+  --bg: #f2f7f6;          /* light stone page background, faint teal cast */
+  --fg: #1c2423;
+  --muted: #566563;
   --accent: #0f766e;      /* deep teal */
   --accent-dark: #0b5a54;
-  --border: #dce3dd;
-  --panel: #fcfdfb;       /* cards, inputs */
-  --panel-soft: #f0f3f0;  /* faintly recessed panels */
-  --code-bg: #e9efec;
+  --border: #d7e3e1;
+  --panel: #fbfdfd;       /* cards, inputs */
+  --panel-soft: #ecf3f2;  /* faintly recessed panels */
+  --code-bg: #e4eeec;
   --accent-soft: #e0f0ee; /* pale teal callouts */
   --header-bg: #15363a;   /* dark teal header band */
   --header-fg: #eff4f2;
