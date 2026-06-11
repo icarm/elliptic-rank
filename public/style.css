@@ -411,6 +411,23 @@ pre code {
 
 code.break { word-break: break-all; }
 
+/* Curve-page metadata: zebra-striped rows keep the many fields distinct */
+.curve-meta {
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--panel);
+}
+
+.curve-meta dt, .curve-meta dd {
+  padding: 0.45rem 0.75rem;
+}
+
+.curve-meta dt:nth-of-type(even), .curve-meta dd:nth-of-type(even) {
+  background: var(--panel-soft);
+}
+
 .record-badge {
   display: inline-block;
   background: var(--accent-soft);
@@ -733,4 +750,8 @@ a.external::after {
   .eq { font-size: 1rem; word-break: break-word; }
   .result-meta { grid-template-columns: 1fr; gap: 0.1rem; }
   .result-meta dt { margin-top: 0.5rem; }
+  /* keep the zebra stripes contiguous when dt stacks above dd */
+  .curve-meta { gap: 0; }
+  .curve-meta dt { margin-top: 0; padding-bottom: 0; }
+  .curve-meta dd { padding-top: 0.1rem; }
 }

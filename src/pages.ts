@@ -471,7 +471,7 @@ export function curveDetailPage(
       <p class="page-nav"><a href="/">&larr; home</a> &nbsp;&middot;&nbsp; <a href="/curves">all curves</a> &nbsp;&middot;&nbsp; <a href="/curve/${curve.id}.json" download>JSON &darr;</a></p>
       <h2>curve #${curve.id}</h2>
       <div class="curve-eq eq">${eq}</div>
-      <dl class="result-meta">
+      <dl class="result-meta curve-meta">
         <dt>a-invariants</dt><dd><code>[${ainvs.map(escapeHtml).join(', ')}]</code></dd>
         <dt>rank (lower bound)</dt><dd>&ge; ${curve.rank_lower_bound}</dd>
         <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badge(records.naive, curve.rank_lower_bound)}</dd>
