@@ -265,7 +265,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
       <p class="page-subtitle">Click a column header to sort; click again to reverse. Curves missing a
       value (no bad primes supplied yet) sort last.</p>
       <div class="table-controls">
-        <label>rank &ge; <input id="rank-filter" type="number" min="0" step="1" placeholder="0" /></label>
+        <label>rank &ge; <input id="rank-filter" type="number" min="1" step="1" placeholder="1" /></label>
         <span class="muted">showing <span id="curve-count">${curves.length}</span> of ${curves.length} curves</span>
       </div>
       <div class="table-scroll">
@@ -308,7 +308,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             if (bv === '') return -1;
             return (Number(av) - Number(bv)) * sortDir;
           });
-          var minRank = Number(rankInput.value) || 0;
+          var minRank = Number(rankInput.value) || 1;
           var shown = 0;
           rows.forEach(function (r) {
             r.hidden = Number(r.dataset.rank) < minRank;
@@ -324,7 +324,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             q.set('sort', sortKey);
             if (sortDir === -1) q.set('dir', 'desc');
           }
-          if (minRank > 0) q.set('minrank', String(minRank));
+          if (minRank > 1) q.set('minrank', String(minRank));
           var qs = q.toString();
           history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
         }
