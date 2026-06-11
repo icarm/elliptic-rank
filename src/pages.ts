@@ -267,6 +267,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
       <div class="table-controls">
         <label>rank &ge; <input id="rank-filter" type="number" min="1" step="1" placeholder="1" /></label>
         <span class="muted">showing <span id="curve-count">${curves.length}</span> of ${curves.length} curves</span>
+        <a href="/database.json" download>Download the database (JSON) &darr;</a>
       </div>
       <div class="table-scroll">
       <table class="curves-table" id="curves-table">
@@ -451,7 +452,7 @@ export function curveDetailPage(
     ? escapeHtml(curve.submitter_name)
     : '<span class="muted">anonymous</span>'
   const inner = `
-      <p class="page-nav"><a href="/">&larr; home</a> &nbsp;&middot;&nbsp; <a href="/curves">all curves</a></p>
+      <p class="page-nav"><a href="/">&larr; home</a> &nbsp;&middot;&nbsp; <a href="/curves">all curves</a> &nbsp;&middot;&nbsp; <a href="/curve/${curve.id}.json" download>JSON &darr;</a></p>
       <h2>curve #${curve.id}</h2>
       <div class="curve-eq eq">${eq}</div>
       <dl class="result-meta">
@@ -695,6 +696,10 @@ export function apiDocsPage(user: User | null = null): string {
       <p>The entire database as one JSON download: <code>{ count, curves }</code>, each curve with its
       a-invariants, witness points, rank lower bound, naive height, and (when recorded) conductor,
       minimal discriminant, Faltings height, submitter, and commentary. No auth required.</p>
+
+      <h3>GET <code>/curve/:id.json</code></h3>
+      <p>A single curve as JSON &mdash; the same shape as one entry of the
+      <code>database.json</code> <code>curves</code> array. No auth required.</p>
 
       <h3>POST <code>/curve/:id/commentary</code></h3>
       <p>Edit a curve's commentary. Form-encoded <code>content</code>; an empty value clears it. Each

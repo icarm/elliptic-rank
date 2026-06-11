@@ -61,6 +61,20 @@ app.get('/recent', async (c) => {
   return c.html(activityPage(items, page, hasOlder, c.get('user')))
 })
 
+// Single curve as downloadable JSON — the same shape as a database.json entry.
+app.get('/curve/:file{[0-9]+\\.json}', async (c) => {
+  const id = Number(c.req.param('file').replace(/\.json$/, ''))
+  const row = await c.env.DB.prepare(`${CURVE_JSON_SELECT} WHERE c.id = ?`)
+    .bind(id)
+    .first<CurveJsonRow>()
+  if (!row) return c.json({ error: 'no such curve' }, 404)
+  return c.body(JSON.stringify(curveJson(row), null, 2), 200, {
+    'content-type': 'application/json; charset=UTF-8',
+    'content-disposition': `attachment; filename="elliptic-rank-curve-${id}.json"`,
+    'cache-control': 'no-cache',
+  })
+})
+
 app.get('/curve/:id', async (c) => {
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id)) return c.html(notFoundPage(c.get('user')), 404)
@@ -119,33 +133,33 @@ app.get('/curve/:id/commentary-history', async (c) => {
 
 app.get('/api', (c) => c.html(apiDocsPage(c.get('user'))))
 
-// Full database as downloadable JSON.
-app.get('/database.json', async (c) => {
-  const { results } = await c.env.DB.prepare(
-    `SELECT c.id, c.curve_key, c.ainvs, c.discriminant, c.naive_height, c.rank_lower_bound,
+// Shared SELECT + JSON shape for the database download and the per-curve JSON.
+const CURVE_JSON_SELECT = `SELECT c.id, c.curve_key, c.ainvs, c.discriminant, c.naive_height, c.rank_lower_bound,
             c.regulator, c.points, c.conductor, c.minimal_discriminant, c.faltings_height,
             c.created_at, c.updated_at, u.display_name AS submitter, cl.content AS commentary
        FROM curves c
        LEFT JOIN users u ON u.id = c.submitter_user_id
-       LEFT JOIN comments_log cl ON cl.id = c.current_comment_id
-       ORDER BY c.rank_lower_bound DESC, c.naive_height ASC`,
-  ).all<{
-    id: number
-    curve_key: string
-    ainvs: string
-    discriminant: string
-    naive_height: number
-    rank_lower_bound: number
-    regulator: string
-    points: string
-    conductor: string | null
-    minimal_discriminant: string | null
-    faltings_height: number | null
-    created_at: string
-    updated_at: string
-    submitter: string | null
-    commentary: string | null
-  }>()
+       LEFT JOIN comments_log cl ON cl.id = c.current_comment_id`
+
+interface CurveJsonRow {
+  id: number
+  curve_key: string
+  ainvs: string
+  discriminant: string
+  naive_height: number
+  rank_lower_bound: number
+  regulator: string
+  points: string
+  conductor: string | null
+  minimal_discriminant: string | null
+  faltings_height: number | null
+  created_at: string
+  updated_at: string
+  submitter: string | null
+  commentary: string | null
+}
+
+function curveJson(r: CurveJsonRow) {
   const parse = (s: string): unknown => {
     try {
       return JSON.parse(s)
@@ -153,7 +167,7 @@ app.get('/database.json', async (c) => {
       return s
     }
   }
-  const curves = results.map((r) => ({
+  return {
     id: r.id,
     curve_key: r.curve_key,
     ainvs: parse(r.ainvs),
@@ -169,7 +183,15 @@ app.get('/database.json', async (c) => {
     commentary: r.commentary || null,
     created_at: r.created_at,
     updated_at: r.updated_at,
-  }))
+  }
+}
+
+// Full database as downloadable JSON.
+app.get('/database.json', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `${CURVE_JSON_SELECT} ORDER BY c.rank_lower_bound DESC, c.naive_height ASC`,
+  ).all<CurveJsonRow>()
+  const curves = results.map(curveJson)
   // Pretty-printed (2-space indent) so the download is readable line-by-line —
   // a single 60+ KB line is awkward for humans and tools alike.
   const payload = JSON.stringify({ count: curves.length, curves }, null, 2)
