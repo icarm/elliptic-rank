@@ -482,7 +482,6 @@ export function curveDetailPage(
         <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badge(records.naive, curve.rank_lower_bound)}</dd>
         ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}${badge(records.faltings, curve.rank_lower_bound)}</dd>` : ''}
         ${curve.conductor ? `<dt>conductor</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code>${badge(records.conductor, curve.rank_lower_bound)}</dd>` : ''}
-        <dt>curve key</dt><dd><code>${escapeHtml(curve.curve_key)}</code> <span class="muted">(reduced c4:c6)</span></dd>
         <dt>discriminant</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code></dd>
         ${curve.minimal_discriminant ? `<dt>minimal discriminant</dt><dd><code class="break">${escapeHtml(curve.minimal_discriminant)}</code></dd>` : ''}
         <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
@@ -617,7 +616,6 @@ export function submitResultPage(
         <h2>&#10003; Submitted: rank &ge; ${ind.rankLowerBound}</h2>
         <dl class="result-meta">
           <dt>points</dt><dd>${result.points.length}, all on the curve and independent</dd>
-          <dt>curve key</dt><dd><code>${escapeHtml(clip(result.canonical?.key ?? '—', 60))}</code> <span class="muted">(reduced c4:c6)</span></dd>
           <dt>regulator</dt><dd><code>${escapeHtml(clip(ind.regulator))}</code></dd>
           <dt>min. eigenvalue</dt><dd><code>${escapeHtml(clip(ind.minEigenvalue))}</code></dd>
           <dt>naive height</dt><dd><code>${escapeHtml(clip(result.height!.naiveLogHeight))}</code></dd>
