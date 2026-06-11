@@ -268,6 +268,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         <label>rank &ge; <input id="rank-filter" type="number" min="0" step="1" placeholder="0" /></label>
         <span class="muted">showing <span id="curve-count">${curves.length}</span> of ${curves.length} curves</span>
       </div>
+      <div class="table-scroll">
       <table class="curves-table" id="curves-table">
         <thead>
           <tr>
@@ -283,6 +284,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
           ${rows}
         </tbody>
       </table>
+      </div>
       <script>
       (function () {
         var KEYS = ['rank', 'naive', 'faltings', 'conductor'];

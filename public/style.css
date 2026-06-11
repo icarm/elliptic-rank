@@ -532,6 +532,10 @@ code.break { word-break: break-all; }
   background: var(--panel);
 }
 
+.table-scroll {
+  overflow-x: auto;
+}
+
 .curves-table {
   width: 100%;
   border-collapse: collapse;
@@ -707,6 +711,11 @@ a.external::after {
   .hero { padding: 1.25rem 1rem; }
   .browse-cta a { display: block; margin: 0.35rem 0; }
   .browse-cta .cta-sep { display: none; }
+  /* Drop the wide a-invariants column (2nd) — the curve link has the details. */
+  .curves-table th:nth-child(2), .curves-table td:nth-child(2) { display: none; }
+  .curves-table { font-size: 0.85rem; }
+  .curves-table th, .curves-table td { padding: 0.35rem 0.4rem; }
+  .curves-table th.num { white-space: normal; } /* let "Faltings height" wrap */
   .eq { font-size: 1rem; word-break: break-word; }
   .result-meta { grid-template-columns: 1fr; gap: 0.1rem; }
   .result-meta dt { margin-top: 0.5rem; }
