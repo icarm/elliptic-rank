@@ -508,6 +508,72 @@ code.break { word-break: break-all; }
 
 .pager a { color: var(--accent); }
 
+/* All-curves table */
+.table-controls {
+  display: flex;
+  gap: 1rem;
+  align-items: baseline;
+  flex-wrap: wrap;
+  margin: 1rem 0;
+  font-size: 0.95rem;
+}
+
+.table-controls input[type="number"] {
+  width: 4.5rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font: inherit;
+  background: var(--panel);
+}
+
+.curves-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.95rem;
+}
+
+.curves-table th, .curves-table td {
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.curves-table th.num, .curves-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.curves-table code {
+  font-size: 0.9rem;
+  word-break: break-all;
+}
+
+.curves-table button.sort {
+  background: none;
+  border: none;
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.curves-table button.sort:hover {
+  color: var(--accent);
+}
+
+.curves-table button.sort.asc,
+.curves-table button.sort.desc {
+  color: var(--accent);
+}
+
+.curves-table button.sort.asc::after { content: " \2191"; }
+.curves-table button.sort.desc::after { content: " \2193"; }
+
 /* Profile & API tokens */
 .new-token {
   border: 1px solid var(--accent);

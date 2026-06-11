@@ -10,9 +10,11 @@ import {
   curveDetailPage,
   commentHistoryPage,
   activityPage,
+  curveTablePage,
   type TokenRow,
   type SubmitInfo,
   type PlotCurve,
+  type TableCurve,
   type CurveRow,
 } from './pages'
 import { recordCurve, postComment, commentHistory, recentActivity, COMMENT_MAX, type CommentView } from './store'
@@ -43,6 +45,14 @@ app.get('/', async (c) => {
     'SELECT id, rank_lower_bound, naive_height, faltings_height, conductor FROM curves',
   ).all<PlotCurve>()
   return c.html(landingPage(c.get('user'), results))
+})
+
+app.get('/curves', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, ainvs, rank_lower_bound, naive_height, faltings_height, conductor
+       FROM curves ORDER BY naive_height ASC`,
+  ).all<TableCurve>()
+  return c.html(curveTablePage(results, c.get('user')))
 })
 
 app.get('/recent', async (c) => {

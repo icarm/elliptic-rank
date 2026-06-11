@@ -64,6 +64,7 @@ export function layout(title: string, bodyInner: string, user: User | null = nul
     </header>
     <main>${bodyInner}</main>
     <footer>
+      <a href="/curves">all curves</a> &nbsp;&middot;&nbsp;
       <a href="/recent">recent activity</a> &nbsp;&middot;&nbsp;
       <a href="/api">API</a> &nbsp;&middot;&nbsp;
       <a class="external" href="https://github.com/icarm/elliptic-rank">source</a> &nbsp;&middot;&nbsp;
@@ -170,7 +171,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       independent in <em>E</em>(&#8474;), proving rank &ge; the number of points.</p>
       <section class="board">
         <h2>Plots</h2>
-        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor. <a href="/database.json" download>Download the database (JSON) &darr;</a> &middot; <a href="/recent">See recent activity &rarr;</a></p>
+        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor. <a href="/curves">Browse all curves as a table &rarr;</a> &middot; <a href="/database.json" download>Download the database (JSON) &darr;</a> &middot; <a href="/recent">See recent activity &rarr;</a></p>
         <h3>naive height vs rank</h3>
         <p class="muted board-caption">Naive height = <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span>. Recorded for every curve.</p>
         ${scatterPlot(
@@ -223,6 +224,124 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
         </form>
       </section>`
   return layout('Elliptic Curve Rank Leaderboard', inner, user)
+}
+
+export interface TableCurve extends PlotCurve {
+  ainvs: string // JSON [a1..a6]
+}
+
+// Sortable/filterable table of all curves. The rows are server-rendered (with
+// the numeric sort keys in data attributes); a small inline script re-sorts on
+// header click and filters by minimum rank, mirroring the state into the query
+// string so views are shareable. Works without JS as a static table ordered by
+// naive height.
+export function curveTablePage(curves: TableCurve[], user: User | null = null): string {
+  const dash = '<span class="muted">&mdash;</span>'
+  const rows = curves
+    .map((c) => {
+      let ainvs: string[] = []
+      try {
+        ainvs = JSON.parse(c.ainvs)
+      } catch {
+        /* leave empty */
+      }
+      const logCond = c.conductor != null ? logBigInt(c.conductor) : null
+      return `<tr data-rank="${c.rank_lower_bound}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}">
+            <td><a href="/curve/${c.id}">#${c.id}</a></td>
+            <td><code>[${ainvs.map((a) => escapeHtml(clip(a, 14))).join(', ')}]</code></td>
+            <td class="num">&ge; ${c.rank_lower_bound}</td>
+            <td class="num">${c.naive_height.toFixed(2)}</td>
+            <td class="num">${c.faltings_height != null ? c.faltings_height.toFixed(2) : dash}</td>
+            <td class="num">${logCond != null ? logCond.toFixed(2) : dash}</td>
+          </tr>`
+    })
+    .join('\n')
+  const sortHeader = (key: string, label: string): string =>
+    `<th class="num"><button type="button" class="sort" data-key="${key}">${label}</button></th>`
+  const inner = `
+      <p class="page-nav"><a href="/">&larr; the board</a></p>
+      <h2>All curves</h2>
+      <p class="page-subtitle">Click a column header to sort; click again to reverse. Curves missing a
+      value (no bad primes supplied yet) sort last.</p>
+      <div class="table-controls">
+        <label>rank &ge; <input id="rank-filter" type="number" min="0" step="1" placeholder="0" /></label>
+        <span class="muted">showing <span id="curve-count">${curves.length}</span> of ${curves.length} curves</span>
+      </div>
+      <table class="curves-table" id="curves-table">
+        <thead>
+          <tr>
+            <th>curve</th>
+            <th>a-invariants</th>
+            ${sortHeader('rank', 'rank')}
+            ${sortHeader('naive', 'naive height')}
+            ${sortHeader('faltings', 'Faltings height')}
+            ${sortHeader('conductor', 'log conductor')}
+          </tr>
+        </thead>
+        <tbody>
+          ${rows}
+        </tbody>
+      </table>
+      <script>
+      (function () {
+        var KEYS = ['rank', 'naive', 'faltings', 'conductor'];
+        var tbody = document.getElementById('curves-table').tBodies[0];
+        var rows = Array.prototype.slice.call(tbody.rows);
+        var rankInput = document.getElementById('rank-filter');
+        var count = document.getElementById('curve-count');
+        var buttons = document.querySelectorAll('button.sort');
+        var sortKey = 'naive';
+        var sortDir = 1; // 1 = ascending, -1 = descending
+
+        var params = new URLSearchParams(location.search);
+        if (KEYS.indexOf(params.get('sort')) >= 0) sortKey = params.get('sort');
+        if (params.get('dir') === 'desc') sortDir = -1;
+        if (/^[0-9]+$/.test(params.get('minrank') || '')) rankInput.value = params.get('minrank');
+
+        function apply() {
+          rows.sort(function (a, b) {
+            var av = a.dataset[sortKey], bv = b.dataset[sortKey];
+            if (av === '') return bv === '' ? 0 : 1; // missing values last either way
+            if (bv === '') return -1;
+            return (Number(av) - Number(bv)) * sortDir;
+          });
+          var minRank = Number(rankInput.value) || 0;
+          var shown = 0;
+          rows.forEach(function (r) {
+            r.hidden = Number(r.dataset.rank) < minRank;
+            if (!r.hidden) shown++;
+            tbody.appendChild(r);
+          });
+          count.textContent = shown;
+          buttons.forEach(function (b) {
+            b.className = 'sort' + (b.dataset.key === sortKey ? (sortDir === 1 ? ' asc' : ' desc') : '');
+          });
+          var q = new URLSearchParams();
+          if (sortKey !== 'naive' || sortDir !== 1) {
+            q.set('sort', sortKey);
+            if (sortDir === -1) q.set('dir', 'desc');
+          }
+          if (minRank > 0) q.set('minrank', String(minRank));
+          var qs = q.toString();
+          history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
+        }
+
+        buttons.forEach(function (b) {
+          b.addEventListener('click', function () {
+            if (sortKey === b.dataset.key) {
+              sortDir = -sortDir;
+            } else {
+              sortKey = b.dataset.key;
+              sortDir = sortKey === 'rank' ? -1 : 1; // high rank first; small heights first
+            }
+            apply();
+          });
+        });
+        rankInput.addEventListener('input', apply);
+        apply();
+      })();
+      </script>`
+  return layout('All curves — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
 export interface CurveRow {
