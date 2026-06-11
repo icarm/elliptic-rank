@@ -169,7 +169,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       without computing the exact rank: each point is checked to lie on the curve, and their
       N&eacute;ron&ndash;Tate height-pairing matrix is checked to be positive definite &mdash; so the points are
       independent in <em>E</em>(&#8474;), proving rank &ge; the number of points.</p>
-      <p class="browse-cta"><a href="/curves">Browse all curves as a table &rarr;</a> &middot; <a href="/database.json" download>Download the database (JSON) &darr;</a> &middot; <a href="/recent">See recent activity &rarr;</a></p>
+      <p class="browse-cta"><a href="/database.json" download>Download the database (JSON) &darr;</a> &middot; <a href="/curves">Browse all curves as a table &rarr;</a> &middot; <a href="/recent">See recent activity &rarr;</a></p>
       <section class="board">
         <h2>Plots</h2>
         <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor.</p>
@@ -237,7 +237,7 @@ export interface TableCurve extends PlotCurve {
 // string so views are shareable. Works without JS as a static table ordered by
 // naive height.
 export function curveTablePage(curves: TableCurve[], user: User | null = null): string {
-  const dash = '<span class="muted">&mdash;</span>'
+  const unknown = '<span class="muted">?</span>'
   const rows = curves
     .map((c) => {
       let ainvs: string[] = []
@@ -252,15 +252,15 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             <td><code>[${ainvs.map((a) => escapeHtml(clip(a, 14))).join(', ')}]</code></td>
             <td class="num">&ge; ${c.rank_lower_bound}</td>
             <td class="num">${c.naive_height.toFixed(2)}</td>
-            <td class="num">${c.faltings_height != null ? c.faltings_height.toFixed(2) : dash}</td>
-            <td class="num">${logCond != null ? logCond.toFixed(2) : dash}</td>
+            <td class="num">${c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown}</td>
+            <td class="num">${logCond != null ? logCond.toFixed(2) : unknown}</td>
           </tr>`
     })
     .join('\n')
   const sortHeader = (key: string, label: string): string =>
     `<th class="num"><button type="button" class="sort" data-key="${key}">${label}</button></th>`
   const inner = `
-      <p class="page-nav"><a href="/">&larr; the board</a></p>
+      <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>All curves</h2>
       <p class="page-subtitle">Click a column header to sort; click again to reverse. Curves missing a
       value (no bad primes supplied yet) sort last.</p>
@@ -447,7 +447,7 @@ export function curveDetailPage(
     ? escapeHtml(curve.submitter_name)
     : '<span class="muted">anonymous</span>'
   const inner = `
-      <p class="page-nav"><a href="/">&larr; the board</a></p>
+      <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>curve #${curve.id}</h2>
       <div class="curve-eq eq">${eq}</div>
       <dl class="result-meta">
@@ -531,7 +531,7 @@ export function activityPage(
     ? `<a href="/recent?p=${page + 1}">older &rarr;</a>`
     : `<span class="muted">older &rarr;</span>`
   const inner = `
-      <p class="page-nav"><a href="/">&larr; the board</a></p>
+      <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>Recent activity</h2>
       <p class="page-subtitle">New submissions and commentary edits, newest first.</p>
       ${list}
