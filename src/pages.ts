@@ -202,7 +202,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       </section>
 
       <section class="submit">
-        <h2>Submit a rank lower bound</h2>
+        <h2>Submit a curve</h2>
         <p class="submit-help">Give the Weierstrass coefficients and a set of independent rational points.
         On submission we confirm the points lie on the curve and are linearly independent, then record
         the curve on the board.</p>
