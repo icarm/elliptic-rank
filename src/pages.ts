@@ -173,6 +173,13 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       <section class="board">
         <h2>Plots</h2>
         <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor.</p>
+        <h3>log conductor vs rank</h3>
+        <p class="muted board-caption">Natural log of the conductor <em>N</em> = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup> over bad primes. Recorded when a submission supplies the curve's bad primes.</p>
+        ${scatterPlot(
+          curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
+          'log conductor',
+          (v) => v.toFixed(0),
+        )}
         <h3>naive height vs rank</h3>
         <p class="muted board-caption">Naive height = <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span> of the canonical (reduced) model, so it doesn't depend on how the curve was submitted. Recorded for every curve.</p>
         ${scatterPlot(
@@ -186,13 +193,6 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
           curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
           'Faltings height',
           (v) => v.toFixed(1),
-        )}
-        <h3>log conductor vs rank</h3>
-        <p class="muted board-caption">Natural log of the conductor <em>N</em> = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup> over bad primes. Recorded when a submission supplies the curve's bad primes.</p>
-        ${scatterPlot(
-          curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
-          'log conductor',
-          (v) => v.toFixed(0),
         )}
       </section>
 
