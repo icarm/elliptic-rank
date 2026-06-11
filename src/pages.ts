@@ -169,7 +169,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       without computing the exact rank: each point is checked to lie on the curve, and their
       N&eacute;ron&ndash;Tate height-pairing matrix is checked to be positive definite &mdash; so the points are
       independent in <em>E</em>(&#8474;), proving rank &ge; the number of points.</p>
-      <p class="browse-cta"><a href="/database.json" download>Download the database (JSON) &darr;</a> &middot; <a href="/curves">Browse all curves as a table &rarr;</a> &middot; <a href="/recent">See recent activity &rarr;</a></p>
+      <p class="browse-cta"><a href="/database.json" download>Download the database (JSON) &darr;</a> <span class="cta-sep">|</span> <a href="/curves">Browse all curves as a table &rarr;</a> <span class="cta-sep">|</span> <a href="/recent">See recent activity &rarr;</a></p>
       <section class="board">
         <h2>Plots</h2>
         <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor.</p>

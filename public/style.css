@@ -187,6 +187,11 @@ main p code, .result code, pre code, .submit-help code {
   text-decoration: underline;
 }
 
+.browse-cta .cta-sep {
+  color: var(--muted);
+  margin: 0 0.35rem;
+}
+
 .page-nav {
   margin: 0 0 1rem;
   font-size: 0.95rem;
