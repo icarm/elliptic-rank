@@ -162,12 +162,12 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       <section class="hero">
         <p class="lede">Can we find <em>small</em> elliptic curves of <em>high rank</em>?</p>
       </section>
-      <p>This site tracks elliptic curves <em>E</em>/&#8474; of high
+      <p>
+      Inspired by <a class="external" href="https://web.math.pmf.unizg.hr/~duje/tors/rankhist.html">Dujella's rank tables</a>,
+      this site tracks elliptic curves <em>E</em>/&#8474; of high
       <a class="external" href="https://en.wikipedia.org/wiki/Rank_of_an_elliptic_curve">Mordell&ndash;Weil rank</a>
       relative to their size &mdash; measured by naive height, Faltings height, or
-      <a class="external" href="https://en.wikipedia.org/wiki/Conductor_of_an_elliptic_curve">conductor</a> &mdash;
-      a leaderboard in the spirit of <a class="external" href="https://web.math.pmf.unizg.hr/~duje/tors/rankhist.html">Dujella's rank tables</a>,
-      asking how <em>small</em> a curve of each rank can be.</p>
+      <a class="external" href="https://en.wikipedia.org/wiki/Conductor_of_an_elliptic_curve">conductor</a>.</p>
       <p>Every entry is backed by an explicit list of rational points. We certify a <strong>rank lower bound</strong>
       without computing the exact rank: each point is checked to lie on the curve, and their
       N&eacute;ron&ndash;Tate height-pairing matrix is checked to be positive definite &mdash; so the points are
