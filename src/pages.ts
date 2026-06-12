@@ -43,6 +43,11 @@ function authNav(user: User | null): string {
   return `<a href="/auth/github">log in with GitHub</a>`
 }
 
+const SITE_ORIGIN = 'https://elliptic-rank.icarm.cloud'
+const SITE_DESCRIPTION =
+  'Can we find small elliptic curves of high rank? A leaderboard of certified ' +
+  'Mordell–Weil rank lower bounds, ordered by naive height, Faltings height, and conductor.'
+
 export function layout(title: string, bodyInner: string, user: User | null = null): string {
   return `<!doctype html>
 <html lang="en">
@@ -50,6 +55,15 @@ export function layout(title: string, bodyInner: string, user: User | null = nul
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)}</title>
+    <meta name="description" content="${escapeHtml(SITE_DESCRIPTION)}" />
+    <meta property="og:site_name" content="Elliptic Curve Rank Leaderboard" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${escapeHtml(title)}" />
+    <meta property="og:description" content="${escapeHtml(SITE_DESCRIPTION)}" />
+    <meta property="og:image" content="${SITE_ORIGIN}/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/favicon-180.png" />
