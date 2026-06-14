@@ -182,11 +182,6 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       <a class="external" href="https://en.wikipedia.org/wiki/Rank_of_an_elliptic_curve">Mordell&ndash;Weil rank</a>
       relative to their size &mdash; measured by naive height, Faltings height, or
       <a class="external" href="https://en.wikipedia.org/wiki/Conductor_of_an_elliptic_curve">conductor</a>.</p>
-      <p>Every entry is backed by an explicit list of rational points. We certify a <strong>rank lower bound</strong>
-      without computing the exact rank: each point is checked to lie on the curve, and their
-      N&eacute;ron&ndash;Tate height-pairing matrix is checked to be positive definite &mdash; so the points are
-      independent in <em>E</em>(&#8474;), proving rank &ge; the number of points. Supplying the curve's bad
-      primes additionally records its conductor, minimal discriminant, and Faltings height.</p>
       <p class="browse-cta"><a href="/database.json" download>Download the database (JSON) &darr;</a> <span class="cta-sep">|</span> <a href="/curves">Browse all curves as a table &rarr;</a> <span class="cta-sep">|</span> <a href="/recent">See recent activity &rarr;</a></p>
       <section class="board">
         <h2>Plots</h2>
@@ -217,8 +212,10 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       <section class="submit">
         <h2>Submit a curve</h2>
         <p class="submit-help">Give the Weierstrass coefficients and a set of independent rational points.
-        On submission we confirm the points lie on the curve and are linearly independent, then record
-        the curve on the board.</p>
+        Each point is checked to lie on the curve, and their N&eacute;ron&ndash;Tate height-pairing matrix
+        is checked to be positive definite &mdash; so the points are independent in <em>E</em>(&#8474;),
+        proving rank &ge; the number of points. Supplying the curve's bad primes additionally records its
+        conductor, minimal discriminant, and Faltings height.</p>
         <div class="eq-line">
           <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
         </div>
