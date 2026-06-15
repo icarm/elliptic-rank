@@ -86,8 +86,7 @@ export function layout(title: string, bodyInner: string, user: User | null = nul
         <a class="external" href="https://icarm.io">icarm.io</a>
       </nav>
       <p class="acknowledgment">This website is maintained by the NSF Institute for Computer-Aided
-      Reasoning in Mathematics <span class="nowrap">(<a class="external" href="https://icarm.io">ICARM</a>)</span>. If you find it
-      useful, please acknowledge ICARM and NSF Grant DMS 2425401 in related publications,
+      Reasoning in Mathematics <span class="nowrap">(<a class="external" href="https://icarm.io">ICARM</a>)</span>. Please acknowledge ICARM and NSF Grant DMS 2425401 in related publications,
       projects, or other scholarly work.</p>
     </footer>
   </body>
