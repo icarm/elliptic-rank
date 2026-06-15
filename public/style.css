@@ -740,6 +740,8 @@ footer a {
   line-height: 1.5;
 }
 
+.nowrap { white-space: nowrap; }
+
 /* Wikipedia-style external-link glyph */
 a.external::after {
   content: "";
