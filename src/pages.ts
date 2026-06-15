@@ -78,11 +78,17 @@ export function layout(title: string, bodyInner: string, user: User | null = nul
     </header>
     <main>${bodyInner}</main>
     <footer>
-      <a href="/curves">all curves</a> &nbsp;&middot;&nbsp;
-      <a href="/recent">recent activity</a> &nbsp;&middot;&nbsp;
-      <a href="/api">API</a> &nbsp;&middot;&nbsp;
-      <a class="external" href="https://github.com/icarm/elliptic-rank">source</a> &nbsp;&middot;&nbsp;
-      <a class="external" href="https://icarm.io">icarm.io</a>
+      <nav class="footer-links">
+        <a href="/curves">all curves</a> &nbsp;&middot;&nbsp;
+        <a href="/recent">recent activity</a> &nbsp;&middot;&nbsp;
+        <a href="/api">API</a> &nbsp;&middot;&nbsp;
+        <a class="external" href="https://github.com/icarm/elliptic-rank">source</a> &nbsp;&middot;&nbsp;
+        <a class="external" href="https://icarm.io">icarm.io</a>
+      </nav>
+      <p class="acknowledgment">This database is maintained by the NSF Institute for Computer-Aided
+      Reasoning in Mathematics (<a class="external" href="https://icarm.io">ICARM</a>). If you find it
+      useful, please consider acknowledging ICARM and NSF Grant DMS 2425401 in related publications,
+      projects, or other scholarly work.</p>
     </footer>
   </body>
 </html>
