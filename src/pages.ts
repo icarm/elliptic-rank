@@ -86,7 +86,7 @@ export function layout(title: string, bodyInner: string, user: User | null = nul
         <a class="external" href="https://icarm.io">icarm.io</a>
       </nav>
       <p class="acknowledgment">This website is maintained by the NSF Institute for Computer-Aided
-      Reasoning in Mathematics <span class="nowrap">(<a class="external" href="https://icarm.io">ICARM</a>)</span>. Please acknowledge ICARM and NSF Grant DMS 2425401 in related publications,
+      Reasoning in Mathematics <span class="nowrap">(<a class="external" href="https://icarm.io">ICARM</a>)</span>. Please <a href="/acknowledge">acknowledge</a> ICARM and NSF Grant DMS 2425401 in related publications,
       projects, or other scholarly work.</p>
     </footer>
   </body>
@@ -808,4 +808,25 @@ export function notFoundPage(user: User | null = null): string {
     `<p class="page-nav"><a href="/">&larr; home</a></p><h2>Not found</h2><p>No such page.</p>`,
     user,
   )
+}
+
+export function acknowledgePage(user: User | null = null): string {
+  const inner = `
+      <p class="page-nav"><a href="/">&larr; home</a></p>
+      <h2>Acknowledgement</h2>
+      <p>The Institute for Computer-Aided Reasoning in Mathematics
+      <span class="nowrap">(<a class="external" href="https://icarm.io">ICARM</a>)</span> is supported by
+      U.S. National Science Foundation Grant DMS 2425401. The views expressed on these pages do not
+      necessarily reflect those of the NSF.</p>
+      <p>If any ICARM meetings, resources, or innovation engineers are helpful to you, you can indicate
+      that in associated publications with a brief acknowledgment, such as the following:</p>
+      <ul>
+        <li>&ldquo;Part of this research has been carried out at the Institute for Computer-Aided
+        Reasoning (ICARM), which is supported by NSF Grant DMS 2425401.&rdquo;</li>
+        <li>&ldquo;This research made use of the Elliptic Curve Rank Leaderboard, maintained by the
+        Institute for Computer-Aided Reasoning (ICARM) under NSF Grant DMS 2425401.&rdquo;</li>
+        <li>&ldquo;We are grateful to the Institute for Computer-Aided Reasoning (ICARM) for technical
+        support provided under NSF Grant DMS 2425401.&rdquo;</li>
+      </ul>`
+  return layout('Acknowledgement — Elliptic Curve Rank Leaderboard', inner, user)
 }
