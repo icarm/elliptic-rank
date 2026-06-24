@@ -448,7 +448,11 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     }))
     result.allPointsOnCurve = result.points.every((p) => p.onCurve)
     if (!result.allPointsOnCurve) {
-      result.errors.push('not all points lie on the curve')
+      for (const [i, p] of result.points.entries()) {
+        if (!p.onCurve) {
+          result.errors.push(`point[${i}] = [${p.point[0]}, ${p.point[1]}] does not lie on the curve`)
+        }
+      }
       return result
     }
 

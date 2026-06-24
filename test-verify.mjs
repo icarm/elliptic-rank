@@ -131,7 +131,12 @@ if (baseKey.key !== scaledKey.key || Math.abs(Number(baseHeight) - Number(scaled
 }
 // failure cases
 show('singular curve', { ainvs: ['0', '0'], points: [['0', '0']] })
+const offCurve = verify(gp, { ainvs: ['0', '0', '1', '-6349808647', '193146346911036'], points: [['1', '1']] })
 show('point off curve', { ainvs: ['0', '0', '1', '-6349808647', '193146346911036'], points: [['1', '1']] })
+if (!offCurve.errors.some((e) => e.includes('point[0] = [1, 1] does not lie on the curve'))) {
+  console.error('FAIL: off-curve point error did not identify the point')
+  process.exitCode = 1
+}
 show('dependent (P,P)', { ainvs: RK12.ainvs, points: [RK12.points[0], RK12.points[0]] })
 show('injection attempt', { ainvs: ['0', '0', '1', '0', 'ellinit([0,1])'], points: [['0', '0']] })
 
