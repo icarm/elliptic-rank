@@ -1,6 +1,11 @@
 import { Hono } from 'hono'
 import { getGp } from './pari'
-import { verify, verifyPrimes, autoPrimes, type VerifyInput } from './verify'
+import { verify, verifyPrimes, autoPrimes, type VerifyInput, type VerifyResult } from './verify'
+import {
+  checkSubmissionRateLimit,
+  SUBMISSION_RATE_LIMIT,
+  SUBMISSION_RATE_PERIOD_SEC,
+} from './rateLimit'
 import {
   landingPage,
   submitResultPage,
@@ -304,6 +309,23 @@ app.get('/database.json', async (c) => {
 app.post('/api/submit', async (c) => {
   const user = c.get('user')
   if (!user) return c.json({ ok: false, errors: ['authentication required'] }, 401)
+  const rate = await checkSubmissionRateLimit(c.env, user.id)
+  if (!rate.allowed) {
+    c.header('Retry-After', String(rate.retryAfter))
+    return c.json(
+      {
+        ...rejectedVerification(
+          `submission rate limit exceeded: ${SUBMISSION_RATE_LIMIT} per ${SUBMISSION_RATE_PERIOD_SEC} seconds; retry in about ${rate.retryAfter} seconds`,
+        ),
+        rateLimit: {
+          limit: SUBMISSION_RATE_LIMIT,
+          period: SUBMISSION_RATE_PERIOD_SEC,
+          retryAfter: rate.retryAfter,
+        },
+      },
+      429,
+    )
+  }
   let body: VerifyInput & { commentary?: unknown }
   try {
     body = await c.req.json()
@@ -324,6 +346,20 @@ app.post('/api/submit', async (c) => {
 app.post('/submit-form', async (c) => {
   const user = c.get('user')
   if (!user) return c.redirect('/auth/github', 302)
+  const rate = await checkSubmissionRateLimit(c.env, user.id)
+  if (!rate.allowed) {
+    c.header('Retry-After', String(rate.retryAfter))
+    return c.html(
+      submitResultPage(
+        rejectedVerification(
+          `submission rate limit exceeded: ${SUBMISSION_RATE_LIMIT} per ${SUBMISSION_RATE_PERIOD_SEC} seconds; retry in about ${rate.retryAfter} seconds`,
+        ),
+        user,
+        null,
+      ),
+      429,
+    )
+  }
   const form = await c.req.parseBody()
   const input: VerifyInput = {
     ainvs: parseTokens(String(form.ainvs ?? '')),
@@ -410,6 +446,23 @@ function parsePoints(s: string): [string, string][] {
       const parts = line.split(/[\s,]+/).filter(Boolean)
       return [parts[0] ?? '', parts[1] ?? ''] as [string, string]
     })
+}
+
+function rejectedVerification(message: string): VerifyResult {
+  return {
+    ok: false,
+    errors: [message],
+    curve: null,
+    canonical: null,
+    points: [],
+    allPointsOnCurve: false,
+    independence: null,
+    height: null,
+    conductor: null,
+    minimalDiscriminant: null,
+    faltingsHeight: null,
+    conductorNote: null,
+  }
 }
 
 export default app

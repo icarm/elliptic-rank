@@ -31,6 +31,17 @@
       "id": "d72798bc75be4bce97fb19f2990f6230"
     }
   ],
+  "ratelimits": [
+    {
+      "name": "SUBMISSION_RATE_LIMITER",
+      // Unique integer namespace for per-account curve-submission limits.
+      "namespace_id": "677255",
+      "simple": {
+        "limit": 6,
+        "period": 60
+      }
+    }
+  ],
   "observability": {
     "enabled": true
   }
