@@ -129,6 +129,13 @@ if (baseKey.key !== scaledKey.key || Math.abs(Number(baseHeight) - Number(scaled
 } else {
   console.log(`large-prime scaled key/height OK: key=${scaledKey.key}, naiveH=${scaledHeight.slice(0, 10)}`)
 }
+const unicodeMinus = verify(gp, { ainvs: RK12.ainvs, points: [['\u22123659', '14708205']] })
+if (!unicodeMinus.ok || unicodeMinus.points[0]?.point[0] !== '-3659') {
+  console.error('FAIL: unicode minus sign was not accepted as a numeric sign')
+  process.exitCode = 1
+} else {
+  console.log('unicode minus sign accepted OK')
+}
 // failure cases
 show('singular curve', { ainvs: ['0', '0'], points: [['0', '0']] })
 const offCurve = verify(gp, { ainvs: ['0', '0', '1', '-6349808647', '193146346911036'], points: [['1', '1']] })

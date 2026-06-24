@@ -98,7 +98,7 @@ class InputError extends Error {}
 
 // Validate a single integer/rational token and return its canonical string.
 function token(raw: string | number, label: string): string {
-  const s = String(raw).trim()
+  const s = String(raw).trim().replace(/\u2212/g, '-')
   if (s.length === 0) throw new InputError(`${label}: bad length`)
   if (!NUM_RE.test(s)) throw new InputError(`${label}: not an integer/rational: ${s.slice(0, 40)}`)
   if (/\/0+$/.test(s)) throw new InputError(`${label}: zero denominator`)
