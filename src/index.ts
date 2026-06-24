@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { getGp } from './pari'
-import { verify, verifyPrimes, type VerifyInput } from './verify'
+import { verify, verifyPrimes, autoPrimes, type VerifyInput } from './verify'
 import {
   landingPage,
   submitResultPage,
@@ -137,15 +137,20 @@ app.post('/curve/:id/primes', async (c) => {
   const { row, comment } = loaded
   // Already recorded: nothing to do.
   if (row.conductor != null) return c.redirect(`/curve/${id}`, 302)
-  const primes = parseTokens(String((await c.req.parseBody()).primes ?? ''))
+  const form = await c.req.parseBody()
   const gp = await getGp()
   let ainvs: (string | number)[] = []
   try {
     ainvs = JSON.parse(row.ainvs)
   } catch {
-    /* leave empty; verifyPrimes will reject */
+    /* leave empty; verify(Primes) will reject */
   }
-  const res = verifyPrimes(gp, ainvs, primes)
+  // "Compute automatically" attempts bounded trial division; otherwise use the
+  // primes the submitter typed.
+  const res =
+    String(form.mode ?? '') === 'auto'
+      ? autoPrimes(gp, ainvs)
+      : verifyPrimes(gp, ainvs, parseTokens(String(form.primes ?? '')))
   if (res.ok && res.conductor != null) {
     await setCurveInvariants(c.env, id, res.conductor, res.minimalDiscriminant, res.faltingsHeight)
     return c.redirect(`/curve/${id}`, 302)

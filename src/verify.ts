@@ -177,6 +177,35 @@ function minimalC4C6(gp: Gp): { c4: string; c6: string } {
 
 const MAX_PRIMES = 1024
 
+// Trial-division bound for automatic bad-prime detection. Trial division to this
+// bound costs at most ~25ms even on a several-hundred-digit discriminant.
+const AUTO_FACTOR_BOUND = '10^7'
+
+// Attempt to recover the complete set of bad primes for the curve `E` (already
+// loaded in `gp`) by trial-dividing |disc| up to AUTO_FACTOR_BOUND. Returns the
+// primes iff this fully factors the discriminant — i.e. every cofactor left
+// after trial division is a (probable) prime or a perfect power of one — and
+// null otherwise.
+//
+// This is bounded trial division, NOT factoring: it never invokes ECM/MPQS, so
+// it cannot hang on a hard semiprime — it simply gives up (returns null),
+// leaving the primes to be supplied manually. See the file header on why
+// factoring is otherwise avoided.
+function autoBadPrimes(gp: Gp): string[] | null {
+  const out = evalGp(
+    gp,
+    `my(d=abs(E.disc), f=factor(d,${AUTO_FACTOR_BOUND}), ps=List(), ok=1, r);` +
+      'for(i=1, #f~, my(b=f[i,1]);' +
+      '  if(ispseudoprime(b), listput(ps,b),' +
+      '     if(ispower(b,,&r) && ispseudoprime(r), listput(ps,r), ok=0)));' +
+      'if(ok, Vec(ps), 0)',
+  )
+  if (out === '0') return null
+  const inner = out.replace(/^\[|\]$/g, '').trim()
+  if (inner === '') return null // |disc| = 1: no bad primes (cannot occur over Q)
+  return inner.split(',').map((s) => s.trim())
+}
+
 interface Invariants {
   conductor: string | null
   minDisc: string | null
@@ -300,6 +329,51 @@ export function verifyPrimes(
   }
 }
 
+// Like `verifyPrimes`, but recovers the bad primes automatically by bounded
+// trial division instead of taking them from the caller. `ok` is true iff the
+// discriminant fully factored within the budget and the invariants were
+// computed; otherwise `note` explains that manual entry is needed.
+export function autoPrimes(gp: Gp, ainvs: (string | number)[]): PrimesResult {
+  const out: PrimesResult = {
+    ok: false,
+    conductor: null,
+    minimalDiscriminant: null,
+    faltingsHeight: null,
+    note: null,
+    errors: [],
+  }
+  let a: [string, string, string, string, string]
+  try {
+    a = normalizeAinvs(ainvs)
+  } catch (e) {
+    out.errors.push(e instanceof Error ? e.message : String(e))
+    return out
+  }
+  try {
+    evalGp(gp, `E = ellinit([${a.join(',')}])`)
+    if (evalGp(gp, '#E') === '0') {
+      out.errors.push('curve is singular (discriminant 0)')
+      return out
+    }
+    const primes = autoBadPrimes(gp)
+    if (!primes) {
+      out.note =
+        'could not factor the discriminant within the quick budget — please enter the primes manually'
+      return out
+    }
+    const inv = invariantsFromPrimes(gp, primes)
+    out.conductor = inv.conductor
+    out.minimalDiscriminant = inv.minDisc
+    out.faltingsHeight = inv.faltings
+    out.note = inv.note
+    out.ok = inv.conductor != null
+    return out
+  } catch (e) {
+    out.errors.push(e instanceof Error ? e.message : String(e))
+    return out
+  }
+}
+
 export function verify(gp: Gp, input: VerifyInput): VerifyResult {
   const result: VerifyResult = {
     ok: false,
@@ -374,8 +448,14 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
       ),
     }
 
-    // Conductor / minimal discriminant / Faltings height from supplied primes
-    // (optional; no factoring).
+    // Conductor / minimal discriminant / Faltings height from the bad primes.
+    // If none were supplied, try to recover them by bounded trial division — a
+    // best-effort that completes in milliseconds and gives up (rather than
+    // factoring a hard composite) when it cannot fully factor the discriminant.
+    if (primes.length === 0) {
+      const auto = autoBadPrimes(gp)
+      if (auto) primes = auto
+    }
     const inv = invariantsFromPrimes(gp, primes)
     result.conductor = inv.conductor
     result.minimalDiscriminant = inv.minDisc

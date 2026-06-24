@@ -482,11 +482,15 @@ function badPrimesSection(curveId: number, user: User | null, error: string | nu
   const body = user
     ? `<form method="post" action="/curve/${curveId}/primes" class="primes-form">
           ${err}
+          <div class="submit-row">
+            <button type="submit" name="mode" value="auto">Compute automatically</button>
+            <span class="muted">tries to factor the discriminant by bounded trial division (a few ms; gives up on hard cases)</span>
+          </div>
           <label class="field">
-            <span>bad primes <span class="muted">&mdash; the primes dividing the discriminant, comma- or space-separated. Each must be prime and together divide the discriminant; no factoring is done.</span></span>
-            <input type="text" name="primes" required autocomplete="off" />
+            <span>or enter them manually <span class="muted">&mdash; the primes dividing the discriminant, comma- or space-separated. Each must be prime and together divide the discriminant.</span></span>
+            <input type="text" name="primes" autocomplete="off" />
           </label>
-          <div class="submit-row"><button type="submit">Record</button></div>
+          <div class="submit-row"><button type="submit" name="mode" value="manual">Record</button></div>
         </form>`
     : `<p class="muted"><a href="/auth/github">Log in</a> to supply the bad primes.</p>`
   return `<section class="primes-section">
