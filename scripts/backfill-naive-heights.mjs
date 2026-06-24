@@ -1,14 +1,7 @@
-// One-off backfill (June 2026): naive heights recorded before the
-// canonical-height fix were computed from the submitted model, so curves
-// submitted in a non-minimal model (e.g. #61, Elkies' rank-13 Mordell curve,
-// submitted as y^2 = x^3 + 16m) carry an inflated height. With the fix
-// deployed, resubmitting a curve's own stored witness recomputes the height
-// canonically and recordCurve corrects the stored value in place — full
-// verification, no manual SQL.
-//
-// Historical note: this audits the orbit-reduced key height used by the earlier
-// canonical-height rule. The current verifier records minimal-model height, so
-// do not use this script for the later p=2,3 minimal-height backfill.
+// One-off backfill (June 2026): recompute naive heights for every stored curve
+// by resubmitting its current witness to the live verifier. This intentionally
+// does not derive height from curve_key: the current convention is minimal-model
+// height, while curve_key is the bounded orbit-reduced dedup key.
 //
 // Usage:  node scripts/backfill-naive-heights.mjs
 // Token:  read from ~/.erank-token.txt
@@ -18,48 +11,124 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
-const SITE = process.env.ERANK_SITE ?? 'https://elliptic-rank.icarm.cloud'
-const token = fs.readFileSync(path.join(os.homedir(), '.erank-token.txt'), 'utf8').trim()
+const SITE = (process.env.ERANK_SITE ?? 'https://elliptic-rank.icarm.cloud').replace(/\/+$/, '')
+const tokenPath = process.env.ERANK_TOKEN_FILE ?? path.join(os.homedir(), '.erank-token.txt')
+const token = fs.readFileSync(tokenPath, 'utf8').trim()
+const EPS = 1e-6
 
-// Natural log of |big integer decimal string| (same method as pages.ts).
-function logBig(s) {
-  const t = s.replace('-', '')
-  if (t === '0') return -Infinity
-  const k = Math.min(15, t.length)
-  return Math.log(Number(t.slice(0, k))) + (t.length - k) * Math.LN10
+if (!token) {
+  console.error(`empty API token in ${tokenPath}`)
+  process.exit(1)
 }
 
-// Naive height recomputed from the canonical key "c4:c6".
-function canonicalHeight(key) {
-  const [c4, c6] = key.split(':')
-  return Math.max(3 * logBig(c4), 2 * logBig(c6))
+function parsePariFloat(s) {
+  return Number(String(s).replace(/\s+/g, '').replace(/E/i, 'e'))
 }
 
-async function staleCurves() {
-  const db = await (await fetch(`${SITE}/database.json`)).json()
-  return db.curves.filter((c) => Math.abs(canonicalHeight(c.curve_key) - c.naive_height) > 1e-6)
+async function jsonFetch(url, options = {}) {
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      accept: 'application/json',
+      ...(options.headers ?? {}),
+    },
+  })
+  const text = await res.text()
+  let body
+  try {
+    body = text ? JSON.parse(text) : null
+  } catch {
+    throw new Error(`${url}: HTTP ${res.status}, non-JSON response: ${text.slice(0, 200)}`)
+  }
+  if (!res.ok) {
+    throw new Error(`${url}: HTTP ${res.status}: ${JSON.stringify(body).slice(0, 500)}`)
+  }
+  return body
 }
 
-const stale = await staleCurves()
-console.log(`${stale.length} curve(s) with stale naive height on ${SITE}`)
+async function loadDatabase() {
+  const db = await jsonFetch(`${SITE}/database.json`, {
+    headers: { 'cache-control': 'no-cache' },
+  })
+  if (!db || !Array.isArray(db.curves)) {
+    throw new Error('database.json did not contain a curves array')
+  }
+  return db.curves
+}
 
-for (const c of stale) {
-  const want = canonicalHeight(c.curve_key)
-  const res = await fetch(`${SITE}/api/submit`, {
+async function submitCurve(c) {
+  return jsonFetch(`${SITE}/api/submit`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    headers: {
+      authorization: `Bearer ${token}`,
+      'content-type': 'application/json',
+    },
     body: JSON.stringify({ ainvs: c.ainvs, points: c.points }),
   })
-  const r = await res.json()
-  const got = r.height ? Number(r.height.naiveLogHeight.replace(/\s+/g, '').replace(/E/i, 'e')) : NaN
-  const ok = r.ok && r.leaderboard?.id === c.id && Math.abs(got - want) < 1e-6
-  console.log(
-    `#${String(c.id).padEnd(3)} rank>=${String(c.rank_lower_bound).padEnd(2)} ` +
-      `${c.naive_height.toFixed(4)} -> ${want.toFixed(4)} ${ok ? 'OK' : 'FAILED: ' + JSON.stringify(r.errors ?? r)}`,
-  )
-  if (!ok) process.exitCode = 1
 }
 
-const remaining = await staleCurves()
-console.log(remaining.length === 0 ? 'audit clean: all stored heights canonical' : `STILL STALE: ${remaining.map((c) => c.id).join(', ')}`)
-if (remaining.length > 0) process.exitCode = 1
+const before = await loadDatabase()
+console.log(`recomputing naive heights for ${before.length} curve(s) on ${SITE}`)
+
+const expected = new Map()
+let changed = 0
+let unchanged = 0
+let failed = 0
+
+for (const c of before) {
+  try {
+    const r = await submitCurve(c)
+    const got = parsePariFloat(r.height?.naiveLogHeight)
+    const sameId = r.leaderboard?.id === c.id
+    const sameRank = r.independence?.rankLowerBound === c.rank_lower_bound
+    const ok = r.ok === true && Number.isFinite(got) && sameId && sameRank
+    const delta = got - c.naive_height
+    const didChange = Math.abs(delta) > EPS
+
+    console.log(
+      `#${String(c.id).padEnd(3)} rank>=${String(c.rank_lower_bound).padEnd(2)} ` +
+        `${c.naive_height.toFixed(6)} -> ${Number.isFinite(got) ? got.toFixed(6) : 'NaN'} ` +
+        `${didChange ? `delta=${delta.toFixed(6)} UPDATED` : 'unchanged'} ` +
+        `${ok ? 'OK' : 'FAILED'}`,
+    )
+
+    if (!ok) {
+      failed++
+      console.error(
+        `  expected id=${c.id}, rank=${c.rank_lower_bound}; got ` +
+          `id=${r.leaderboard?.id}, rank=${r.independence?.rankLowerBound}, ` +
+          `ok=${r.ok}, errors=${JSON.stringify(r.errors ?? [])}`,
+      )
+      continue
+    }
+
+    expected.set(c.id, got)
+    if (didChange) changed++
+    else unchanged++
+  } catch (e) {
+    failed++
+    console.error(`#${c.id} FAILED: ${e instanceof Error ? e.message : String(e)}`)
+  }
+}
+
+const after = await loadDatabase()
+const afterById = new Map(after.map((c) => [c.id, c]))
+let stillStale = 0
+
+for (const [id, want] of expected) {
+  const row = afterById.get(id)
+  if (!row || Math.abs(row.naive_height - want) > EPS) {
+    stillStale++
+    console.error(
+      `#${id} database check FAILED: expected ${want.toFixed(6)}, ` +
+        `stored ${row ? row.naive_height.toFixed(6) : 'missing'}`,
+    )
+  }
+}
+
+console.log(
+  `done: ${changed} updated, ${unchanged} unchanged, ${failed} failed, ` +
+    `${stillStale} failed database check`,
+)
+
+if (failed > 0 || stillStale > 0) process.exitCode = 1
