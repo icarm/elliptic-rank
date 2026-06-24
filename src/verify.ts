@@ -228,14 +228,25 @@ function invariantsFromPrimes(gp: Gp, primes: string[]): Invariants {
   if (primes.length === 0) return none
   if (primes.length > MAX_PRIMES) return { ...none, note: `too many primes (max ${MAX_PRIMES})` }
   evalGp(gp, `cps = [${primes.join(',')}]`)
-  const ok = evalGp(
-    gp,
-    'my(d=abs(E.disc), ok=1);' +
-      'for(i=1,#cps, if(!ispseudoprime(cps[i]), ok=0));' +
-      'if(ok, for(i=1,#cps, while(d%cps[i]==0, d=d\\cps[i])); if(d!=1, ok=0)); ok',
-  )
-  if (ok !== '1') {
-    return { ...none, note: 'supplied primes are not all prime, or do not divide the discriminant' }
+  // Two distinct failure modes, reported separately: a supplied value is not
+  // prime, or the (prime) values are incomplete and leave an unaccounted factor
+  // of the discriminant. The original combined message wrongly said primes "do
+  // not divide the discriminant" even when each one did but the set was missing
+  // a prime.
+  const allPrime = evalGp(gp, 'my(ok=1); for(i=1,#cps, if(!ispseudoprime(cps[i]), ok=0)); ok')
+  if (allPrime !== '1') {
+    return { ...none, note: 'supplied values are not all prime' }
+  }
+  // Residual after dividing out every supplied prime; 1 iff they account for the
+  // entire discriminant. Extraneous primes (not dividing the discriminant) are
+  // harmless — they contribute a trivial conductor factor.
+  const leftover = evalGp(gp, 'my(d=abs(E.disc)); for(i=1,#cps, while(d%cps[i]==0, d=d\\cps[i])); d')
+  if (leftover !== '1') {
+    const shown = leftover.length > 40 ? `${leftover.slice(0, 40)}…` : leftover
+    return {
+      ...none,
+      note: `supplied primes are incomplete: they leave an unaccounted factor ${shown} of the discriminant`,
+    }
   }
   evalGp(gp, 'lr = vector(#cps, i, elllocalred(E, cps[i]))')
   evalGp(gp, 'Umin = prod(i=1, #cps, cps[i]^valuation(lr[i][3][1], cps[i]))')
