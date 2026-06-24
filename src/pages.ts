@@ -267,7 +267,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         /* leave empty */
       }
       const logCond = c.conductor != null ? logBigInt(c.conductor) : null
-      return `<tr data-rank="${c.rank_lower_bound}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}">
+      return `<tr data-id="${c.id}" data-rank="${c.rank_lower_bound}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}">
             <td><a href="/curve/${c.id}">#${c.id}</a></td>
             <td><code>[${ainvs.map((a) => escapeHtml(clip(a, 14))).join(', ')}]</code></td>
             <td class="num">&ge; ${c.rank_lower_bound}</td>
@@ -277,8 +277,8 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
           </tr>`
     })
     .join('\n')
-  const sortHeader = (key: string, label: string): string =>
-    `<th class="num"><button type="button" class="sort" data-key="${key}">${label}</button></th>`
+  const sortHeader = (key: string, label: string, extraClass = 'num'): string =>
+    `<th class="${extraClass}"><button type="button" class="sort" data-key="${key}">${label}</button></th>`
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>All curves</h2>
@@ -293,7 +293,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
       <table class="curves-table" id="curves-table">
         <thead>
           <tr>
-            <th>curve</th>
+            ${sortHeader('id', 'curve', '')}
             <th>a-invariants</th>
             ${sortHeader('rank', 'rank')}
             ${sortHeader('naive', 'naive height')}
@@ -308,7 +308,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
       </div>
       <script>
       (function () {
-        var KEYS = ['rank', 'naive', 'faltings', 'conductor'];
+        var KEYS = ['id', 'rank', 'naive', 'faltings', 'conductor'];
         var tbody = document.getElementById('curves-table').tBodies[0];
         var rows = Array.prototype.slice.call(tbody.rows);
         var rankInput = document.getElementById('rank-filter');
