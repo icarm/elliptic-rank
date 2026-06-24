@@ -38,6 +38,7 @@ import {
 } from './auth'
 
 const app = new Hono<AppEnv>()
+const MAX_SUBMISSION_BODY_BYTES = 64 * 1024
 
 // Resolve the current user (session cookie, else API bearer token) for every
 // request. Both lookups short-circuit cheaply when their credential is absent.
@@ -309,6 +310,9 @@ app.get('/database.json', async (c) => {
 app.post('/api/submit', async (c) => {
   const user = c.get('user')
   if (!user) return c.json({ ok: false, errors: ['authentication required'] }, 401)
+  if (submissionBodyTooLarge(c.req.raw)) {
+    return c.json({ ok: false, errors: [`request body too large (max ${MAX_SUBMISSION_BODY_BYTES} bytes)`] }, 413)
+  }
   const rate = await checkSubmissionRateLimit(c.env, user.id)
   if (!rate.allowed) {
     c.header('Retry-After', String(rate.retryAfter))
@@ -346,6 +350,16 @@ app.post('/api/submit', async (c) => {
 app.post('/submit-form', async (c) => {
   const user = c.get('user')
   if (!user) return c.redirect('/auth/github', 302)
+  if (submissionBodyTooLarge(c.req.raw)) {
+    return c.html(
+      submitResultPage(
+        rejectedVerification(`request body too large (max ${MAX_SUBMISSION_BODY_BYTES} bytes)`),
+        user,
+        null,
+      ),
+      413,
+    )
+  }
   const rate = await checkSubmissionRateLimit(c.env, user.id)
   if (!rate.allowed) {
     c.header('Retry-After', String(rate.retryAfter))
@@ -446,6 +460,11 @@ function parsePoints(s: string): [string, string][] {
       const parts = line.split(/[\s,]+/).filter(Boolean)
       return [parts[0] ?? '', parts[1] ?? ''] as [string, string]
     })
+}
+
+function submissionBodyTooLarge(req: Request): boolean {
+  const length = Number(req.headers.get('content-length') ?? '')
+  return Number.isFinite(length) && length > MAX_SUBMISSION_BODY_BYTES
 }
 
 function rejectedVerification(message: string): VerifyResult {

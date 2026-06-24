@@ -134,3 +134,26 @@ show('singular curve', { ainvs: ['0', '0'], points: [['0', '0']] })
 show('point off curve', { ainvs: ['0', '0', '1', '-6349808647', '193146346911036'], points: [['1', '1']] })
 show('dependent (P,P)', { ainvs: RK12.ainvs, points: [RK12.points[0], RK12.points[0]] })
 show('injection attempt', { ainvs: ['0', '0', '1', '0', 'ellinit([0,1])'], points: [['0', '0']] })
+
+const tooLargeToken = verify(gp, {
+  ainvs: ['1' + '0'.repeat(256), '0'],
+  points: [['0', '0']],
+})
+if (!tooLargeToken.errors.some((e) => e.includes('too many digits'))) {
+  console.error('FAIL: oversized numeric token was not rejected before PARI')
+  process.exitCode = 1
+} else {
+  console.log('oversized numeric token rejected OK')
+}
+
+const manyPrimes = verify(gp, {
+  ainvs: ['0', '0'],
+  points: [['0', '0']],
+  primes: Array.from({ length: 257 }, () => '2'),
+})
+if (!manyPrimes.errors.some((e) => e.includes('too many primes'))) {
+  console.error('FAIL: oversized prime list was not rejected before PARI')
+  process.exitCode = 1
+} else {
+  console.log('oversized prime list rejected OK')
+}

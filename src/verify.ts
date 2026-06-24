@@ -87,7 +87,7 @@ export interface VerifyResult {
 
 // Integer or rational literal, e.g. "12", "-3", "800843008889340065933/16".
 const NUM_RE = /^[+-]?\d+(?:\/\d+)?$/
-const MAX_TOKEN_LEN = 8000
+const MAX_NUMERIC_PART_DIGITS = 256
 const MAX_POINTS = 64
 // Eigenvalue threshold separating "independent" (height pairing positive
 // definite) from numerically-zero (dependent). Independent point sets give a
@@ -99,9 +99,13 @@ class InputError extends Error {}
 // Validate a single integer/rational token and return its canonical string.
 function token(raw: string | number, label: string): string {
   const s = String(raw).trim()
-  if (s.length === 0 || s.length > MAX_TOKEN_LEN) throw new InputError(`${label}: bad length`)
+  if (s.length === 0) throw new InputError(`${label}: bad length`)
   if (!NUM_RE.test(s)) throw new InputError(`${label}: not an integer/rational: ${s.slice(0, 40)}`)
   if (/\/0+$/.test(s)) throw new InputError(`${label}: zero denominator`)
+  const parts = s.replace(/^[+-]/, '').split('/')
+  if (parts.some((p) => p.length > MAX_NUMERIC_PART_DIGITS)) {
+    throw new InputError(`${label}: too many digits (max ${MAX_NUMERIC_PART_DIGITS})`)
+  }
   return s
 }
 
@@ -140,7 +144,7 @@ function minimalC4C6(gp: Gp): Canonical {
   return { c4, c6, key: `${c4}:${c6}` }
 }
 
-const MAX_PRIMES = 1024
+const MAX_PRIMES = 256
 
 // Trial-division bound for automatic bad-prime detection. Trial division to this
 // bound costs at most ~25ms even on a several-hundred-digit discriminant.
@@ -275,6 +279,7 @@ export function verifyPrimes(
   let primes: string[]
   try {
     a = normalizeAinvs(ainvs)
+    if (rawPrimes.length > MAX_PRIMES) throw new InputError(`too many primes (max ${MAX_PRIMES})`)
     primes = rawPrimes.map((p, i) => {
       const s = token(p, `prime[${i}]`)
       if (!/^\d+$/.test(s) || s === '0' || s === '1')
@@ -379,7 +384,9 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
       if (!Array.isArray(p) || p.length !== 2) throw new InputError(`point[${i}] must be [x,y]`)
       return [token(p[0], `point[${i}].x`), token(p[1], `point[${i}].y`)] as [string, string]
     })
-    primes = (input.primes ?? []).map((p, i) => {
+    const rawPrimes = input.primes ?? []
+    if (rawPrimes.length > MAX_PRIMES) throw new InputError(`too many primes (max ${MAX_PRIMES})`)
+    primes = rawPrimes.map((p, i) => {
       const s = token(p, `prime[${i}]`)
       if (!/^\d+$/.test(s) || s === '0' || s === '1') throw new InputError(`prime[${i}] must be an integer > 1`)
       return s

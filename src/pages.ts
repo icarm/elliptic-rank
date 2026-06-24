@@ -754,7 +754,8 @@ export function apiDocsPage(user: User | null = null): string {
       <pre><code>${escapeHtml(verifyReq)}</code></pre>
       <p>Returns <code>200</code> with the result below, <code>422</code> if the submission is
       invalid (singular curve, point off curve, or not independent), <code>401</code> without a valid
-      token, <code>429</code> if your account is submitting too quickly, or <code>400</code> if the body isn't JSON. <code>independence.rankLowerBound</code> is
+      token, <code>413</code> if the request body is too large, <code>429</code> if your account is
+      submitting too quickly, or <code>400</code> if the body isn't JSON. <code>independence.rankLowerBound</code> is
       the proven bound, <code>canonical.key</code> identifies the curve up to &#8474;-isomorphism, and
       the <code>leaderboard</code> field reports the outcome &mdash; <code>status</code> is
       <code>"created"</code>, <code>"improved"</code> (with <code>previousRank</code>), or
