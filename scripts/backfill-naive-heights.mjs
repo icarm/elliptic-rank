@@ -6,6 +6,10 @@
 // canonically and recordCurve corrects the stored value in place — full
 // verification, no manual SQL.
 //
+// Historical note: this audits the orbit-reduced key height used by the earlier
+// canonical-height rule. The current verifier records minimal-model height, so
+// do not use this script for the later p=2,3 minimal-height backfill.
+//
 // Usage:  node scripts/backfill-naive-heights.mjs
 // Token:  read from ~/.erank-token.txt
 // Site:   override with ERANK_SITE (e.g. http://localhost:8787 for a dry run).

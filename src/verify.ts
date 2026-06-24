@@ -13,9 +13,9 @@
 // independence of r points proves rank E(Q) >= r without computing the exact
 // rank. We also compute the naive height log max(|c4|^3,|c6|^2) of the GLOBAL
 // MINIMAL MODEL (the EW/LMFDB/Cremona convention), recovered without factoring
-// the discriminant — see `minimalC4C6`. The height is model-independent (every
-// model of the curve reduces to the same minimal model) yet matches the
-// literature it is compared against.
+// the discriminant — see `minimalC4C6`. This matches the literature convention
+// while avoiding the known p=2,3 undercount from using the orbit-reduced dedup
+// key as the height source.
 //
 // IMPORTANT: we never call ellglobalred / compute the conductor here — that
 // factors the discriminant and is intractable for record-scale curves. None of
@@ -126,11 +126,11 @@ function normalizeAinvs(ainvs: (string | number)[]): [string, string, string, st
 // Canonical (c4,c6) for the curve `E` already loaded in the gp session.
 //
 // Two curves over Q are isomorphic iff (c4,c6) = (u^4 c4', u^6 c6') for some
-// u in Q*. We reduce to the orbit representative by dividing out the largest u
-// (built from small primes) with u^4|c4 and u^6|c6. This is trial division, not
-// factoring: it can't hang, and it is complete in practice — minimal models give
-// u=1, non-minimal submissions scale by a small u, and any large prime in
-// gcd(c4,c6) necessarily has exponent 0 in u so is correctly left untouched.
+// u in Q*. We reduce to a bounded orbit representative by dividing out u built
+// from primes up to the trial-division bound whenever u^4|c4 and u^6|c6. This is
+// trial division, not factoring: it can't hang, and it covers the historical
+// non-minimal submissions, but it is not a proof of Q-isomorphism against an
+// adversarial model scaled by a larger prime.
 function reduceC4C6(gp: Gp): Canonical {
   const vec = evalGp(
     gp,
@@ -149,14 +149,18 @@ function reduceC4C6(gp: Gp): Canonical {
 // (EW 2004, LMFDB, Cremona) is that of the global minimal model.
 //
 // The minimal model and the orbit-reduced (c4,c6) of `reduceC4C6` can differ
-// ONLY at p = 2 and p = 3 (Kraus's conditions): for every prime p >= 5 the
-// minimal model is already p-primitive, i.e. not (p^4 | c4 and p^6 | c6). So we
-// reduce any non-minimality at p >= 5 by bounded trial division (as in
-// reduceC4C6), and at p = 2 and p = 3 use elllocalred — a purely *local*
-// computation at a fixed small prime, which never factors the discriminant — to
-// read off the local minimal-model scaling u_p and divide it out. Starting from
-// an integral model (ellintegralmodel clears denominators without factoring)
-// makes elllocalred applicable to any submitted (possibly non-integral) model.
+// ONLY at p = 2 and p = 3 (Kraus's conditions) once p >= 5 non-minimality has
+// been removed. We handle p = 2 and p = 3 exactly with elllocalred — a purely
+// *local* computation at fixed small primes, which never factors the
+// discriminant — and use bounded trial division for p >= 5 as in reduceC4C6.
+// Starting from an integral model (ellintegralmodel clears denominators without
+// factoring) makes elllocalred applicable to any submitted model.
+//
+// TODO(adversarial submissions): official record insertion should accept or
+// require a full bad-prime certificate and compute the exact minimal invariants
+// and dedup key from elllocalred over that certified prime list. The current
+// p >= 5 trial division is intentionally bounded and can miss a model scaled by
+// a prime above the bound, inflating height and bypassing deduplication.
 function minimalC4C6(gp: Gp): { c4: string; c6: string } {
   const vec = evalGp(
     gp,
@@ -289,14 +293,14 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
 
     // Naive height log max(|c4|^3, |c6|^2) of the GLOBAL MINIMAL MODEL — the
     // convention used by EW 2004 / LMFDB / Cremona, so the value is comparable
-    // to the literature records on the board. It is still model-independent (any
-    // submitted model reduces to the same minimal model), so a non-minimal
-    // submission can neither inflate nor deflate it. NOTE: this is the minimal
+    // to the literature records on the board. NOTE: this is the minimal
     // model, NOT the orbit-reduced `canonical` (c4,c6) used as the dedup key —
     // they differ for curves whose minimal model is non-(c4,c6)-primitive at 2
     // or 3, where the reduced pair is not the invariant of any integral model
-    // and would understate the height. (Substituted strings are PARI integer
-    // output, not submitter input.)
+    // and would understate the height. Subject to the bounded p >= 5 reduction
+    // described in `minimalC4C6`, this prevents non-minimal submissions from
+    // changing the recorded height. (Substituted strings are PARI integer output,
+    // not submitter input.)
     const minModel = minimalC4C6(gp)
     result.height = {
       naiveLogHeight: evalGp(

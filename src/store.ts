@@ -177,9 +177,9 @@ export async function recordCurve(
     await postComment(env, existing.id, userId, commentary!)
   }
 
-  // The naive height is an invariant of the curve (computed from the canonical
-  // (c4,c6)), so a stored value that disagrees predates that rule — it was
-  // computed from a non-minimal submitted model. Correct it in place.
+  // The naive height is computed from the verifier's minimal-model invariant
+  // path, so a stored value that disagrees predates a height-rule fix. Correct it
+  // in place.
   if (Math.abs(existing.naive_height - height) > 1e-9) {
     await env.DB.prepare('UPDATE curves SET naive_height = ? WHERE id = ?')
       .bind(height, existing.id)

@@ -78,10 +78,11 @@ function show(name, input) {
 show('rank-12 (valid)', RK12)
 show('rank-28 record (valid)', RK28)
 
-// Naive height must be model-independent: the same curve (Elkies' 2009 rank-13
-// Mordell curve) in its original non-minimal model y^2 = x^3 + 16m and in its
-// minimal model y^2 + y = x^3 + (m-1)/4, with one witness point mapped through
-// (X,Y) -> (X/4, (Y-4)/8). Same canonical key, so same naive height (95.847...).
+// Regression for the p=2 minimal-model height fix: the same curve (Elkies' 2009
+// rank-13 Mordell curve) in its original non-minimal model y^2 = x^3 + 16m and
+// in its minimal model y^2 + y = x^3 + (m-1)/4, with one witness point mapped
+// through (X,Y) -> (X/4, (Y-4)/8). Same bounded canonical key, so same naive
+// height (95.847...). This does not cover adversarial large-prime scaling.
 const ELKIES_NONMIN = {
   ainvs: ['0', '0', '0', '0', '48163745551486811536'],
   points: [['-3427960', '-2807507244']],
@@ -105,7 +106,7 @@ if (
   console.error('FAIL: naive height / key differ between models of the same curve')
   process.exitCode = 1
 } else {
-  console.log(`model-independence OK: key=${rMin.canonical.key.slice(0, 30)}… naiveH=${rMin.height.naiveLogHeight.slice(0, 10)}`)
+  console.log(`elkies model check OK: key=${rMin.canonical.key.slice(0, 30)}… naiveH=${rMin.height.naiveLogHeight.slice(0, 10)}`)
 }
 // failure cases
 show('singular curve', { ainvs: ['0', '0'], points: [['0', '0']] })
