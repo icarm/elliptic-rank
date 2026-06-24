@@ -11,8 +11,11 @@
 //
 // (2) automatically quotients out torsion (torsion has canonical height 0), so
 // independence of r points proves rank E(Q) >= r without computing the exact
-// rank. We also compute the naive height log max(|c4|^3,|c6|^2) of the
-// canonical (reduced) model, so the height is model-independent like the key.
+// rank. We also compute the naive height log max(|c4|^3,|c6|^2) of the GLOBAL
+// MINIMAL MODEL (the EW/LMFDB/Cremona convention), recovered without factoring
+// the discriminant — see `minimalC4C6`. The height is model-independent (every
+// model of the curve reduces to the same minimal model) yet matches the
+// literature it is compared against.
 //
 // IMPORTANT: we never call ellglobalred / compute the conductor here — that
 // factors the discriminant and is intractable for record-scale curves. None of
@@ -140,6 +143,34 @@ function reduceC4C6(gp: Gp): Canonical {
   return { c4, c6, key: `${c4}:${c6}` }
 }
 
+// Global-minimal-model (c4,c6) for the curve `E` already loaded in the gp
+// session, WITHOUT factoring the discriminant (which is intractable at record
+// scale — see the file header). Used for the naive height, which by convention
+// (EW 2004, LMFDB, Cremona) is that of the global minimal model.
+//
+// The minimal model and the orbit-reduced (c4,c6) of `reduceC4C6` can differ
+// ONLY at p = 2 and p = 3 (Kraus's conditions): for every prime p >= 5 the
+// minimal model is already p-primitive, i.e. not (p^4 | c4 and p^6 | c6). So we
+// reduce any non-minimality at p >= 5 by bounded trial division (as in
+// reduceC4C6), and at p = 2 and p = 3 use elllocalred — a purely *local*
+// computation at a fixed small prime, which never factors the discriminant — to
+// read off the local minimal-model scaling u_p and divide it out. Starting from
+// an integral model (ellintegralmodel clears denominators without factoring)
+// makes elllocalred applicable to any submitted (possibly non-integral) model.
+function minimalC4C6(gp: Gp): { c4: string; c6: string } {
+  const vec = evalGp(
+    gp,
+    'my(Ei=ellinit(ellintegralmodel(E)),c4=Ei.c4,c6=Ei.c6,u);' +
+      'forprime(p=5,100000, while(c4%p^4==0 && c6%p^6==0, c4=c4/p^4; c6=c6/p^6));' +
+      'u=elllocalred(Ei,2)[3][1]; c4=c4/u^4; c6=c6/u^6;' +
+      'u=elllocalred(Ei,3)[3][1]; c4=c4/u^4; c6=c6/u^6;' +
+      '[c4,c6]',
+  )
+  const m = vec.match(/^\[(.+),\s*(.+)\]$/)
+  if (!m) throw new Error(`unexpected minimal model form: ${vec.slice(0, 80)}`)
+  return { c4: m[1].trim(), c6: m[2].trim() }
+}
+
 const MAX_PRIMES = 1024
 
 interface Invariants {
@@ -187,6 +218,17 @@ export function canonicalKey(gp: Gp, ainvs: (string | number)[]): Canonical {
   evalGp(gp, `E = ellinit([${a.join(',')}])`)
   if (evalGp(gp, '#E') === '0') throw new Error('singular curve (discriminant 0)')
   return reduceC4C6(gp)
+}
+
+// Standalone global-minimal-model naive height log max(|c4|^3,|c6|^2) for a
+// curve, without verifying points. Same value `verify` records; useful for
+// auditing/recomputing stored heights. Throws on a singular curve.
+export function naiveLogHeight(gp: Gp, ainvs: (string | number)[]): string {
+  const a = normalizeAinvs(ainvs)
+  evalGp(gp, `E = ellinit([${a.join(',')}])`)
+  if (evalGp(gp, '#E') === '0') throw new Error('singular curve (discriminant 0)')
+  const m = minimalC4C6(gp)
+  return evalGp(gp, `log(vecmax([abs(${m.c4})^3, (${m.c6})^2]))*1.0`)
 }
 
 export function verify(gp: Gp, input: VerifyInput): VerifyResult {
@@ -245,14 +287,21 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     // Canonical dedup key: reduced (c4,c6), identifying the Q-isomorphism class.
     result.canonical = reduceC4C6(gp)
 
-    // Naive height log max(|c4|^3, |c6|^2), computed from the canonical (c4,c6)
-    // rather than the submitted model's — an invariant of the Q-isomorphism
-    // class, so a non-minimal submission can't inflate it. (The substituted
-    // strings are PARI integer output, not submitter input.)
+    // Naive height log max(|c4|^3, |c6|^2) of the GLOBAL MINIMAL MODEL — the
+    // convention used by EW 2004 / LMFDB / Cremona, so the value is comparable
+    // to the literature records on the board. It is still model-independent (any
+    // submitted model reduces to the same minimal model), so a non-minimal
+    // submission can neither inflate nor deflate it. NOTE: this is the minimal
+    // model, NOT the orbit-reduced `canonical` (c4,c6) used as the dedup key —
+    // they differ for curves whose minimal model is non-(c4,c6)-primitive at 2
+    // or 3, where the reduced pair is not the invariant of any integral model
+    // and would understate the height. (Substituted strings are PARI integer
+    // output, not submitter input.)
+    const minModel = minimalC4C6(gp)
     result.height = {
       naiveLogHeight: evalGp(
         gp,
-        `log(vecmax([abs(${result.canonical.c4})^3, (${result.canonical.c6})^2]))*1.0`,
+        `log(vecmax([abs(${minModel.c4})^3, (${minModel.c6})^2]))*1.0`,
       ),
     }
 
