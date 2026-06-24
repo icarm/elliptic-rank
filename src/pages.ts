@@ -482,18 +482,18 @@ function badPrimesSection(curveId: number, user: User | null, error: string | nu
   const body = user
     ? `<form method="post" action="/curve/${curveId}/primes" class="primes-form">
           ${err}
-          <div class="submit-row">
-            <button type="submit" name="mode" value="auto">Compute automatically</button>
-            <span class="muted">tries to factor the discriminant by bounded trial division (a few ms; gives up on hard cases)</span>
-          </div>
           <label class="field">
-            <span>or enter them manually <span class="muted">&mdash; the primes dividing the discriminant, comma- or space-separated. Each must be prime and together divide the discriminant.</span></span>
+            <span>bad primes <span class="muted">&mdash; the primes dividing the discriminant, comma- or space-separated. Each must be prime and together divide the discriminant.</span></span>
             <input type="text" name="primes" autocomplete="off" />
           </label>
-          <div class="submit-row"><button type="submit" name="mode" value="manual">Record</button></div>
+          <div class="submit-row">
+            <button type="submit" name="mode" value="manual">Record</button>
+            <button type="submit" name="mode" value="auto" class="secondary">Compute automatically</button>
+            <span class="muted">&mdash; or let it factor the discriminant by bounded trial division (gives up on hard cases)</span>
+          </div>
         </form>`
     : `<p class="muted"><a href="/auth/github">Log in</a> to supply the bad primes.</p>`
-  return `<section class="primes-section">
+  return `<section class="primes-section" id="bad-primes">
         <h3>Bad primes not yet recorded</h3>
         <p class="muted">Supplying the primes dividing the discriminant records this curve's conductor, minimal discriminant, and Faltings height.</p>
         ${body}

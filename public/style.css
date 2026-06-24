@@ -472,6 +472,15 @@ a.record-badge:hover {
 .primes-section .field { margin-top: 0.75rem; }
 .primes-section .submit-row { margin-top: 0.75rem; }
 .primes-error { margin: 0.5rem 0; color: #b3261e; }
+/* Secondary action (auto-compute): outlined, so "Record" reads as primary. */
+.submit-row button.secondary {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+}
+.submit-row button.secondary:hover {
+  background: var(--panel-soft);
+}
 
 .comment-section { margin: 2rem 0; }
 

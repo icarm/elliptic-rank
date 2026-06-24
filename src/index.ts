@@ -121,7 +121,10 @@ app.get('/curve/:id', async (c) => {
   const loaded = await loadCurveWithComment(c.env, id)
   if (!loaded) return c.html(notFoundPage(c.get('user')), 404)
   const { row, comment } = loaded
-  return c.html(curveDetailPage(row, comment, c.get('user'), await recordFlags(c.env, row)))
+  // A failed bad-primes submission redirects back here with the reason in the
+  // query (and a #bad-primes fragment) so the page scrolls to the form.
+  const primesError = c.req.query('primes_error') ?? null
+  return c.html(curveDetailPage(row, comment, c.get('user'), await recordFlags(c.env, row), primesError))
 })
 
 // Supply the curve's bad primes from its detail page, backfilling the conductor,
@@ -134,7 +137,7 @@ app.post('/curve/:id/primes', async (c) => {
   if (!Number.isInteger(id)) return c.html(notFoundPage(user), 404)
   const loaded = await loadCurveWithComment(c.env, id)
   if (!loaded) return c.html(notFoundPage(user), 404)
-  const { row, comment } = loaded
+  const { row } = loaded
   // Already recorded: nothing to do.
   if (row.conductor != null) return c.redirect(`/curve/${id}`, 302)
   const form = await c.req.parseBody()
@@ -155,12 +158,10 @@ app.post('/curve/:id/primes', async (c) => {
     await setCurveInvariants(c.env, id, res.conductor, res.minimalDiscriminant, res.faltingsHeight)
     return c.redirect(`/curve/${id}`, 302)
   }
-  // Failed: re-render the page with the reason shown inline in the form.
+  // Failed: redirect back to the curve page (Post/Redirect/Get) with the reason
+  // in the query and a fragment so the browser scrolls to the form.
   const error = res.note ?? res.errors[0] ?? 'could not record the supplied primes'
-  return c.html(
-    curveDetailPage(row, comment, user, await recordFlags(c.env, row), error),
-    422,
-  )
+  return c.redirect(`/curve/${id}?primes_error=${encodeURIComponent(error)}#bad-primes`, 303)
 })
 
 // a < b for non-negative decimal integer strings of any size.
