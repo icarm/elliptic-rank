@@ -397,10 +397,10 @@ pre code {
 .rank-plot .star {
   fill: var(--accent-dark);
   cursor: pointer;
-  font-size: 20px;
+  font-size: 12px;
   transition: font-size 0.1s ease;
 }
-.rank-plot a:hover .star { fill: var(--accent); font-size: 26px; }
+.rank-plot a:hover .star { fill: var(--accent); font-size: 17px; }
 
 .board-caption { font-size: 0.95rem; margin-top: 0.25rem; }
 .plot-empty { margin: 1.5rem 0; }
