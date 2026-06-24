@@ -12,15 +12,17 @@
 // (2) automatically quotients out torsion (torsion has canonical height 0), so
 // independence of r points proves rank E(Q) >= r without computing the exact
 // rank. We also compute the naive height log max(|c4|^3,|c6|^2) of the GLOBAL
-// MINIMAL MODEL (the EW/LMFDB/Cremona convention), recovered without factoring
-// the discriminant — see `minimalC4C6`. This matches the literature convention
-// while avoiding the known p=2,3 undercount from using the orbit-reduced dedup
-// key as the height source.
+// MINIMAL MODEL (the EW/LMFDB/Cremona convention), recovered without knowing
+// the bad primes — see `minimalC4C6`. This matches the literature convention
+// while avoiding undercounts from using the orbit-reduced dedup key as the
+// height source.
 //
-// IMPORTANT: we never call ellglobalred / compute the conductor here — that
-// factors the discriminant and is intractable for record-scale curves. None of
-// the above needs it. All input numbers are regex-validated and substituted into
-// GP expressions; submitter strings are never evaluated as GP code.
+// IMPORTANT: we never call ellglobalred or do an unbounded conductor search —
+// that factors the discriminant and is intractable for record-scale curves. The
+// conductor/Faltings data is computed only from supplied bad primes, or from a
+// quick bounded trial-division pass when it happens to recover all bad primes.
+// All input numbers are regex-validated and substituted into GP expressions;
+// submitter strings are never evaluated as GP code.
 
 import type { Gp } from './pari'
 
@@ -31,7 +33,9 @@ export interface VerifyInput {
   // Affine points [x, y], each coordinate an integer or rational.
   points: [string | number, string | number][]
   // Optional: the primes dividing the discriminant. If supplied and valid, the
-  // conductor is computed (no factoring needed) and recorded.
+  // conductor is computed (no factoring needed) and recorded. If omitted, the
+  // verifier may still fill conductor data when bounded trial division recovers
+  // all bad primes quickly.
   primes?: (string | number)[]
 }
 
@@ -73,7 +77,8 @@ export interface VerifyResult {
   allPointsOnCurve: boolean
   independence: IndependenceResult | null
   height: { naiveLogHeight: string } | null
-  // Computed only when valid primes were supplied; else null.
+  // Computed only when valid primes were supplied or quick automatic recovery
+  // found all bad primes; else null.
   conductor: string | null
   minimalDiscriminant: string | null
   faltingsHeight: string | null
@@ -144,32 +149,15 @@ function reduceC4C6(gp: Gp): Canonical {
 }
 
 // Global-minimal-model (c4,c6) for the curve `E` already loaded in the gp
-// session, WITHOUT factoring the discriminant (which is intractable at record
-// scale — see the file header). Used for the naive height, which by convention
-// (EW 2004, LMFDB, Cremona) is that of the global minimal model.
+// session. Used for the naive height, which by convention (EW 2004, LMFDB,
+// Cremona) is that of the global minimal model. PARI's minimal-model routine
+// computes this directly and does not require the conductor or a list of bad
+// primes.
 //
-// The minimal model and the orbit-reduced (c4,c6) of `reduceC4C6` can differ
-// ONLY at p = 2 and p = 3 (Kraus's conditions) once p >= 5 non-minimality has
-// been removed. We handle p = 2 and p = 3 exactly with elllocalred — a purely
-// *local* computation at fixed small primes, which never factors the
-// discriminant — and use bounded trial division for p >= 5 as in reduceC4C6.
-// Starting from an integral model (ellintegralmodel clears denominators without
-// factoring) makes elllocalred applicable to any submitted model.
-//
-// TODO(adversarial submissions): official record insertion should accept or
-// require a full bad-prime certificate and compute the exact minimal invariants
-// and dedup key from elllocalred over that certified prime list. The current
-// p >= 5 trial division is intentionally bounded and can miss a model scaled by
-// a prime above the bound, inflating height and bypassing deduplication.
+// This is deliberately separate from `reduceC4C6`: the latter is only the
+// bounded dedup key, while this is the exact invariant used for height.
 function minimalC4C6(gp: Gp): { c4: string; c6: string } {
-  const vec = evalGp(
-    gp,
-    'my(Ei=ellinit(ellintegralmodel(E)),c4=Ei.c4,c6=Ei.c6,u);' +
-      'forprime(p=5,100000, while(c4%p^4==0 && c6%p^6==0, c4=c4/p^4; c6=c6/p^6));' +
-      'u=elllocalred(Ei,2)[3][1]; c4=c4/u^4; c6=c6/u^6;' +
-      'u=elllocalred(Ei,3)[3][1]; c4=c4/u^4; c6=c6/u^6;' +
-      '[c4,c6]',
-  )
+  const vec = evalGp(gp, 'my(Em=ellminimalmodel(E)); [Em.c4, Em.c6]')
   const m = vec.match(/^\[(.+),\s*(.+)\]$/)
   if (!m) throw new Error(`unexpected minimal model form: ${vec.slice(0, 80)}`)
   return { c4: m[1].trim(), c6: m[2].trim() }
@@ -447,10 +435,9 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     // model, NOT the orbit-reduced `canonical` (c4,c6) used as the dedup key —
     // they differ for curves whose minimal model is non-(c4,c6)-primitive at 2
     // or 3, where the reduced pair is not the invariant of any integral model
-    // and would understate the height. Subject to the bounded p >= 5 reduction
-    // described in `minimalC4C6`, this prevents non-minimal submissions from
-    // changing the recorded height. (Substituted strings are PARI integer output,
-    // not submitter input.)
+    // and would understate the height. This prevents non-minimal submissions
+    // from changing the recorded height. (Substituted strings are PARI integer
+    // output, not submitter input.)
     const minModel = minimalC4C6(gp)
     result.height = {
       naiveLogHeight: evalGp(

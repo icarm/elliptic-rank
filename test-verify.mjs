@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { verify } from './src/verify.ts'
+import { naiveLogHeight, verify } from './src/verify.ts'
 
 // Build a gp() callable from the PARI WASM module (same module the Worker uses).
 const factory = (await import('@sagemath/pari/dist/gp-sta.js')).default
@@ -82,7 +82,7 @@ show('rank-28 record (valid)', RK28)
 // rank-13 Mordell curve) in its original non-minimal model y^2 = x^3 + 16m and
 // in its minimal model y^2 + y = x^3 + (m-1)/4, with one witness point mapped
 // through (X,Y) -> (X/4, (Y-4)/8). Same bounded canonical key, so same naive
-// height (95.847...). This does not cover adversarial large-prime scaling.
+// height (95.847...).
 const ELKIES_NONMIN = {
   ainvs: ['0', '0', '0', '0', '48163745551486811536'],
   points: [['-3427960', '-2807507244']],
@@ -107,6 +107,23 @@ if (
   process.exitCode = 1
 } else {
   console.log(`elkies model check OK: key=${rMin.canonical.key.slice(0, 30)}… naiveH=${rMin.height.naiveLogHeight.slice(0, 10)}`)
+}
+
+// Regression for exact minimal-model height with a non-minimal model scaled by
+// a prime above the old bounded trial-division range. The dedup key is still
+// bounded, but the height must be intrinsic.
+const SCALE_PRIME = 1000003n
+const scalePow = (n) => SCALE_PRIME ** BigInt(n)
+const baseHeight = naiveLogHeight(gp, ['-1', '1'])
+const scaledHeight = naiveLogHeight(gp, [
+  String(-scalePow(4)),
+  String(scalePow(6)),
+])
+if (Math.abs(Number(baseHeight) - Number(scaledHeight)) > 1e-9) {
+  console.error('FAIL: large-prime scaled model changed naive height')
+  process.exitCode = 1
+} else {
+  console.log(`large-prime scaled height OK: naiveH=${scaledHeight.slice(0, 10)}`)
 }
 // failure cases
 show('singular curve', { ainvs: ['0', '0'], points: [['0', '0']] })
