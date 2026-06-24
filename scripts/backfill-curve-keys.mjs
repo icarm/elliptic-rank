@@ -100,7 +100,8 @@ console.log('-- Changed rows:')
 for (const row of changed) {
   console.log(`--   #${row.id}: ${row.oldKey} -> ${row.newKey}`)
 }
-console.log('BEGIN TRANSACTION;')
+console.log('-- Wrangler D1 execute rejects explicit BEGIN/COMMIT, and rolls back')
+console.log('-- the uploaded SQL file on failure. Keep these as plain statements.')
 for (const row of changed) {
   console.log(
     `UPDATE curves SET curve_key = ${sqlString(`__curve_key_migration_${row.id}`)} WHERE id = ${row.id};`,
@@ -111,4 +112,3 @@ for (const row of changed) {
     `UPDATE curves SET curve_key = ${sqlString(row.newKey)}, c4 = ${sqlString(row.c4)}, c6 = ${sqlString(row.c6)} WHERE id = ${row.id};`,
   )
 }
-console.log('COMMIT;')
