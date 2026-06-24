@@ -163,24 +163,15 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   // has a smaller value — the same rule that earns the star badge on curve pages.
   const isRecord = (p: PlotPoint): boolean =>
     !pts.some((o) => o.rank >= p.rank && o.x < p.x)
-  // Plain dots first, frontier stars last so they paint on top of any
-  // overlapping dots and present the largest, easiest-to-click target.
-  const dots = pts
-    .filter((p) => !isRecord(p))
-    .map((p) => {
-      const x = X(p.rank).toFixed(1)
-      const y = Y(p.x).toFixed(1)
-      return `<a href="/curve/${p.id}"><circle class="dot" cx="${x}" cy="${y}" r="4"><title>rank &ge; ${p.rank}, ${qLabel} ${qFmt(p.x)}</title></circle></a>`
-    })
-    .join('')
-  const stars = pts
-    .filter(isRecord)
-    .map((p) => {
-      const x = X(p.rank).toFixed(1)
-      const y = Y(p.x).toFixed(1)
-      return `<a href="/curve/${p.id}"><text class="star" x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central">&#9733;<title>rank &ge; ${p.rank}, ${qLabel} ${qFmt(p.x)} &mdash; record for rank &ge; ${p.rank}</title></text></a>`
-    })
-    .join('')
+  const dot = (p: PlotPoint): string => {
+    const x = X(p.rank).toFixed(1)
+    const y = Y(p.x).toFixed(1)
+    return `<a href="/curve/${p.id}"><circle class="dot" cx="${x}" cy="${y}" r="4"><title>curve #${p.id}: rank &ge; ${p.rank}, ${qLabel} ${qFmt(p.x)}</title></circle></a>`
+  }
+  // Non-records first, records last so they paint on top of any overlapping dot
+  // and are therefore the easiest to click.
+  const dots = pts.filter((p) => !isRecord(p)).map(dot).join('')
+  const records = pts.filter(isRecord).map(dot).join('')
   return `<svg class="rank-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${qLabel} versus rank scatter plot">
       ${grid}
       <line class="axis" x1="${L}" y1="${T}" x2="${L}" y2="${T + plotH}"/>
@@ -188,7 +179,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
       <text class="axis-title" x="${L + plotW / 2}" y="${H - 6}" text-anchor="middle">rank (lower bound) &rarr;</text>
       <text class="axis-title" transform="rotate(-90)" x="${-(T + plotH / 2)}" y="15" text-anchor="middle">${qLabel} &rarr;</text>
       ${dots}
-      ${stars}
+      ${records}
     </svg>`
 }
 
@@ -206,7 +197,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       <p class="browse-cta"><a href="/database.json" download>Download the database (JSON) &darr;</a> <span class="cta-sep">|</span> <a href="/curves">Browse all curves as a table &rarr;</a> <span class="cta-sep">|</span> <a href="/recent">See recent activity &rarr;</a></p>
       <section class="board">
         <h2>Plots</h2>
-        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. Stars (&#9733;) mark the records on the frontier: down and to the right is better &mdash; high rank, small height/conductor.</p>
+        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor.</p>
         <h3>log conductor vs rank</h3>
         <p class="muted board-caption">Natural log of the conductor <em>N</em> = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup> over bad primes. Recorded when a submission supplies the curve's bad primes.</p>
         ${scatterPlot(

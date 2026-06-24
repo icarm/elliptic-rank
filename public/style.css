@@ -393,14 +393,6 @@ pre code {
 }
 .rank-plot .dot { fill: var(--accent); cursor: pointer; transition: r 0.1s ease; }
 .rank-plot a:hover .dot { r: 7; fill: var(--accent-dark); }
-/* Frontier (record) markers: the same star glyph as the record badge. */
-.rank-plot .star {
-  fill: var(--accent-dark);
-  cursor: pointer;
-  font-size: 12px;
-  transition: font-size 0.1s ease;
-}
-.rank-plot a:hover .star { fill: var(--accent); font-size: 17px; }
 
 .board-caption { font-size: 0.95rem; margin-top: 0.25rem; }
 .plot-empty { margin: 1.5rem 0; }
