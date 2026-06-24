@@ -235,6 +235,71 @@ export function naiveLogHeight(gp: Gp, ainvs: (string | number)[]): string {
   return evalGp(gp, `log(vecmax([abs(${m.c4})^3, (${m.c6})^2]))*1.0`)
 }
 
+// Result of backfilling the factoring-gated invariants for an already-recorded
+// curve from a supplied list of bad primes.
+export interface PrimesResult {
+  ok: boolean
+  conductor: string | null
+  minimalDiscriminant: string | null
+  faltingsHeight: string | null
+  // Set when primes were supplied but failed validation, or input was rejected.
+  note: string | null
+  errors: string[]
+}
+
+// Compute the conductor, minimal discriminant, and Faltings height for an
+// already-recorded curve from a supplied list of its bad primes — without
+// re-verifying points and without factoring. The a-invariants come from a
+// trusted stored curve; the primes are validated exactly as in `verify` (each a
+// probable prime, together dividing the discriminant to a unit). `ok` is true
+// iff the invariants were computed; otherwise `note`/`errors` say why not.
+export function verifyPrimes(
+  gp: Gp,
+  ainvs: (string | number)[],
+  rawPrimes: (string | number)[],
+): PrimesResult {
+  const out: PrimesResult = {
+    ok: false,
+    conductor: null,
+    minimalDiscriminant: null,
+    faltingsHeight: null,
+    note: null,
+    errors: [],
+  }
+  let a: [string, string, string, string, string]
+  let primes: string[]
+  try {
+    a = normalizeAinvs(ainvs)
+    primes = rawPrimes.map((p, i) => {
+      const s = token(p, `prime[${i}]`)
+      if (!/^\d+$/.test(s) || s === '0' || s === '1')
+        throw new InputError(`prime[${i}] must be an integer > 1`)
+      return s
+    })
+    if (primes.length === 0) throw new InputError('no primes provided')
+  } catch (e) {
+    out.errors.push(e instanceof Error ? e.message : String(e))
+    return out
+  }
+  try {
+    evalGp(gp, `E = ellinit([${a.join(',')}])`)
+    if (evalGp(gp, '#E') === '0') {
+      out.errors.push('curve is singular (discriminant 0)')
+      return out
+    }
+    const inv = invariantsFromPrimes(gp, primes)
+    out.conductor = inv.conductor
+    out.minimalDiscriminant = inv.minDisc
+    out.faltingsHeight = inv.faltings
+    out.note = inv.note
+    out.ok = inv.conductor != null
+    return out
+  } catch (e) {
+    out.errors.push(e instanceof Error ? e.message : String(e))
+    return out
+  }
+}
+
 export function verify(gp: Gp, input: VerifyInput): VerifyResult {
   const result: VerifyResult = {
     ok: false,

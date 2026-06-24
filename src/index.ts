@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { getGp } from './pari'
-import { verify, type VerifyInput } from './verify'
+import { verify, verifyPrimes, type VerifyInput } from './verify'
 import {
   landingPage,
   submitResultPage,
@@ -19,7 +19,7 @@ import {
   type CurveRow,
   type RecordFlags,
 } from './pages'
-import { recordCurve, postComment, commentHistory, recentActivity, COMMENT_MAX, type CommentView } from './store'
+import { recordCurve, setCurveInvariants, postComment, commentHistory, recentActivity, COMMENT_MAX, type CommentView } from './store'
 import {
   type AppEnv,
   type Bindings,
@@ -77,10 +77,13 @@ app.get('/curve/:file{[0-9]+\\.json}', async (c) => {
   })
 })
 
-app.get('/curve/:id', async (c) => {
-  const id = Number(c.req.param('id'))
-  if (!Number.isInteger(id)) return c.html(notFoundPage(c.get('user')), 404)
-  const row = await c.env.DB.prepare(
+// Load a curve with its submitter name and current commentary, or null if no
+// such curve. Shared by the detail page (GET) and the bad-primes form (POST).
+async function loadCurveWithComment(
+  env: Bindings,
+  id: number,
+): Promise<{ row: CurveRow; comment: CommentView | null } | null> {
+  const row = await env.DB.prepare(
     `SELECT c.*, u.display_name AS submitter_name,
             cl.id AS comment_id, cl.content AS comment_content,
             cl.created_at AS comment_at, cu.display_name AS comment_author
@@ -99,7 +102,7 @@ app.get('/curve/:id', async (c) => {
         comment_author: string | null
       }
     >()
-  if (!row) return c.html(notFoundPage(c.get('user')), 404)
+  if (!row) return null
   const comment: CommentView | null =
     row.comment_id != null
       ? {
@@ -109,7 +112,50 @@ app.get('/curve/:id', async (c) => {
           author: row.comment_author,
         }
       : null
+  return { row, comment }
+}
+
+app.get('/curve/:id', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.html(notFoundPage(c.get('user')), 404)
+  const loaded = await loadCurveWithComment(c.env, id)
+  if (!loaded) return c.html(notFoundPage(c.get('user')), 404)
+  const { row, comment } = loaded
   return c.html(curveDetailPage(row, comment, c.get('user'), await recordFlags(c.env, row)))
+})
+
+// Supply the curve's bad primes from its detail page, backfilling the conductor,
+// minimal discriminant, and Faltings height (no factoring). Only meaningful when
+// these are not yet recorded; otherwise it is a no-op.
+app.post('/curve/:id/primes', async (c) => {
+  const user = c.get('user')
+  if (!user) return c.redirect('/auth/github', 302)
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.html(notFoundPage(user), 404)
+  const loaded = await loadCurveWithComment(c.env, id)
+  if (!loaded) return c.html(notFoundPage(user), 404)
+  const { row, comment } = loaded
+  // Already recorded: nothing to do.
+  if (row.conductor != null) return c.redirect(`/curve/${id}`, 302)
+  const primes = parseTokens(String((await c.req.parseBody()).primes ?? ''))
+  const gp = await getGp()
+  let ainvs: (string | number)[] = []
+  try {
+    ainvs = JSON.parse(row.ainvs)
+  } catch {
+    /* leave empty; verifyPrimes will reject */
+  }
+  const res = verifyPrimes(gp, ainvs, primes)
+  if (res.ok && res.conductor != null) {
+    await setCurveInvariants(c.env, id, res.conductor, res.minimalDiscriminant, res.faltingsHeight)
+    return c.redirect(`/curve/${id}`, 302)
+  }
+  // Failed: re-render the page with the reason shown inline in the form.
+  const error = res.note ?? res.errors[0] ?? 'could not record the supplied primes'
+  return c.html(
+    curveDetailPage(row, comment, user, await recordFlags(c.env, row), error),
+    422,
+  )
 })
 
 // a < b for non-negative decimal integer strings of any size.

@@ -105,6 +105,26 @@ function toFloat(s: string): number {
   return Number(s.replace(/\s+/g, '').replace(/E/i, 'e'))
 }
 
+// Backfill the factoring-gated invariants (conductor, minimal discriminant,
+// Faltings height) for an existing curve from supplied bad primes. Only fills
+// fields that are currently missing, so it never overwrites recorded values.
+export async function setCurveInvariants(
+  env: Bindings,
+  curveId: number,
+  conductor: string,
+  minDisc: string | null,
+  faltings: string | null,
+): Promise<void> {
+  await env.DB.prepare(
+    `UPDATE curves SET conductor = COALESCE(conductor, ?),
+       minimal_discriminant = COALESCE(minimal_discriminant, ?),
+       faltings_height = COALESCE(faltings_height, ?),
+       updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+  )
+    .bind(conductor, minDisc, faltings != null ? toFloat(faltings) : null, curveId)
+    .run()
+}
+
 // Record an accepted verification for `userId`. Returns how the leaderboard
 // changed. Assumes result.ok (canonical/independence/height/curve are present).
 export async function recordCurve(

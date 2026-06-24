@@ -468,6 +468,11 @@ a.record-badge:hover {
 .point-list code { word-break: break-all; font-size: 0.9rem; }
 
 /* Commentary */
+.primes-section { margin: 2rem 0; }
+.primes-section .field { margin-top: 0.75rem; }
+.primes-section .submit-row { margin-top: 0.75rem; }
+.primes-error { margin: 0.5rem 0; color: #b3261e; }
+
 .comment-section { margin: 2rem 0; }
 
 .comment-body {

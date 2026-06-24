@@ -474,11 +474,34 @@ export interface RecordFlags {
   conductor: boolean
 }
 
+// Form (on the curve page) for supplying the curve's bad primes when they are
+// not yet recorded, backfilling the conductor / minimal discriminant / Faltings
+// height. `error` is shown when a prior submission was rejected.
+function badPrimesSection(curveId: number, user: User | null, error: string | null): string {
+  const err = error ? `<p class="result-errors primes-error">${escapeHtml(error)}</p>` : ''
+  const body = user
+    ? `<form method="post" action="/curve/${curveId}/primes" class="primes-form">
+          ${err}
+          <label class="field">
+            <span>bad primes <span class="muted">&mdash; the primes dividing the discriminant, comma- or space-separated. Each must be prime and together divide the discriminant; no factoring is done.</span></span>
+            <input type="text" name="primes" required autocomplete="off" />
+          </label>
+          <div class="submit-row"><button type="submit">Record</button></div>
+        </form>`
+    : `<p class="muted"><a href="/auth/github">Log in</a> to supply the bad primes.</p>`
+  return `<section class="primes-section">
+        <h3>Bad primes not yet recorded</h3>
+        <p class="muted">Supplying the primes dividing the discriminant records this curve's conductor, minimal discriminant, and Faltings height.</p>
+        ${body}
+      </section>`
+}
+
 export function curveDetailPage(
   curve: CurveRow,
   comment: CommentView | null = null,
   user: User | null = null,
   records: RecordFlags = { naive: false, faltings: false, conductor: false },
+  primesError: string | null = null,
 ): string {
   let ainvs: string[] = []
   let points: [string, string][] = []
@@ -517,6 +540,7 @@ export function curveDetailPage(
           ${pointList}
         </ul>
       </section>
+      ${curve.conductor == null ? badPrimesSection(curve.id, user, primesError) : ''}
       ${commentSection(curve.id, comment, user)}`
   return layout(`curve #${curve.id} — Elliptic Curve Rank Leaderboard`, inner, user)
 }
