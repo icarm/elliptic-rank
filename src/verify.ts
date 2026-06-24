@@ -11,11 +11,10 @@
 //
 // (2) automatically quotients out torsion (torsion has canonical height 0), so
 // independence of r points proves rank E(Q) >= r without computing the exact
-// rank. We also compute the naive height log max(|c4|^3,|c6|^2) of the GLOBAL
-// MINIMAL MODEL (the EW/LMFDB/Cremona convention), recovered without knowing
-// the bad primes — see `minimalC4C6`. This matches the literature convention
-// while avoiding undercounts from using the orbit-reduced dedup key as the
-// height source.
+// rank. We also compute the GLOBAL MINIMAL MODEL invariants (c4,c6), recovered
+// without knowing the bad primes — see `minimalC4C6`. These give both the
+// canonical Q-isomorphism key and the naive height
+// log max(|c4|^3,|c6|^2), matching the EW/LMFDB/Cremona convention.
 //
 // IMPORTANT: we never call ellglobalred or do an unbounded conductor search —
 // that factors the discriminant and is intractable for record-scale curves. The
@@ -54,8 +53,8 @@ export interface IndependenceResult {
   method: string
 }
 
-// Canonical representative of the Q-isomorphism class: the reduced (c4,c6).
-// `key` is the dedup identity — same key iff the same curve.
+// Canonical representative of the Q-isomorphism class: the global minimal
+// (c4,c6). `key` is the dedup identity — same key iff the same curve.
 export interface Canonical {
   c4: string
   c6: string
@@ -128,39 +127,17 @@ function normalizeAinvs(ainvs: (string | number)[]): [string, string, string, st
   throw new InputError('ainvs must have length 2 ([a4,a6]) or 5 ([a1,a2,a3,a4,a6])')
 }
 
-// Canonical (c4,c6) for the curve `E` already loaded in the gp session.
-//
-// Two curves over Q are isomorphic iff (c4,c6) = (u^4 c4', u^6 c6') for some
-// u in Q*. We reduce to a bounded orbit representative by dividing out u built
-// from primes up to the trial-division bound whenever u^4|c4 and u^6|c6. This is
-// trial division, not factoring: it can't hang, and it covers the historical
-// non-minimal submissions, but it is not a proof of Q-isomorphism against an
-// adversarial model scaled by a larger prime.
-function reduceC4C6(gp: Gp): Canonical {
-  const vec = evalGp(
-    gp,
-    'my(c4=E.c4,c6=E.c6); forprime(p=2,100000, while(c4%p^4==0 && c6%p^6==0, c4=c4/p^4; c6=c6/p^6)); [c4,c6]',
-  )
-  const m = vec.match(/^\[(.+),\s*(.+)\]$/)
-  if (!m) throw new Error(`unexpected canonical form: ${vec.slice(0, 80)}`)
-  const c4 = m[1].trim()
-  const c6 = m[2].trim()
-  return { c4, c6, key: `${c4}:${c6}` }
-}
-
 // Global-minimal-model (c4,c6) for the curve `E` already loaded in the gp
-// session. Used for the naive height, which by convention (EW 2004, LMFDB,
-// Cremona) is that of the global minimal model. PARI's minimal-model routine
-// computes this directly and does not require the conductor or a list of bad
-// primes.
-//
-// This is deliberately separate from `reduceC4C6`: the latter is only the
-// bounded dedup key, while this is the exact invariant used for height.
-function minimalC4C6(gp: Gp): { c4: string; c6: string } {
+// session. Used for both the canonical key and naive height. PARI's
+// minimal-model routine computes this directly and does not require the
+// conductor or a list of bad primes.
+function minimalC4C6(gp: Gp): Canonical {
   const vec = evalGp(gp, 'my(Em=ellminimalmodel(E)); [Em.c4, Em.c6]')
   const m = vec.match(/^\[(.+),\s*(.+)\]$/)
   if (!m) throw new Error(`unexpected minimal model form: ${vec.slice(0, 80)}`)
-  return { c4: m[1].trim(), c6: m[2].trim() }
+  const c4 = m[1].trim()
+  const c6 = m[2].trim()
+  return { c4, c6, key: `${c4}:${c6}` }
 }
 
 const MAX_PRIMES = 1024
@@ -249,7 +226,7 @@ export function canonicalKey(gp: Gp, ainvs: (string | number)[]): Canonical {
   const a = normalizeAinvs(ainvs)
   evalGp(gp, `E = ellinit([${a.join(',')}])`)
   if (evalGp(gp, '#E') === '0') throw new Error('singular curve (discriminant 0)')
-  return reduceC4C6(gp)
+  return minimalC4C6(gp)
 }
 
 // Standalone global-minimal-model naive height log max(|c4|^3,|c6|^2) for a
@@ -426,19 +403,16 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
       return result
     }
 
-    // Canonical dedup key: reduced (c4,c6), identifying the Q-isomorphism class.
-    result.canonical = reduceC4C6(gp)
+    // Canonical dedup key: global minimal (c4,c6), identifying the
+    // Q-isomorphism class.
+    result.canonical = minimalC4C6(gp)
 
     // Naive height log max(|c4|^3, |c6|^2) of the GLOBAL MINIMAL MODEL — the
     // convention used by EW 2004 / LMFDB / Cremona, so the value is comparable
-    // to the literature records on the board. NOTE: this is the minimal
-    // model, NOT the orbit-reduced `canonical` (c4,c6) used as the dedup key —
-    // they differ for curves whose minimal model is non-(c4,c6)-primitive at 2
-    // or 3, where the reduced pair is not the invariant of any integral model
-    // and would understate the height. This prevents non-minimal submissions
-    // from changing the recorded height. (Substituted strings are PARI integer
-    // output, not submitter input.)
-    const minModel = minimalC4C6(gp)
+    // to the literature records on the board. This prevents non-minimal
+    // submissions from changing the recorded height. (Substituted strings are
+    // PARI integer output, not submitter input.)
+    const minModel = result.canonical
     result.height = {
       naiveLogHeight: evalGp(
         gp,

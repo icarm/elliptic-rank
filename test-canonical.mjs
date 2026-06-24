@@ -38,9 +38,11 @@ for (const [name, ainvs] of Object.entries(curves)) {
   const k2 = canonicalKey(gp, scale(ainvs, 2))
   const k6 = canonicalKey(gp, scale(ainvs, 6))
   const k30 = canonicalKey(gp, scale(ainvs, 30))
+  const kLarge = canonicalKey(gp, scale(ainvs, 1000003))
   check(`${name}: scale x2 -> same key`, k2.key === base.key, `${base.key} vs ${k2.key}`)
   check(`${name}: scale x6 -> same key`, k6.key === base.key)
   check(`${name}: scale x30 -> same key`, k30.key === base.key)
+  check(`${name}: scale x1000003 -> same key`, kLarge.key === base.key)
 }
 
 // Distinct curves must get distinct keys.

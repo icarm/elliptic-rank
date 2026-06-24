@@ -1,7 +1,7 @@
 // One-off backfill (June 2026): recompute naive heights for every stored curve
 // by resubmitting its current witness to the live verifier. This intentionally
-// does not derive height from curve_key: the current convention is minimal-model
-// height, while curve_key is the bounded orbit-reduced dedup key.
+// does not derive height from curve_key: both are minimal-model invariants, but
+// the verifier remains the source of truth for the stored numeric height.
 //
 // Usage:  node scripts/backfill-naive-heights.mjs
 // Token:  read from ~/.erank-token.txt
