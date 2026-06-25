@@ -351,6 +351,8 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
           var hasFilter = /^[0-9]+$/.test(rankInput.value);
           var n = Number(rankInput.value);
           var eq = rankOp.value === 'eq';
+          // "=" with an empty box means no filter (any rank); ">=" defaults to 1.
+          rankInput.placeholder = eq ? 'any' : '1';
           var shown = 0;
           rows.forEach(function (r) {
             var rk = Number(r.dataset.rank);
