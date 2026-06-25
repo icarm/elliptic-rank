@@ -277,7 +277,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
       return `<tr data-id="${c.id}" data-rank="${c.rank_lower_bound}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}">
             <td><a href="/curve/${c.id}">#${c.id}</a></td>
             <td><code>[${ainvs.map((a) => escapeHtml(clip(a, 14))).join(', ')}]</code></td>
-            <td class="num">&ge; ${c.rank_lower_bound}</td>
+            <td class="num"><a class="rank-link" href="/curves?minrank=${c.rank_lower_bound}&amp;rankmode=eq" title="show only curves with rank lower bound = ${c.rank_lower_bound}">&ge; ${c.rank_lower_bound}</a></td>
             <td class="num">${c.naive_height.toFixed(2)}</td>
             <td class="num">${c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown}</td>
             <td class="num">${logCond != null ? logCond.toFixed(2) : unknown}</td>
@@ -387,6 +387,17 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         });
         rankInput.addEventListener('input', apply);
         rankOp.addEventListener('change', apply);
+        // Clicking a row's "≥ N" restricts the view to exactly that lower bound,
+        // in place (preserving the current sort). Modified clicks fall through to
+        // the link's href so the filtered view can still open in a new tab.
+        tbody.addEventListener('click', function (e) {
+          var a = e.target.closest('a.rank-link');
+          if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          rankInput.value = a.closest('tr').dataset.rank;
+          rankOp.value = 'eq';
+          apply();
+        });
         apply();
       })();
       </script>`
