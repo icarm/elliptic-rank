@@ -24,7 +24,7 @@ import {
   type CurveRow,
 } from './pages'
 import { recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordFlags, COMMENT_MAX, type CommentView } from './store'
-import { notifyRecord } from './zulip'
+import { notifyRecord, notifyBackfillRecord } from './zulip'
 import {
   type AppEnv,
   type Bindings,
@@ -152,8 +152,16 @@ app.post('/curve/:id/primes', async (c) => {
   const gp = await getGp()
   const outcome = await backfillPrimes(c.env, gp, id, mode, parseTokens(String(form.primes ?? '')))
   if (outcome.status === 'no-curve') return c.html(notFoundPage(user), 404)
-  // Recorded or already-recorded: back to the curve page (Post/Redirect/Get).
-  if (outcome.status !== 'rejected') return c.redirect(`/curve/${id}`, 302)
+  // Recorded or already-recorded: back to the curve page (Post/Redirect/Get). A
+  // fresh backfill may have made the curve a conductor/Faltings record.
+  if (outcome.status !== 'rejected') {
+    if (outcome.status === 'recorded') {
+      c.executionCtx.waitUntil(
+        notifyBackfillRecord(c.env, id, user.display_name ?? null, new URL(c.req.url).origin),
+      )
+    }
+    return c.redirect(`/curve/${id}`, 302)
+  }
   // Failed: redirect back with the reason in the query and a fragment so the
   // browser scrolls to the form.
   const res = outcome.result
@@ -346,6 +354,10 @@ app.post('/api/curve/:id/primes', async (c) => {
     case 'already-recorded':
       return c.json({ ok: true, id, alreadyRecorded: true })
     case 'recorded':
+      // A fresh backfill may have made the curve a conductor/Faltings record.
+      c.executionCtx.waitUntil(
+        notifyBackfillRecord(c.env, id, user.display_name ?? null, new URL(c.req.url).origin),
+      )
       return c.json({
         ok: true,
         id,

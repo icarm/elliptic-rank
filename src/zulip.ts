@@ -1,4 +1,5 @@
-// Posts a Zulip message when a submission newly holds a leaderboard record.
+// Posts a Zulip message when a curve newly holds a leaderboard record — either
+// from a submission or from a primes backfill that records its conductor.
 //
 // Delivery uses Zulip's Slack-compatible incoming webhook
 // (`/api/v1/external/slack_incoming`): a single secret URL with the api_key,
@@ -29,6 +30,48 @@ async function send(url: string, text: string): Promise<boolean> {
   }
 }
 
+interface RecordCurve {
+  id: number
+  rank_lower_bound: number
+  naive_height: number
+  faltings_height: number | null
+  conductor: string | null
+}
+
+function loadCurve(env: Bindings, curveId: number): Promise<RecordCurve | null> {
+  return env.DB.prepare(
+    `SELECT id, rank_lower_bound, naive_height, faltings_height, conductor
+       FROM curves WHERE id = ?`,
+  )
+    .bind(curveId)
+    .first<RecordCurve>()
+}
+
+type Metric = 'naive' | 'faltings' | 'conductor'
+
+// "smallest **X** (value)" phrases for the curve's metrics that are records,
+// limited to the metrics in `consider`.
+function recordPhrases(curve: RecordCurve, flags: { naive: boolean; faltings: boolean; conductor: boolean }, consider: Metric[]): string[] {
+  const out: string[] = []
+  if (consider.includes('naive') && flags.naive) {
+    out.push(`smallest **naive height** (${curve.naive_height.toFixed(4)})`)
+  }
+  if (consider.includes('faltings') && flags.faltings && curve.faltings_height != null) {
+    out.push(`smallest **Faltings height** (${curve.faltings_height.toFixed(4)})`)
+  }
+  if (consider.includes('conductor') && flags.conductor && curve.conductor != null) {
+    out.push(`smallest **conductor** (${curve.conductor})`)
+  }
+  return out
+}
+
+// "a", "a and b", or "a, b, and c".
+function joinRecords(parts: string[]): string {
+  if (parts.length <= 1) return parts[0] ?? ''
+  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
+}
+
 // Notify Zulip if the just-recorded submission newly holds a record. Only fresh
 // frontier entries ('created' or 'improved') are considered: an 'unchanged'
 // submission did not change the board. No-op when the webhook is unconfigured or
@@ -46,29 +89,10 @@ export async function notifyRecord(
   if (!url) return
   if (status.status === 'unchanged') return
 
-  const curve = await env.DB.prepare(
-    `SELECT id, rank_lower_bound, naive_height, faltings_height, conductor
-       FROM curves WHERE id = ?`,
-  )
-    .bind(status.id)
-    .first<{
-      id: number
-      rank_lower_bound: number
-      naive_height: number
-      faltings_height: number | null
-      conductor: string | null
-    }>()
+  const curve = await loadCurve(env, status.id)
   if (!curve) return
-
   const flags = await recordFlags(env, curve)
-  const records: string[] = []
-  if (flags.naive) records.push(`smallest **naive height** (${curve.naive_height.toFixed(4)})`)
-  if (flags.faltings && curve.faltings_height != null) {
-    records.push(`smallest **Faltings height** (${curve.faltings_height.toFixed(4)})`)
-  }
-  if (flags.conductor && curve.conductor != null) {
-    records.push(`smallest **conductor** (${curve.conductor})`)
-  }
+  const records = recordPhrases(curve, flags, ['naive', 'faltings', 'conductor'])
   if (records.length === 0) return
 
   const link = `${baseUrl}/curve/${curve.id}`
@@ -82,9 +106,35 @@ export async function notifyRecord(
   await send(url, text)
 }
 
-// "a", "a and b", or "a, b, and c".
-function joinRecords(parts: string[]): string {
-  if (parts.length <= 1) return parts[0] ?? ''
-  if (parts.length === 2) return `${parts[0]} and ${parts[1]}`
-  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
+// Notify Zulip if a primes backfill newly made the curve a record. Backfilling
+// records the conductor and Faltings height, which can newly make the curve the
+// smallest-conductor or smallest-Faltings curve for its rank — so only those two
+// metrics are considered (the naive height is fixed at submission, so a backfill
+// never creates a naive record). No-op when the webhook is unconfigured or
+// neither metric is now a record.
+//
+// Intended to be called via `ctx.waitUntil(...)` after a successful backfill.
+export async function notifyBackfillRecord(
+  env: Bindings,
+  curveId: number,
+  submitter: string | null,
+  baseUrl: string,
+): Promise<void> {
+  const url = env.ZULIP_WEBHOOK_URL
+  if (!url) return
+
+  const curve = await loadCurve(env, curveId)
+  if (!curve) return
+  const flags = await recordFlags(env, curve)
+  const records = recordPhrases(curve, flags, ['faltings', 'conductor'])
+  if (records.length === 0) return
+
+  const link = `${baseUrl}/curve/${curve.id}`
+  const who = submitter ? ` by ${submitter}` : ''
+  const text =
+    `:trophy: **New record!** Curve [#${curve.id}](${link}) at rank ≥ ${curve.rank_lower_bound} ` +
+    `now holds the record for ${joinRecords(records)} among curves of rank ≥ ${curve.rank_lower_bound}` +
+    ` — after its conductor was recorded${who}.`
+
+  await send(url, text)
 }
