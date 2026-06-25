@@ -942,7 +942,6 @@ export function profilePage(
       <h2>Profile</h2>
       <p class="page-subtitle">Signed in as ${escapeHtml(user.display_name || user.email || 'user')} (via ${escapeHtml(user.provider)}).</p>
       ${newTokenBlock}
-      ${submittedCurvesSection(curves)}
       <section class="profile-name">
         <h3>Display name</h3>
         <form method="post" action="/profile/name" class="profile-name-form">
@@ -961,7 +960,8 @@ export function profilePage(
           <label>Name (optional) <input type="text" name="name" maxlength="100" placeholder="e.g. laptop CLI" /></label>
           <button type="submit">Generate new token</button>
         </form>
-      </section>`
+      </section>
+      ${submittedCurvesSection(curves)}`
   return layout('Profile — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
