@@ -297,7 +297,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             <option value="gte">&ge;</option>
             <option value="eq">=</option>
           </select>
-          <input id="rank-filter" type="number" min="1" step="1" placeholder="any" />
+          <input id="rank-filter" type="number" min="1" step="1" placeholder="1" />
         </label>
         <span class="muted">showing <span id="curve-count">${curves.length}</span> of ${curves.length} curves</span>
         <a href="/database.json" download>Download the database (JSON) &darr;</a>
@@ -545,7 +545,7 @@ export function curveDetailPage(
       <div class="curve-eq eq">${eq}</div>
       <dl class="result-meta curve-meta">
         <dt>a-invariants</dt><dd><code>[${ainvs.map(escapeHtml).join(', ')}]</code></dd>
-        <dt>rank (lower bound)</dt><dd>&ge; ${curve.rank_lower_bound}</dd>
+        <dt>rank (lower bound)</dt><dd><a href="/curves?sort=conductor&amp;minrank=${curve.rank_lower_bound}&amp;rankmode=eq" title="all curves with rank lower bound = ${curve.rank_lower_bound}, by increasing conductor">&ge; ${curve.rank_lower_bound}</a></dd>
         <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badge(records.naive, curve.rank_lower_bound, 'naive')}</dd>
         ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}${badge(records.faltings, curve.rank_lower_bound, 'faltings')}</dd>` : ''}
         ${curve.conductor ? `<dt>conductor</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code>${badge(records.conductor, curve.rank_lower_bound, 'conductor')}</dd>` : ''}
