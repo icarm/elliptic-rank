@@ -575,13 +575,23 @@ a.record-badge:hover {
   font-size: 0.95rem;
 }
 
-.table-controls input[type="number"] {
-  width: 4.5rem;
+.table-controls input[type="number"],
+.table-controls select {
   padding: 0.3rem 0.5rem;
   border: 1px solid var(--border);
   border-radius: 3px;
   font: inherit;
   background: var(--panel);
+}
+
+.table-controls input[type="number"] {
+  width: 4.5rem;
+}
+
+.table-controls .rank-filter {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.4rem;
 }
 
 .table-scroll {

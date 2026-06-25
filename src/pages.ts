@@ -292,7 +292,13 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
       <p class="page-subtitle">Click a column header to sort; click again to reverse. Curves missing a
       value (no primes dividing the discriminant supplied yet) sort last.</p>
       <div class="table-controls">
-        <label>rank &ge; <input id="rank-filter" type="number" min="1" step="1" placeholder="1" /></label>
+        <label class="rank-filter">rank lower bound
+          <select id="rank-op" aria-label="rank lower bound comparison">
+            <option value="gte">&ge;</option>
+            <option value="eq">=</option>
+          </select>
+          <input id="rank-filter" type="number" min="1" step="1" placeholder="any" />
+        </label>
         <span class="muted">showing <span id="curve-count">${curves.length}</span> of ${curves.length} curves</span>
         <a href="/database.json" download>Download the database (JSON) &darr;</a>
       </div>
@@ -319,6 +325,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         var tbody = document.getElementById('curves-table').tBodies[0];
         var rows = Array.prototype.slice.call(tbody.rows);
         var rankInput = document.getElementById('rank-filter');
+        var rankOp = document.getElementById('rank-op');
         var count = document.getElementById('curve-count');
         var buttons = document.querySelectorAll('button.sort');
         var sortKey = 'rank';
@@ -330,6 +337,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
           sortDir = params.get('dir') === 'desc' ? -1 : 1;
         }
         if (/^[0-9]+$/.test(params.get('minrank') || '')) rankInput.value = params.get('minrank');
+        if (params.get('rankmode') === 'eq') rankOp.value = 'eq';
 
         function apply() {
           rows.sort(function (a, b) {
@@ -338,10 +346,15 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             if (bv === '') return -1;
             return (Number(av) - Number(bv)) * sortDir;
           });
-          var minRank = Number(rankInput.value) || 1;
+          // Rank values are proven lower bounds. Empty input = no filter;
+          // otherwise restrict to lower bound == n ("=") or lower bound >= n (">=").
+          var hasFilter = /^[0-9]+$/.test(rankInput.value);
+          var n = Number(rankInput.value);
+          var eq = rankOp.value === 'eq';
           var shown = 0;
           rows.forEach(function (r) {
-            r.hidden = Number(r.dataset.rank) < minRank;
+            var rk = Number(r.dataset.rank);
+            r.hidden = hasFilter && (eq ? rk !== n : rk < n);
             if (!r.hidden) shown++;
             tbody.appendChild(r);
           });
@@ -354,7 +367,9 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             q.set('sort', sortKey);
             if (sortDir === -1) q.set('dir', 'desc');
           }
-          if (minRank > 1) q.set('minrank', String(minRank));
+          // Persist the value whenever it filters: any value in "=" mode, or >1 in ">=" mode.
+          if (hasFilter && (eq || n > 1)) q.set('minrank', String(n));
+          if (eq) q.set('rankmode', 'eq');
           var qs = q.toString();
           history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
         }
@@ -371,6 +386,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
           });
         });
         rankInput.addEventListener('input', apply);
+        rankOp.addEventListener('change', apply);
         apply();
       })();
       </script>`
