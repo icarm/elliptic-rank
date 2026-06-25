@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { getGp } from './pari'
-import { verify, verifyPrimes, autoPrimes, type VerifyInput, type VerifyResult } from './verify'
+import { verify, type VerifyInput, type VerifyResult } from './verify'
 import {
   checkSubmissionRateLimit,
   SUBMISSION_RATE_LIMIT,
@@ -23,7 +23,7 @@ import {
   type TableCurve,
   type CurveRow,
 } from './pages'
-import { recordCurve, setCurveInvariants, postComment, commentHistory, recentActivity, recordFlags, COMMENT_MAX, type CommentView } from './store'
+import { recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordFlags, COMMENT_MAX, type CommentView } from './store'
 import { notifyRecord } from './zulip'
 import {
   type AppEnv,
@@ -145,31 +145,18 @@ app.post('/curve/:id/primes', async (c) => {
   if (!user) return c.redirect('/auth/github', 302)
   const id = Number(c.req.param('id'))
   if (!Number.isInteger(id)) return c.html(notFoundPage(user), 404)
-  const loaded = await loadCurveWithComment(c.env, id)
-  if (!loaded) return c.html(notFoundPage(user), 404)
-  const { row } = loaded
-  // Already recorded: nothing to do.
-  if (row.conductor != null) return c.redirect(`/curve/${id}`, 302)
   const form = await c.req.parseBody()
-  const gp = await getGp()
-  let ainvs: (string | number)[] = []
-  try {
-    ainvs = JSON.parse(row.ainvs)
-  } catch {
-    /* leave empty; verify(Primes) will reject */
-  }
   // "Compute automatically" attempts bounded trial division; otherwise use the
   // primes the submitter typed.
-  const res =
-    String(form.mode ?? '') === 'auto'
-      ? autoPrimes(gp, ainvs)
-      : verifyPrimes(gp, ainvs, parseTokens(String(form.primes ?? '')))
-  if (res.ok && res.conductor != null) {
-    await setCurveInvariants(c.env, id, res.conductor, res.minimalDiscriminant, res.faltingsHeight)
-    return c.redirect(`/curve/${id}`, 302)
-  }
-  // Failed: redirect back to the curve page (Post/Redirect/Get) with the reason
-  // in the query and a fragment so the browser scrolls to the form.
+  const mode = String(form.mode ?? '') === 'auto' ? 'auto' : 'manual'
+  const gp = await getGp()
+  const outcome = await backfillPrimes(c.env, gp, id, mode, parseTokens(String(form.primes ?? '')))
+  if (outcome.status === 'no-curve') return c.html(notFoundPage(user), 404)
+  // Recorded or already-recorded: back to the curve page (Post/Redirect/Get).
+  if (outcome.status !== 'rejected') return c.redirect(`/curve/${id}`, 302)
+  // Failed: redirect back with the reason in the query and a fragment so the
+  // browser scrolls to the form.
+  const res = outcome.result
   const error = res.note ?? res.errors[0] ?? 'could not record the supplied primes'
   return c.redirect(`/curve/${id}?primes_error=${encodeURIComponent(error)}#bad-primes`, 303)
 })
@@ -326,6 +313,53 @@ app.post('/api/submit', async (c) => {
     )
   }
   return c.json({ ...result, leaderboard }, result.ok ? 200 : 422)
+})
+
+// JSON API: backfill the conductor, minimal discriminant, and Faltings height of
+// an already-recorded curve from the primes dividing its discriminant — the
+// programmatic counterpart of the curve page's primes form. Requires a bearer
+// token. Body: { primes: [...] } to use the supplied primes, or { mode: "auto" }
+// to attempt bounded trial division. No factoring of large discriminants.
+app.post('/api/curve/:id/primes', async (c) => {
+  const user = c.get('user')
+  if (!user) return c.json({ ok: false, errors: ['authentication required'] }, 401)
+  if (submissionBodyTooLarge(c.req.raw)) {
+    return c.json({ ok: false, errors: [`request body too large (max ${MAX_SUBMISSION_BODY_BYTES} bytes)`] }, 413)
+  }
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.json({ ok: false, errors: ['curve id must be an integer'] }, 400)
+  let body: { primes?: unknown; mode?: unknown }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ ok: false, errors: ['request body must be JSON'] }, 400)
+  }
+  const gp = await getGp()
+  // "auto" attempts bounded trial division; otherwise use the supplied primes.
+  const mode = body.mode === 'auto' ? 'auto' : 'manual'
+  const primes = Array.isArray(body.primes) ? (body.primes as (string | number)[]) : []
+  const outcome = await backfillPrimes(c.env, gp, id, mode, primes)
+  switch (outcome.status) {
+    case 'no-curve':
+      return c.json({ ok: false, errors: ['no such curve'] }, 404)
+    // Already recorded: a no-op. Fetch /curve/:id.json for the stored values.
+    case 'already-recorded':
+      return c.json({ ok: true, id, alreadyRecorded: true })
+    case 'recorded':
+      return c.json({
+        ok: true,
+        id,
+        alreadyRecorded: false,
+        conductor: outcome.result.conductor,
+        minimalDiscriminant: outcome.result.minimalDiscriminant,
+        faltingsHeight: outcome.result.faltingsHeight,
+      })
+    case 'rejected': {
+      const res = outcome.result
+      const errors = res.errors.length ? res.errors : [res.note ?? 'could not record the supplied primes']
+      return c.json({ ok: false, id, errors, note: res.note }, 422)
+    }
+  }
 })
 
 // HTML form on the landing page posts here; requires login, records, and

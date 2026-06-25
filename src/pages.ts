@@ -753,6 +753,16 @@ export function apiDocsPage(user: User | null = null): string {
   "conductor": "...", "minimalDiscriminant": "...", "faltingsHeight": "...",  // if primes valid
   "leaderboard": { "status": "created", "rank": 12 }
 }`
+  const primesReq = `curl -X POST https://elliptic-rank.icarm.cloud/api/curve/123/primes \\
+  -H 'content-type: application/json' \\
+  -H 'authorization: Bearer erank_...' \\
+  -d '{ "primes": ["2","3","211"] }'   # or: { "mode": "auto" }`
+  const primesResp = `{
+  "ok": true,
+  "id": 123,
+  "alreadyRecorded": false,
+  "conductor": "...", "minimalDiscriminant": "...", "faltingsHeight": "..."
+}`
   const commentReq = `curl -X POST https://elliptic-rank.icarm.cloud/curve/123/commentary \\
   -H 'authorization: Bearer erank_...' \\
   --data-urlencode 'content=Found by Mestre (1982).'`
@@ -792,6 +802,23 @@ export function apiDocsPage(user: User | null = null): string {
       <code>"unchanged"</code> (a curve's record only changes when a witness proves a strictly higher
       rank).</p>
       <pre><code>${escapeHtml(verifyResp)}</code></pre>
+
+      <h3>POST <code>/api/curve/:id/primes</code></h3>
+      <p>Backfill the <strong>conductor</strong>, <strong>minimal discriminant</strong>, and
+      <strong>Faltings height</strong> of an already-recorded curve from the primes dividing its
+      discriminant &mdash; the programmatic equivalent of the primes form on a curve's page, and an
+      alternative to re-submitting through <code>/api/submit</code>. Send <code>{ primes: [...] }</code>
+      with the primes dividing the discriminant (each a prime, together dividing the discriminant to a
+      unit), or <code>{ "mode": "auto" }</code> to attempt bounded trial division (which gives up on
+      hard factorizations). No factoring of large discriminants is performed otherwise.</p>
+      <pre><code>${escapeHtml(primesReq)}</code></pre>
+      <p>Returns <code>200</code> with the computed invariants below. If the conductor is already
+      recorded it is a no-op &mdash; <code>{ "ok": true, "alreadyRecorded": true }</code> (fetch
+      <code>/curve/:id.json</code> for the stored values). Returns <code>422</code> if the primes are
+      invalid or incomplete (with <code>errors</code> and <code>note</code>), <code>404</code> if there
+      is no such curve, <code>401</code> without a valid token, <code>413</code> if the body is too
+      large, or <code>400</code> if the body isn't JSON or the id isn't an integer.</p>
+      <pre><code>${escapeHtml(primesResp)}</code></pre>
 
       <h3>GET <code>/database.json</code></h3>
       <p>The entire database as one JSON download: <code>{ count, curves }</code>, each curve with its

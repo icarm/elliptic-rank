@@ -3,7 +3,8 @@
 // submission proves a strictly higher rank lower bound.
 
 import type { Bindings } from './auth'
-import type { VerifyResult } from './verify'
+import { verifyPrimes, autoPrimes, type VerifyResult, type PrimesResult } from './verify'
+import type { Gp } from './pari'
 import type { RecordFlags } from './pages'
 
 export const COMMENT_MAX = 4000
@@ -160,6 +161,46 @@ export async function setCurveInvariants(
   )
     .bind(conductor, minDisc, faltings != null ? toFloat(faltings) : null, curveId)
     .run()
+}
+
+// Outcome of backfilling a curve's factoring-gated invariants from the primes
+// dividing its discriminant. 'rejected' carries the failed PrimesResult so the
+// caller can surface `note`/`errors`.
+export type PrimesBackfill =
+  | { status: 'no-curve' }
+  | { status: 'already-recorded' }
+  | { status: 'recorded'; result: PrimesResult }
+  | { status: 'rejected'; result: PrimesResult }
+
+// Backfill the conductor, minimal discriminant, and Faltings height of a curve
+// from the primes dividing its discriminant: `mode: 'auto'` attempts bounded
+// trial division, otherwise the supplied `primes` are used. A no-op when the
+// curve already has these recorded. Shared by the curve-page form and the JSON
+// API, which differ only in how they present this outcome.
+export async function backfillPrimes(
+  env: Bindings,
+  gp: Gp,
+  curveId: number,
+  mode: 'auto' | 'manual',
+  primes: (string | number)[],
+): Promise<PrimesBackfill> {
+  const row = await env.DB.prepare('SELECT ainvs, conductor FROM curves WHERE id = ?')
+    .bind(curveId)
+    .first<{ ainvs: string; conductor: string | null }>()
+  if (!row) return { status: 'no-curve' }
+  if (row.conductor != null) return { status: 'already-recorded' }
+  let ainvs: (string | number)[] = []
+  try {
+    ainvs = JSON.parse(row.ainvs)
+  } catch {
+    /* leave empty; verifyPrimes will reject */
+  }
+  const result = mode === 'auto' ? autoPrimes(gp, ainvs) : verifyPrimes(gp, ainvs, primes)
+  if (result.ok && result.conductor != null) {
+    await setCurveInvariants(env, curveId, result.conductor, result.minimalDiscriminant, result.faltingsHeight)
+    return { status: 'recorded', result }
+  }
+  return { status: 'rejected', result }
 }
 
 // Record an accepted verification for `userId`. Returns how the leaderboard
