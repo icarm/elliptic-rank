@@ -164,11 +164,12 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
       ? `<text class="tick" x="${x.toFixed(1)}" y="${T + plotH + 18}" text-anchor="middle">${r}</text>`
       : ''
     // r = 0 is the axis origin (rank ≥ 0 = everything) and rankMax is empty
-    // padding past the data, so link only the real ranks 1..rankMax-1.
+    // padding past the data, so link only the real ranks 1..rankMax-1. Every
+    // rank gets a tick mark: a short one under the numbered ranks, a taller one
+    // for the in-between ranks that have no label.
     if (r >= 1 && r < rankMax) {
-      const mark = labeled
-        ? ''
-        : `<line class="tick-mark" x1="${x.toFixed(1)}" y1="${T + plotH}" x2="${x.toFixed(1)}" y2="${T + plotH + 10}"/>`
+      const tickLen = labeled ? 5 : 10
+      const mark = `<line class="tick-mark" x1="${x.toFixed(1)}" y1="${T + plotH}" x2="${x.toFixed(1)}" y2="${T + plotH + tickLen}"/>`
       const hit = `<rect class="tick-hit" x="${(x - dx / 2).toFixed(1)}" y="${T + plotH}" width="${dx.toFixed(1)}" height="22"/>`
       grid += `<a class="tick-link" href="/curves?minrank=${r}&amp;rankmode=eq"><title>curves with rank lower bound = ${r}</title>${hit}${mark}${label}</a>`
     } else {

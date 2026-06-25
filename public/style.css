@@ -403,8 +403,9 @@ pre code {
 .rank-plot a:hover .dot { r: 7; fill: var(--accent-dark); }
 
 /* Clickable rank ticks on the x-axis: jump to the table filtered to that rank.
-   Labeled ranks show a number; the in-between ranks show a short tick mark. The
-   transparent rect is a wide, gap-free hit target spanning each rank's column. */
+   Every rank has a tick mark (short under the numbered ranks, taller for the
+   in-between ones); the transparent rect is a wide, gap-free hit target
+   spanning each rank's column. */
 .rank-plot a.tick-link { cursor: pointer; }
 .rank-plot .tick-hit { fill: transparent; }
 .rank-plot .tick-mark { stroke: var(--muted); stroke-width: 2; }
