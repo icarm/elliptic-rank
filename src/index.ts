@@ -84,7 +84,7 @@ app.get('/curve/:file{[0-9]+\\.json}', async (c) => {
 })
 
 // Load a curve with its submitter name and current commentary, or null if no
-// such curve. Shared by the detail page (GET) and the bad-primes form (POST).
+// such curve. Shared by the detail page (GET) and the discriminant-primes form (POST).
 async function loadCurveWithComment(
   env: Bindings,
   id: number,
@@ -127,14 +127,14 @@ app.get('/curve/:id', async (c) => {
   const loaded = await loadCurveWithComment(c.env, id)
   if (!loaded) return c.html(notFoundPage(c.get('user')), 404)
   const { row, comment } = loaded
-  // A failed bad-primes submission redirects back here with the reason in the
+  // A failed discriminant-primes submission redirects back here with the reason in the
   // query (and a #bad-primes fragment) so the page scrolls to the form.
   const primesError = c.req.query('primes_error') ?? null
   return c.html(curveDetailPage(row, comment, c.get('user'), await recordFlags(c.env, row), primesError))
 })
 
-// Supply the curve's bad primes from its detail page, backfilling the conductor,
-// minimal discriminant, and Faltings height (no factoring). Only meaningful when
+// Supply the primes dividing the curve's discriminant from its detail page,
+// backfilling the conductor, minimal discriminant, and Faltings height (no factoring). Only meaningful when
 // these are not yet recorded; otherwise it is a no-op.
 app.post('/curve/:id/primes', async (c) => {
   const user = c.get('user')

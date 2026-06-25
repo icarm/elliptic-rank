@@ -12,14 +12,15 @@
 // (2) automatically quotients out torsion (torsion has canonical height 0), so
 // independence of r points proves rank E(Q) >= r without computing the exact
 // rank. We also compute the GLOBAL MINIMAL MODEL invariants (c4,c6), recovered
-// without knowing the bad primes — see `minimalC4C6`. These give both the
+// without knowing the primes dividing the discriminant — see `minimalC4C6`. These give both the
 // canonical Q-isomorphism key and the naive height
 // log max(|c4|^3,|c6|^2), matching the EW/LMFDB/Cremona convention.
 //
 // IMPORTANT: we never call ellglobalred or do an unbounded conductor search —
 // that factors the discriminant and is intractable for record-scale curves. The
-// conductor/Faltings data is computed only from supplied bad primes, or from a
-// quick bounded trial-division pass when it happens to recover all bad primes.
+// conductor/Faltings data is computed only from supplied primes dividing the
+// discriminant, or from a quick bounded trial-division pass when it happens to
+// recover all such primes.
 // All input numbers are regex-validated and substituted into GP expressions;
 // submitter strings are never evaluated as GP code.
 
@@ -34,7 +35,7 @@ export interface VerifyInput {
   // Optional: the primes dividing the discriminant. If supplied and valid, the
   // conductor is computed (no factoring needed) and recorded. If omitted, the
   // verifier may still fill conductor data when bounded trial division recovers
-  // all bad primes quickly.
+  // all primes dividing the discriminant quickly.
   primes?: (string | number)[]
 }
 
@@ -77,7 +78,7 @@ export interface VerifyResult {
   independence: IndependenceResult | null
   height: { naiveLogHeight: string } | null
   // Computed only when valid primes were supplied or quick automatic recovery
-  // found all bad primes; else null.
+  // found all primes dividing the discriminant; else null.
   conductor: string | null
   minimalDiscriminant: string | null
   faltingsHeight: string | null
@@ -134,7 +135,7 @@ function normalizeAinvs(ainvs: (string | number)[]): [string, string, string, st
 // Global-minimal-model (c4,c6) for the curve `E` already loaded in the gp
 // session. Used for both the canonical key and naive height. PARI's
 // minimal-model routine computes this directly and does not require the
-// conductor or a list of bad primes.
+// conductor or a list of primes dividing the discriminant.
 function minimalC4C6(gp: Gp): Canonical {
   const vec = evalGp(gp, 'my(Em=ellminimalmodel(E)); [Em.c4, Em.c6]')
   const m = vec.match(/^\[(.+),\s*(.+)\]$/)
@@ -150,8 +151,8 @@ const MAX_PRIMES = 256
 // bound costs at most ~25ms even on a several-hundred-digit discriminant.
 const AUTO_FACTOR_BOUND = '10^7'
 
-// Attempt to recover the complete set of bad primes for the curve `E` (already
-// loaded in `gp`) by trial-dividing |disc| up to AUTO_FACTOR_BOUND. Returns the
+// Attempt to recover the complete set of primes dividing the discriminant for
+// the curve `E` (already loaded in `gp`) by trial-dividing |disc| up to AUTO_FACTOR_BOUND. Returns the
 // primes iff this fully factors the discriminant — i.e. every cofactor left
 // after trial division is a (probable) prime or a perfect power of one — and
 // null otherwise.
@@ -171,7 +172,7 @@ function autoBadPrimes(gp: Gp): string[] | null {
   )
   if (out === '0') return null
   const inner = out.replace(/^\[|\]$/g, '').trim()
-  if (inner === '') return null // |disc| = 1: no bad primes (cannot occur over Q)
+  if (inner === '') return null // |disc| = 1: no discriminant primes (cannot occur over Q)
   return inner.split(',').map((s) => s.trim())
 }
 
@@ -245,7 +246,7 @@ export function naiveLogHeight(gp: Gp, ainvs: (string | number)[]): string {
 }
 
 // Result of backfilling the factoring-gated invariants for an already-recorded
-// curve from a supplied list of bad primes.
+// curve from a supplied list of primes dividing the discriminant.
 export interface PrimesResult {
   ok: boolean
   conductor: string | null
@@ -257,7 +258,7 @@ export interface PrimesResult {
 }
 
 // Compute the conductor, minimal discriminant, and Faltings height for an
-// already-recorded curve from a supplied list of its bad primes — without
+// already-recorded curve from a supplied list of primes dividing its discriminant — without
 // re-verifying points and without factoring. The a-invariants come from a
 // trusted stored curve; the primes are validated exactly as in `verify` (each a
 // probable prime, together dividing the discriminant to a unit). `ok` is true
@@ -310,7 +311,7 @@ export function verifyPrimes(
   }
 }
 
-// Like `verifyPrimes`, but recovers the bad primes automatically by bounded
+// Like `verifyPrimes`, but recovers the primes dividing the discriminant automatically by bounded
 // trial division instead of taking them from the caller. `ok` is true iff the
 // discriminant fully factored within the budget and the invariants were
 // computed; otherwise `note` explains that manual entry is needed.
@@ -427,7 +428,8 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
       ),
     }
 
-    // Conductor / minimal discriminant / Faltings height from the bad primes.
+    // Conductor / minimal discriminant / Faltings height from the primes
+    // dividing the discriminant.
     // If none were supplied, try to recover them by bounded trial division — a
     // best-effort that completes in milliseconds and gives up (rather than
     // factoring a hard composite) when it cannot fully factor the discriminant.

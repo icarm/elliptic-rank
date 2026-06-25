@@ -106,7 +106,8 @@ function toFloat(s: string): number {
 }
 
 // Backfill the factoring-gated invariants (conductor, minimal discriminant,
-// Faltings height) for an existing curve from supplied bad primes. Only fills
+// Faltings height) for an existing curve from supplied primes dividing the
+// discriminant. Only fills
 // fields that are currently missing, so it never overwrites recorded values.
 export async function setCurveInvariants(
   env: Bindings,

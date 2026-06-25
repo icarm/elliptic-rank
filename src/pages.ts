@@ -199,7 +199,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
         <h2>Plots</h2>
         <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor.</p>
         <h3>log conductor vs rank</h3>
-        <p class="muted board-caption">Natural log of the conductor <em>N</em> = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup> over bad primes. Recorded when a submission supplies the curve's bad primes.</p>
+        <p class="muted board-caption">Natural log of the conductor <em>N</em> = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup>. Recorded when a submission supplies the primes dividing the discriminant.</p>
         ${scatterPlot(
           curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
           'log conductor',
@@ -213,7 +213,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
           (v) => v.toFixed(0),
         )}
         <h3>Faltings height vs rank</h3>
-        <p class="muted board-caption">Stable Faltings height (LMFDB normalization), computed from the period lattice and the minimal discriminant. Recorded when a submission supplies the curve's bad primes.</p>
+        <p class="muted board-caption">Stable Faltings height (LMFDB normalization), computed from the period lattice and the minimal discriminant. Recorded when a submission supplies the primes dividing the discriminant.</p>
         ${scatterPlot(
           curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
           'Faltings height',
@@ -226,7 +226,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
         <p class="submit-help">Give the Weierstrass coefficients and a set of independent rational points.
         Each point is checked to lie on the curve, and their N&eacute;ron&ndash;Tate height-pairing matrix
         is checked to be positive definite &mdash; so the points are independent in <em>E</em>(&#8474;),
-        proving rank &ge; the number of points. Supplying the curve's bad primes additionally records its
+        proving rank &ge; the number of points. Supplying the primes dividing the discriminant additionally records its
         conductor, minimal discriminant, and Faltings height.</p>
         <div class="eq-line">
           <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
@@ -241,7 +241,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
             <textarea name="points" rows="12" ${user ? 'required' : 'disabled'} placeholder="${escapeHtml(SAMPLE_POINTS)}"></textarea>
           </label>
           <label class="field">
-            <span>bad primes <span class="muted">&mdash; optional; the primes dividing the discriminant, comma- or space-separated. If given, the conductor, minimal discriminant, and Faltings height are recorded.</span></span>
+            <span>primes dividing the discriminant <span class="muted">&mdash; optional; comma- or space-separated. If given, the conductor, minimal discriminant, and Faltings height are recorded.</span></span>
             <input type="text" name="primes" ${user ? '' : 'disabled'} />
           </label>
           <div class="submit-row">${
@@ -290,7 +290,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
       <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>All curves</h2>
       <p class="page-subtitle">Click a column header to sort; click again to reverse. Curves missing a
-      value (no bad primes supplied yet) sort last.</p>
+      value (no primes dividing the discriminant supplied yet) sort last.</p>
       <div class="table-controls">
         <label>rank &ge; <input id="rank-filter" type="number" min="1" step="1" placeholder="1" /></label>
         <span class="muted">showing <span id="curve-count">${curves.length}</span> of ${curves.length} curves</span>
@@ -474,7 +474,8 @@ export interface RecordFlags {
   conductor: boolean
 }
 
-// Form (on the curve page) for supplying the curve's bad primes when they are
+// Form (on the curve page) for supplying the primes dividing the discriminant
+// when they are
 // not yet recorded, backfilling the conductor / minimal discriminant / Faltings
 // height. `error` is shown when a prior submission was rejected.
 function badPrimesSection(curveId: number, user: User | null, error: string | null): string {
@@ -483,7 +484,7 @@ function badPrimesSection(curveId: number, user: User | null, error: string | nu
     ? `<form method="post" action="/curve/${curveId}/primes" class="primes-form">
           ${err}
           <label class="field">
-            <span>bad primes <span class="muted">&mdash; the primes dividing the discriminant, comma- or space-separated. Each must be prime and together divide the discriminant.</span></span>
+            <span>primes dividing the discriminant <span class="muted">&mdash; comma- or space-separated. Each must be prime and together divide the discriminant.</span></span>
             <input type="text" name="primes" autocomplete="off" />
           </label>
           <div class="submit-row">
@@ -492,9 +493,9 @@ function badPrimesSection(curveId: number, user: User | null, error: string | nu
             <span class="muted">&mdash; or let it factor the discriminant by bounded trial division (gives up on hard cases)</span>
           </div>
         </form>`
-    : `<p class="muted"><a href="/auth/github">Log in</a> to supply the bad primes.</p>`
+    : `<p class="muted"><a href="/auth/github">Log in</a> to supply the primes dividing the discriminant.</p>`
   return `<section class="primes-section" id="bad-primes">
-        <h3>Bad primes not yet recorded</h3>
+        <h3>Primes dividing the discriminant not yet recorded</h3>
         <p class="muted">Supplying the primes dividing the discriminant records this curve's conductor, minimal discriminant, and Faltings height.</p>
         ${body}
       </section>`
