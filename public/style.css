@@ -677,6 +677,8 @@ a.record-badge:hover {
 .curves-table button.sort.desc::after { content: " \2193"; }
 
 /* Profile & API tokens */
+.my-curves { margin: 2rem 0; }
+
 .new-token {
   border: 1px solid var(--accent);
   background: var(--accent-soft);

@@ -429,7 +429,8 @@ app.post('/auth/logout', logout)
 app.get('/profile', async (c) => {
   const user = c.get('user')
   if (!user) return c.redirect('/auth/github', 302)
-  return c.html(profilePage(user, await listTokens(c.env, user.id), null))
+  const [tokens, curves] = await Promise.all([listTokens(c.env, user.id), listUserCurves(c.env, user.id)])
+  return c.html(profilePage(user, tokens, null, curves))
 })
 
 app.post('/profile/tokens', async (c) => {
@@ -438,7 +439,8 @@ app.post('/profile/tokens', async (c) => {
   const form = await c.req.parseBody()
   const name = String(form.name ?? '').trim().slice(0, 100) || null
   const newToken = await generateApiToken(c.env, user.id, name)
-  return c.html(profilePage(user, await listTokens(c.env, user.id), newToken))
+  const [tokens, curves] = await Promise.all([listTokens(c.env, user.id), listUserCurves(c.env, user.id)])
+  return c.html(profilePage(user, tokens, newToken, curves))
 })
 
 app.post('/profile/tokens/:id/revoke', async (c) => {
@@ -476,6 +478,20 @@ function listTokens(env: Bindings, userId: number): Promise<TokenRow[]> {
   )
     .bind(userId)
     .all<TokenRow>()
+    .then((r) => r.results)
+}
+
+// Curves currently attributed to this user as submitter (they proved the
+// best-known rank). Highest rank first, then smallest naive height — the same
+// "best curve" ordering the database download uses.
+function listUserCurves(env: Bindings, userId: number): Promise<TableCurve[]> {
+  return env.DB.prepare(
+    `SELECT id, ainvs, rank_lower_bound, naive_height, faltings_height, conductor
+       FROM curves WHERE submitter_user_id = ?
+       ORDER BY rank_lower_bound DESC, naive_height ASC`,
+  )
+    .bind(userId)
+    .all<TableCurve>()
     .then((r) => r.results)
 }
 

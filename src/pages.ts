@@ -286,23 +286,19 @@ export interface TableCurve extends PlotCurve {
   ainvs: string // JSON [a1..a6]
 }
 
-// Sortable/filterable table of all curves. The rows are server-rendered (with
-// the numeric sort keys in data attributes); a small inline script re-sorts on
-// header click and filters by minimum rank, mirroring the state into the query
-// string so views are shareable. Works without JS as a static table ordered by
-// increasing conductor (curves with no recorded conductor last).
-export function curveTablePage(curves: TableCurve[], user: User | null = null): string {
+// One leaderboard table row. Carries the numeric sort keys in data attributes so
+// the curve-table page's inline sorter can use them; the (static) profile list
+// shares the same markup and simply ignores them.
+function curveTableRow(c: TableCurve): string {
   const unknown = '<span class="muted">?</span>'
-  const rows = curves
-    .map((c) => {
-      let ainvs: string[] = []
-      try {
-        ainvs = JSON.parse(c.ainvs)
-      } catch {
-        /* leave empty */
-      }
-      const logCond = c.conductor != null ? logBigInt(c.conductor) : null
-      return `<tr data-id="${c.id}" data-rank="${c.rank_lower_bound}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}">
+  let ainvs: string[] = []
+  try {
+    ainvs = JSON.parse(c.ainvs)
+  } catch {
+    /* leave empty */
+  }
+  const logCond = c.conductor != null ? logBigInt(c.conductor) : null
+  return `<tr data-id="${c.id}" data-rank="${c.rank_lower_bound}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}">
             <td><a href="/curve/${c.id}">#${c.id}</a></td>
             <td><code>[${ainvs.map((a) => escapeHtml(clip(a, 14))).join(', ')}]</code></td>
             <td class="num"><a class="rank-link" href="/curves?minrank=${c.rank_lower_bound}&amp;rankmode=eq" title="show only curves with rank lower bound = ${c.rank_lower_bound}">&ge; ${c.rank_lower_bound}</a></td>
@@ -310,8 +306,15 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             <td class="num">${c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown}</td>
             <td class="num">${logCond != null ? logCond.toFixed(2) : unknown}</td>
           </tr>`
-    })
-    .join('\n')
+}
+
+// Sortable/filterable table of all curves. The rows are server-rendered (with
+// the numeric sort keys in data attributes); a small inline script re-sorts on
+// header click and filters by minimum rank, mirroring the state into the query
+// string so views are shareable. Works without JS as a static table ordered by
+// increasing conductor (curves with no recorded conductor last).
+export function curveTablePage(curves: TableCurve[], user: User | null = null): string {
+  const rows = curves.map(curveTableRow).join('\n')
   const sortHeader = (key: string, label: string, extraClass = 'num'): string =>
     `<th class="${extraClass}"><button type="button" class="sort" data-key="${key}">${label}</button></th>`
   const inner = `
@@ -864,10 +867,46 @@ export function apiDocsPage(user: User | null = null): string {
   return layout('API — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
+// The curves currently attributed to the signed-in user (they were the latest
+// to prove the curve's best-known rank). Best rank first, so a contributor's
+// strongest results lead. A static table — no client-side sorting needed here.
+function submittedCurvesSection(curves: TableCurve[]): string {
+  const heading = `<h3>Your curves <span class="muted">(${curves.length})</span></h3>`
+  if (curves.length === 0) {
+    return `<section class="my-curves">
+        ${heading}
+        <p class="muted">You haven&rsquo;t submitted any curves yet. <a href="/">Submit one &rarr;</a></p>
+      </section>`
+  }
+  const rows = curves.map(curveTableRow).join('\n')
+  return `<section class="my-curves">
+        ${heading}
+        <p class="muted">Curves currently attributed to you (you proved their best-known rank), highest rank first. Click one for its witness.</p>
+        <div class="table-scroll">
+        <table class="curves-table">
+          <thead>
+            <tr>
+              <th>curve</th>
+              <th>a-invariants</th>
+              <th class="num">rank</th>
+              <th class="num">naive height</th>
+              <th class="num">Faltings height</th>
+              <th class="num">log conductor</th>
+            </tr>
+          </thead>
+          <tbody>
+          ${rows}
+          </tbody>
+        </table>
+        </div>
+      </section>`
+}
+
 export function profilePage(
   user: User,
   tokens: TokenRow[],
   newToken: { token: string; prefix: string } | null,
+  curves: TableCurve[] = [],
 ): string {
   const newTokenBlock = newToken
     ? `<div class="new-token">
@@ -901,6 +940,7 @@ export function profilePage(
       <h2>Profile</h2>
       <p class="page-subtitle">Signed in as ${escapeHtml(user.display_name || user.email || 'user')} (via ${escapeHtml(user.provider)}).</p>
       ${newTokenBlock}
+      ${submittedCurvesSection(curves)}
       <section class="profile-name">
         <h3>Display name</h3>
         <form method="post" action="/profile/name" class="profile-name-form">
