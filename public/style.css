@@ -402,6 +402,12 @@ pre code {
 .rank-plot .dot { fill: var(--accent); cursor: pointer; transition: r 0.1s ease; }
 .rank-plot a:hover .dot { r: 7; fill: var(--accent-dark); }
 
+/* Clickable rank ticks on the x-axis: jump to the table filtered to that rank.
+   The transparent rect is a wider hit target around the small label. */
+.rank-plot a.tick-link { cursor: pointer; }
+.rank-plot .tick-hit { fill: transparent; }
+.rank-plot a.tick-link:hover .tick { fill: var(--accent); font-weight: 600; }
+
 .board-caption { font-size: 0.95rem; margin-top: 0.25rem; }
 .plot-empty { margin: 1.5rem 0; }
 

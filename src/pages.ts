@@ -152,7 +152,16 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   const rStep = rankMax <= 16 ? 1 : Math.ceil(rankMax / 12)
   for (let r = 0; r <= rankMax; r += rStep) {
     const x = X(r).toFixed(1)
-    grid += `<line class="grid" x1="${x}" y1="${T}" x2="${x}" y2="${T + plotH}"/><text class="tick" x="${x}" y="${T + plotH + 18}" text-anchor="middle">${r}</text>`
+    grid += `<line class="grid" x1="${x}" y1="${T}" x2="${x}" y2="${T + plotH}"/>`
+    const tick = `<text class="tick" x="${x}" y="${T + plotH + 18}" text-anchor="middle">${r}</text>`
+    // Rank ticks (r >= 1) link to the table filtered to that exact lower bound; a
+    // transparent rect widens the click target around the small label.
+    if (r >= 1) {
+      const hit = `<rect class="tick-hit" x="${(X(r) - 14).toFixed(1)}" y="${T + plotH + 5}" width="28" height="20"/>`
+      grid += `<a class="tick-link" href="/curves?minrank=${r}&amp;rankmode=eq"><title>curves with rank lower bound = ${r}</title>${hit}${tick}</a>`
+    } else {
+      grid += tick
+    }
   }
   for (let i = 0; i <= 5; i++) {
     const q = qmin + (i / 5) * (qmax - qmin)
@@ -197,7 +206,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       <p class="browse-cta"><a href="/database.json" download>Download the database (JSON) &darr;</a> <span class="cta-sep">|</span> <a href="/curves">Browse all curves as a table &rarr;</a> <span class="cta-sep">|</span> <a href="/recent">See recent activity &rarr;</a></p>
       <section class="board">
         <h2>Plots</h2>
-        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor.</p>
+        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness, or click a rank on the axis to list the curves at that rank. The frontier is down and to the right: high rank, small height/conductor.</p>
         <h3>log conductor vs rank</h3>
         <p class="muted board-caption">Natural log of the conductor <span class="eqi">N = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup></span>. Recorded when a submission supplies the primes dividing the discriminant.</p>
         ${scatterPlot(
