@@ -108,7 +108,7 @@ function toFloat(s: string): number {
 }
 
 // a < b for non-negative decimal integer strings of any size.
-export function lessDecimal(a: string, b: string): boolean {
+function lessDecimal(a: string, b: string): boolean {
   return a.length !== b.length ? a.length < b.length : a < b
 }
 

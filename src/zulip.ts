@@ -8,7 +8,8 @@
 // notification is silently skipped.
 
 import type { Bindings } from './auth'
-import { recordFlags, type RecordStatus } from './store'
+import { recordFlags, type RecordCandidate, type RecordStatus } from './store'
+import type { RecordFlags } from './pages'
 
 // Send `text` as a Zulip message via the incoming webhook. Returns true on a 2xx
 // response. Never throws: delivery is best-effort and runs off the request path.
@@ -30,28 +31,20 @@ async function send(url: string, text: string): Promise<boolean> {
   }
 }
 
-interface RecordCurve {
-  id: number
-  rank_lower_bound: number
-  naive_height: number
-  faltings_height: number | null
-  conductor: string | null
-}
-
-function loadCurve(env: Bindings, curveId: number): Promise<RecordCurve | null> {
+function loadCurve(env: Bindings, curveId: number): Promise<RecordCandidate | null> {
   return env.DB.prepare(
     `SELECT id, rank_lower_bound, naive_height, faltings_height, conductor
        FROM curves WHERE id = ?`,
   )
     .bind(curveId)
-    .first<RecordCurve>()
+    .first<RecordCandidate>()
 }
 
 type Metric = 'naive' | 'faltings' | 'conductor'
 
 // "smallest **X** (value)" phrases for the curve's metrics that are records,
 // limited to the metrics in `consider`.
-function recordPhrases(curve: RecordCurve, flags: { naive: boolean; faltings: boolean; conductor: boolean }, consider: Metric[]): string[] {
+function recordPhrases(curve: RecordCandidate, flags: RecordFlags, consider: Metric[]): string[] {
   const out: string[] = []
   if (consider.includes('naive') && flags.naive) {
     out.push(`smallest **naive height** (${curve.naive_height.toFixed(4)})`)
