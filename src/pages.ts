@@ -199,14 +199,14 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
         <h2>Plots</h2>
         <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor.</p>
         <h3>log conductor vs rank</h3>
-        <p class="muted board-caption">Natural log of the conductor <span class="eq">N = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup></span>. Recorded when a submission supplies the primes dividing the discriminant.</p>
+        <p class="muted board-caption">Natural log of the conductor <span class="eqi">N = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup></span>. Recorded when a submission supplies the primes dividing the discriminant.</p>
         ${scatterPlot(
           curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
           'log conductor',
           (v) => v.toFixed(0),
         )}
         <h3>naive height vs rank</h3>
-        <p class="muted board-caption">Naive height = <span class="eq">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span> of the global minimal model. Recorded for every curve.</p>
+        <p class="muted board-caption">Naive height = <span class="eqi">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span> of the global minimal model. Recorded for every curve.</p>
         ${scatterPlot(
           curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
           'naive height',

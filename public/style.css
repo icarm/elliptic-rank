@@ -131,10 +131,12 @@ code, .eq, .eqi {
   font-family: "Cambria Math", Cambria, Georgia, serif;
 }
 
-/* Inline math (e.g. E/ℚ, E(ℚ)): the math font at the surrounding text size,
-   unlike .eq which is sized up for display equations. */
+/* Inline math (e.g. E/ℚ, E(ℚ), and the formulas in plot captions): the math
+   font at the surrounding text size, unlike .eq which is sized up for display
+   equations. Full-strength color so a formula stands out in a muted caption. */
 .eqi {
   font-style: normal;
+  color: var(--fg);
 }
 
 main p code, .result code, pre code, .submit-help code {
