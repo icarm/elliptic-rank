@@ -58,7 +58,11 @@ app.get('/', async (c) => {
 app.get('/curves', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT id, ainvs, rank_lower_bound, naive_height, faltings_height, conductor
-       FROM curves ORDER BY rank_lower_bound DESC, naive_height ASC`,
+       FROM curves
+       -- Default order matches the table's JS default: increasing conductor,
+       -- curves with no recorded conductor last. Conductor is a big-integer
+       -- decimal string, so numeric order = (length, then lexicographic).
+       ORDER BY conductor IS NULL, LENGTH(conductor), conductor, naive_height ASC`,
   ).all<TableCurve>()
   return c.html(curveTablePage(results, c.get('user')))
 })

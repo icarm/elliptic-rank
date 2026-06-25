@@ -262,7 +262,7 @@ export interface TableCurve extends PlotCurve {
 // the numeric sort keys in data attributes); a small inline script re-sorts on
 // header click and filters by minimum rank, mirroring the state into the query
 // string so views are shareable. Works without JS as a static table ordered by
-// naive height.
+// increasing conductor (curves with no recorded conductor last).
 export function curveTablePage(curves: TableCurve[], user: User | null = null): string {
   const unknown = '<span class="muted">?</span>'
   const rows = curves
@@ -328,8 +328,8 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         var rankOp = document.getElementById('rank-op');
         var count = document.getElementById('curve-count');
         var buttons = document.querySelectorAll('button.sort');
-        var sortKey = 'rank';
-        var sortDir = -1; // 1 = ascending, -1 = descending; default: high rank first
+        var sortKey = 'conductor';
+        var sortDir = 1; // 1 = ascending, -1 = descending; default: smallest conductor first
 
         var params = new URLSearchParams(location.search);
         if (KEYS.indexOf(params.get('sort')) >= 0) {
@@ -365,7 +365,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             b.className = 'sort' + (b.dataset.key === sortKey ? (sortDir === 1 ? ' asc' : ' desc') : '');
           });
           var q = new URLSearchParams();
-          if (sortKey !== 'rank' || sortDir !== -1) {
+          if (sortKey !== 'conductor' || sortDir !== 1) {
             q.set('sort', sortKey);
             if (sortDir === -1) q.set('dir', 'desc');
           }
