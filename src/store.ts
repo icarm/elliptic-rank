@@ -144,7 +144,7 @@ export async function recordFlags(env: Bindings, curve: RecordCandidate): Promis
 }
 
 // Backfill the factoring-gated invariants (conductor and Faltings height) for
-// an existing curve from supplied primes dividing the discriminant. Also keeps
+// an existing curve from supplied primes of bad reduction. Also keeps
 // the legacy minimal_discriminant column filled for callers that pass it. Only
 // fills fields that are currently missing, so it never overwrites recorded
 // values.
@@ -166,7 +166,7 @@ export async function setCurveInvariants(
 }
 
 // Outcome of backfilling a curve's prime-gated invariants from the primes
-// dividing its discriminant. 'rejected' carries the failed PrimesResult so the
+// of bad reduction. 'rejected' carries the failed PrimesResult so the
 // caller can surface `note`/`errors`.
 export type PrimesBackfill =
   | { status: 'no-curve' }
@@ -174,9 +174,9 @@ export type PrimesBackfill =
   | { status: 'recorded'; result: PrimesResult }
   | { status: 'rejected'; result: PrimesResult }
 
-// Backfill the conductor and Faltings height of a curve from the primes dividing
-// its discriminant: `mode: 'auto'` attempts bounded trial division, otherwise
-// the supplied `primes` are used. A no-op when the conductor is already
+// Backfill the conductor and Faltings height of a curve from its primes of bad
+// reduction: `mode: 'auto'` attempts bounded trial division, otherwise the
+// supplied `primes` are used. A no-op when the conductor is already
 // recorded. Shared by the curve-page form and the JSON API, which differ only in
 // how they present this outcome.
 export async function backfillPrimes(

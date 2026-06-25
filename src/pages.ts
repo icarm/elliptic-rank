@@ -224,7 +224,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
         <h2>Plots</h2>
         <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness, or click a rank on the axis to list the curves at that rank. The frontier is down and to the right: high rank, small height/conductor.</p>
         <h3>log conductor vs rank</h3>
-        <p class="muted board-caption">Natural log of the conductor <span class="eqi">N = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup></span>. Recorded when a submission supplies the primes dividing the discriminant.</p>
+        <p class="muted board-caption">Natural log of the conductor <span class="eqi">N = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup></span>. Recorded when a submission supplies the primes of bad reduction.</p>
         ${scatterPlot(
           curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
           'log conductor',
@@ -240,7 +240,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
           'naive',
         )}
         <h3>Faltings height vs rank</h3>
-        <p class="muted board-caption">Stable Faltings height (LMFDB normalization), computed from the period lattice and the minimal discriminant. Recorded when a submission supplies the primes dividing the discriminant.</p>
+        <p class="muted board-caption">Stable Faltings height (LMFDB normalization), computed from the period lattice and the minimal discriminant. Recorded when a submission supplies the primes of bad reduction.</p>
         ${scatterPlot(
           curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
           'Faltings height',
@@ -254,7 +254,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
         <p class="submit-help">Give the Weierstrass coefficients and a set of independent rational points.
         Each point is checked to lie on the curve, and their N&eacute;ron&ndash;Tate height-pairing matrix
         is checked to be positive definite &mdash; so the points are independent in <span class="eqi">E(&#8474;)</span>,
-        proving rank &ge; the number of points. Supplying the primes dividing the discriminant additionally records its
+        proving rank &ge; the number of points. Supplying the primes of bad reduction additionally records its
         conductor and Faltings height.</p>
         <div class="eq-line">
           <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
@@ -269,7 +269,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
             <textarea name="points" rows="12" ${user ? 'required' : 'disabled'} placeholder="${escapeHtml(SAMPLE_POINTS)}"></textarea>
           </label>
           <label class="field">
-            <span>primes dividing the discriminant <span class="muted">&mdash; optional; comma- or space-separated. If given, the conductor and Faltings height are recorded.</span></span>
+            <span>primes of bad reduction <span class="muted">&mdash; optional; equivalently, primes dividing the minimal discriminant. If given, the conductor and Faltings height are recorded.</span></span>
             <input type="text" name="primes" ${user ? '' : 'disabled'} />
           </label>
           <div class="submit-row">${
@@ -321,7 +321,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
       <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>All curves</h2>
       <p class="page-subtitle">Click a column header to sort; click again to reverse. Curves missing a
-      value (no primes dividing the discriminant supplied yet) sort last.</p>
+      value (no primes of bad reduction supplied yet) sort last.</p>
       <div class="table-controls">
         <label class="rank-filter">rank lower bound
           <select id="rank-op" aria-label="rank lower bound comparison">
@@ -534,7 +534,7 @@ export interface RecordFlags {
   conductor: boolean
 }
 
-// Form (on the curve page) for supplying the primes dividing the discriminant
+// Form (on the curve page) for supplying the primes of bad reduction
 // when they are
 // not yet recorded, backfilling the conductor / Faltings height. `error` is
 // shown when a prior submission was rejected.
@@ -544,19 +544,19 @@ function badPrimesSection(curveId: number, user: User | null, error: string | nu
     ? `<form method="post" action="/curve/${curveId}/primes" class="primes-form">
           ${err}
           <label class="field">
-            <span>primes dividing the discriminant <span class="muted">&mdash; comma- or space-separated. Each must be prime and together divide the discriminant.</span></span>
+            <span>primes of bad reduction <span class="muted">&mdash; comma- or space-separated. Equivalently, primes dividing the minimal discriminant.</span></span>
             <input type="text" name="primes" autocomplete="off" />
           </label>
           <div class="submit-row">
             <button type="submit" name="mode" value="manual">Record</button>
             <button type="submit" name="mode" value="auto" class="secondary">Compute automatically</button>
-            <span class="muted">&mdash; or let it factor the discriminant by bounded trial division (gives up on hard cases)</span>
+            <span class="muted">&mdash; or let it find them by bounded trial division (gives up on hard cases)</span>
           </div>
         </form>`
-    : `<p class="muted"><a href="/auth/github">Log in</a> to supply the primes dividing the discriminant.</p>`
+    : `<p class="muted"><a href="/auth/github">Log in</a> to supply the primes of bad reduction.</p>`
   return `<section class="primes-section" id="bad-primes">
-        <h3>Primes dividing the discriminant not yet recorded</h3>
-        <p class="muted">Supplying the primes dividing the discriminant records this curve's conductor and Faltings height.</p>
+        <h3>Primes of bad reduction not yet recorded</h3>
+        <p class="muted">Supplying the primes of bad reduction records this curve's conductor and Faltings height.</p>
         ${body}
       </section>`
 }
@@ -812,9 +812,9 @@ export function apiDocsPage(user: User | null = null): string {
       curve is <strong>recorded on the leaderboard</strong>, attributed to you. Accepted curves and
       witness points are stored in the curve's global minimal model. Body:
       <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>.</p>
-      <p>Optionally include <code>primes</code>: the primes dividing the discriminant. If they check out
-      (each prime, and together dividing the discriminant to a unit) the <strong>conductor</strong>
-      and <strong>Faltings height</strong> are computed and recorded &mdash; no factoring needed.
+      <p>Optionally include <code>primes</code>: the primes of bad reduction, equivalently the primes
+      dividing the minimal discriminant. If they check out, the <strong>conductor</strong> and
+      <strong>Faltings height</strong> are computed and recorded &mdash; no factoring needed.
       Re-submitting an existing curve with <code>primes</code> backfills these even if the rank is
       unchanged.</p>
       <p>Optionally include <code>commentary</code>: a string recorded as the curve's initial
@@ -836,10 +836,10 @@ export function apiDocsPage(user: User | null = null): string {
 
       <h3>POST <code>/api/curve/:id/primes</code></h3>
       <p>Backfill the <strong>conductor</strong> and <strong>Faltings height</strong> of an
-      already-recorded curve from the primes dividing its
-      discriminant &mdash; the programmatic equivalent of the primes form on a curve's page, and an
-      alternative to re-submitting through <code>/api/submit</code>. Send <code>{ primes: [...] }</code>
-      with the primes dividing the discriminant (each a prime, together dividing the discriminant to a
+      already-recorded curve from its primes of bad reduction &mdash; the programmatic equivalent of
+      the primes form on a curve's page, and an alternative to re-submitting through
+      <code>/api/submit</code>. Send <code>{ primes: [...] }</code>
+      with the primes of bad reduction (each a prime, together dividing the minimal discriminant to a
       unit), or <code>{ "mode": "auto" }</code> to attempt bounded trial division (which gives up on
       hard factorizations). No factoring of large discriminants is performed otherwise.</p>
       <pre><code>${escapeHtml(primesReq)}</code></pre>

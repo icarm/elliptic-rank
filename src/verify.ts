@@ -12,14 +12,14 @@
 // (2) automatically quotients out torsion (torsion has canonical height 0), so
 // independence of r points proves rank E(Q) >= r without computing the exact
 // rank. We also compute the GLOBAL MINIMAL MODEL invariants (c4,c6), recovered
-// without knowing the primes dividing the discriminant — see `minimalC4C6`. These give both the
+// without knowing the primes of bad reduction — see `minimalC4C6`. These give both the
 // canonical Q-isomorphism key and the naive height
 // log max(|c4|^3,|c6|^2), matching the EW/LMFDB/Cremona convention.
 //
 // IMPORTANT: we never call ellglobalred or do an unbounded conductor search —
 // that factors the discriminant and is intractable for record-scale curves. The
-// conductor/Faltings data is computed only from supplied primes dividing the
-// discriminant, or from a quick bounded trial-division pass when it happens to
+// conductor/Faltings data is computed only from supplied primes of bad
+// reduction, or from a quick bounded trial-division pass when it happens to
 // recover all such primes.
 // All input numbers are regex-validated and substituted into GP expressions;
 // submitter strings are never evaluated as GP code.
@@ -37,10 +37,10 @@ export interface VerifyInput {
   ainvs: (string | number)[]
   // Affine points [x, y], each coordinate an integer or rational.
   points: [string | number, string | number][]
-  // Optional: the primes dividing the discriminant. If supplied and valid, the
+  // Optional: the primes of bad reduction. If supplied and valid, the
   // conductor is computed (no factoring needed) and recorded. If omitted, the
   // verifier may still fill conductor data when bounded trial division recovers
-  // all primes dividing the discriminant quickly.
+  // all primes of bad reduction quickly.
   primes?: (string | number)[]
 }
 
@@ -83,7 +83,7 @@ export interface VerifyResult {
   independence: IndependenceResult | null
   height: { naiveLogHeight: string } | null
   // Computed only when valid primes were supplied or quick automatic recovery
-  // found all primes dividing the discriminant; else null.
+  // found all primes of bad reduction; else null.
   conductor: string | null
   // The discriminant of the global minimal model. Always present for a
   // nonsingular verified curve.
@@ -188,9 +188,9 @@ const MAX_PRIMES = 256
 // bound costs at most ~25ms even on a several-hundred-digit discriminant.
 const AUTO_FACTOR_BOUND = '10^7'
 
-// Attempt to recover the complete set of primes dividing the discriminant for
+// Attempt to recover the complete set of primes of bad reduction for
 // the curve `E` (already loaded in `gp`) by trial-dividing |disc| up to AUTO_FACTOR_BOUND. Returns the
-// primes iff this fully factors the discriminant — i.e. every cofactor left
+// primes iff this fully factors the minimal discriminant — i.e. every cofactor left
 // after trial division is a (probable) prime or a perfect power of one — and
 // null otherwise.
 //
@@ -221,10 +221,11 @@ interface Invariants {
 }
 
 // Invariants of the curve `E` (already loaded in `gp`) that otherwise require
-// factoring the discriminant, computed instead from a supplied list of candidate
-// primes — but only if the primes are each a (BPSW) probable prime AND together
-// divide the discriminant down to a unit, which proves they include every bad
-// prime. No factoring is done. Per-prime Tate's algorithm (elllocalred) gives
+// factoring the minimal discriminant, computed instead from a supplied list of
+// candidate primes of bad reduction — but only if the primes are each a (BPSW)
+// probable prime AND together divide the minimal discriminant down to a unit,
+// which proves they include every bad prime. No factoring is done. Per-prime
+// Tate's algorithm (elllocalred) gives
 // the conductor exponents f_p and the local minimal-model scalings u_p; with
 // U = prod p^v_p(u_p):
 //   conductor = prod p^f_p
@@ -237,22 +238,20 @@ function invariantsFromPrimes(gp: Gp, primes: string[]): Invariants {
   evalGp(gp, `cps = [${primes.join(',')}]`)
   // Two distinct failure modes, reported separately: a supplied value is not
   // prime, or the (prime) values are incomplete and leave an unaccounted factor
-  // of the discriminant. The original combined message wrongly said primes "do
-  // not divide the discriminant" even when each one did but the set was missing
-  // a prime.
+  // of the minimal discriminant.
   const allPrime = evalGp(gp, 'my(ok=1); for(i=1,#cps, if(!ispseudoprime(cps[i]), ok=0)); ok')
   if (allPrime !== '1') {
     return { ...none, note: 'supplied values are not all prime' }
   }
   // Residual after dividing out every supplied prime; 1 iff they account for the
-  // entire discriminant. Extraneous primes (not dividing the discriminant) are
+  // entire minimal discriminant. Extraneous primes (not of bad reduction) are
   // harmless — they contribute a trivial conductor factor.
   const leftover = evalGp(gp, 'my(d=abs(E.disc)); for(i=1,#cps, while(d%cps[i]==0, d=d\\cps[i])); d')
   if (leftover !== '1') {
     const shown = leftover.length > 40 ? `${leftover.slice(0, 40)}…` : leftover
     return {
       ...none,
-      note: `supplied primes are incomplete: they leave an unaccounted factor ${shown} of the discriminant`,
+      note: `supplied primes of bad reduction are incomplete: they leave an unaccounted factor ${shown} of the minimal discriminant`,
     }
   }
   evalGp(gp, 'lr = vector(#cps, i, elllocalred(E, cps[i]))')
@@ -283,7 +282,7 @@ export function naiveLogHeight(gp: Gp, ainvs: (string | number)[]): string {
 }
 
 // Result of backfilling the factoring-gated invariants for an already-recorded
-// curve from a supplied list of primes dividing the discriminant.
+// curve from a supplied list of primes of bad reduction.
 export interface PrimesResult {
   ok: boolean
   conductor: string | null
@@ -295,10 +294,10 @@ export interface PrimesResult {
 }
 
 // Compute the conductor, minimal discriminant, and Faltings height for an
-// already-recorded curve from a supplied list of primes dividing its discriminant — without
+// already-recorded curve from a supplied list of primes of bad reduction — without
 // re-verifying points and without factoring. The a-invariants come from a
 // trusted stored curve; the primes are validated exactly as in `verify` (each a
-// probable prime, together dividing the discriminant to a unit). `ok` is true
+// probable prime, together dividing the minimal discriminant to a unit). `ok` is true
 // iff the invariants were computed; otherwise `note`/`errors` say why not.
 export function verifyPrimes(
   gp: Gp,
@@ -348,9 +347,9 @@ export function verifyPrimes(
   }
 }
 
-// Like `verifyPrimes`, but recovers the primes dividing the discriminant automatically by bounded
+// Like `verifyPrimes`, but recovers the primes of bad reduction automatically by bounded
 // trial division instead of taking them from the caller. `ok` is true iff the
-// discriminant fully factored within the budget and the invariants were
+// minimal discriminant fully factored within the budget and the invariants were
 // computed; otherwise `note` explains that manual entry is needed.
 export function autoPrimes(gp: Gp, ainvs: (string | number)[]): PrimesResult {
   const out: PrimesResult = {
@@ -377,7 +376,7 @@ export function autoPrimes(gp: Gp, ainvs: (string | number)[]): PrimesResult {
     const primes = autoBadPrimes(gp)
     if (!primes) {
       out.note =
-        'could not factor the discriminant within the quick budget — please enter the primes manually'
+        'could not find the primes of bad reduction within the quick budget — please enter them manually'
       return out
     }
     const inv = invariantsFromPrimes(gp, primes)
@@ -467,10 +466,10 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     }
     result.minimalDiscriminant = minModel.discriminant
 
-    // Conductor / Faltings height from the primes dividing the discriminant.
+    // Conductor / Faltings height from the primes of bad reduction.
     // If none were supplied, try to recover them by bounded trial division — a
     // best-effort that completes in milliseconds and gives up (rather than
-    // factoring a hard composite) when it cannot fully factor the discriminant.
+    // factoring a hard composite) when it cannot fully factor the minimal discriminant.
     evalGp(gp, 'E = Emin;')
     if (primes.length === 0) {
       const auto = autoBadPrimes(gp)

@@ -88,7 +88,7 @@ app.get('/curve/:file{[0-9]+\\.json}', async (c) => {
 })
 
 // Load a curve with its submitter name and current commentary, or null if no
-// such curve. Shared by the detail page (GET) and the discriminant-primes form (POST).
+// such curve. Shared by the detail page (GET) and the bad-primes form (POST).
 async function loadCurveWithComment(
   env: Bindings,
   id: number,
@@ -131,13 +131,13 @@ app.get('/curve/:id', async (c) => {
   const loaded = await loadCurveWithComment(c.env, id)
   if (!loaded) return c.html(notFoundPage(c.get('user')), 404)
   const { row, comment } = loaded
-  // A failed discriminant-primes submission redirects back here with the reason in the
+  // A failed bad-primes submission redirects back here with the reason in the
   // query (and a #bad-primes fragment) so the page scrolls to the form.
   const primesError = c.req.query('primes_error') ?? null
   return c.html(curveDetailPage(row, comment, c.get('user'), await recordFlags(c.env, row), primesError))
 })
 
-// Supply the primes dividing the curve's discriminant from its detail page,
+// Supply the primes of bad reduction from the curve's detail page,
 // backfilling the conductor and Faltings height (no factoring). Only meaningful
 // when these are not yet recorded; otherwise it is a no-op.
 app.post('/curve/:id/primes', async (c) => {
@@ -165,7 +165,7 @@ app.post('/curve/:id/primes', async (c) => {
   // Failed: redirect back with the reason in the query and a fragment so the
   // browser scrolls to the form.
   const res = outcome.result
-  const error = res.note ?? res.errors[0] ?? 'could not record the supplied primes'
+  const error = res.note ?? res.errors[0] ?? 'could not record the supplied primes of bad reduction'
   return c.redirect(`/curve/${id}?primes_error=${encodeURIComponent(error)}#bad-primes`, 303)
 })
 
@@ -322,9 +322,9 @@ app.post('/api/submit', async (c) => {
 })
 
 // JSON API: backfill the conductor and Faltings height of an already-recorded
-// curve from the primes dividing its discriminant — the
+// curve from its primes of bad reduction — the
 // programmatic counterpart of the curve page's primes form. Requires a bearer
-// token. Body: { primes: [...] } to use the supplied primes, or { mode: "auto" }
+// token. Body: { primes: [...] } to use a supplied list, or { mode: "auto" }
 // to attempt bounded trial division. No factoring of large discriminants.
 app.post('/api/curve/:id/primes', async (c) => {
   const user = c.get('user')
@@ -341,7 +341,7 @@ app.post('/api/curve/:id/primes', async (c) => {
     return c.json({ ok: false, errors: ['request body must be JSON'] }, 400)
   }
   const gp = await getGp()
-  // "auto" attempts bounded trial division; otherwise use the supplied primes.
+  // "auto" attempts bounded trial division; otherwise use the supplied list.
   const mode = body.mode === 'auto' ? 'auto' : 'manual'
   const primes = Array.isArray(body.primes) ? (body.primes as (string | number)[]) : []
   const outcome = await backfillPrimes(c.env, gp, id, mode, primes)
@@ -366,7 +366,7 @@ app.post('/api/curve/:id/primes', async (c) => {
       })
     case 'rejected': {
       const res = outcome.result
-      const errors = res.errors.length ? res.errors : [res.note ?? 'could not record the supplied primes']
+      const errors = res.errors.length ? res.errors : [res.note ?? 'could not record the supplied primes of bad reduction']
       return c.json({ ok: false, id, errors, note: res.note }, 422)
     }
   }
