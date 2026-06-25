@@ -4,6 +4,7 @@
 
 import type { Bindings } from './auth'
 import type { VerifyResult } from './verify'
+import type { RecordFlags } from './pages'
 
 export const COMMENT_MAX = 4000
 
@@ -103,6 +104,41 @@ export interface RecordStatus {
 // Parse a PARI real ("79.328...", "1.5 E-17") to a JS number for sorting.
 function toFloat(s: string): number {
   return Number(s.replace(/\s+/g, '').replace(/E/i, 'e'))
+}
+
+// a < b for non-negative decimal integer strings of any size.
+export function lessDecimal(a: string, b: string): boolean {
+  return a.length !== b.length ? a.length < b.length : a < b
+}
+
+// Curve fields needed to decide which metrics are records.
+export interface RecordCandidate {
+  id: number
+  rank_lower_bound: number
+  naive_height: number
+  faltings_height: number | null
+  conductor: string | null
+}
+
+// Which of the curve's metrics are records for its rank: a metric is a record
+// when no curve of equal or higher rank has a strictly smaller value (i.e. the
+// curve is on the rank-vs-metric Pareto frontier).
+export async function recordFlags(env: Bindings, curve: RecordCandidate): Promise<RecordFlags> {
+  const { results: rivals } = await env.DB.prepare(
+    `SELECT naive_height, faltings_height, conductor FROM curves
+       WHERE rank_lower_bound >= ? AND id != ?`,
+  )
+    .bind(curve.rank_lower_bound, curve.id)
+    .all<{ naive_height: number; faltings_height: number | null; conductor: string | null }>()
+  return {
+    naive: !rivals.some((o) => o.naive_height < curve.naive_height),
+    faltings:
+      curve.faltings_height != null &&
+      !rivals.some((o) => o.faltings_height != null && o.faltings_height < curve.faltings_height!),
+    conductor:
+      curve.conductor != null &&
+      !rivals.some((o) => o.conductor != null && lessDecimal(o.conductor, curve.conductor!)),
+  }
 }
 
 // Backfill the factoring-gated invariants (conductor, minimal discriminant,

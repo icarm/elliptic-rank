@@ -22,9 +22,9 @@ import {
   type PlotCurve,
   type TableCurve,
   type CurveRow,
-  type RecordFlags,
 } from './pages'
-import { recordCurve, setCurveInvariants, postComment, commentHistory, recentActivity, COMMENT_MAX, type CommentView } from './store'
+import { recordCurve, setCurveInvariants, postComment, commentHistory, recentActivity, recordFlags, COMMENT_MAX, type CommentView } from './store'
+import { notifyRecord } from './zulip'
 import {
   type AppEnv,
   type Bindings,
@@ -169,32 +169,6 @@ app.post('/curve/:id/primes', async (c) => {
   const error = res.note ?? res.errors[0] ?? 'could not record the supplied primes'
   return c.redirect(`/curve/${id}?primes_error=${encodeURIComponent(error)}#bad-primes`, 303)
 })
-
-// a < b for non-negative decimal integer strings of any size.
-function lessDecimal(a: string, b: string): boolean {
-  return a.length !== b.length ? a.length < b.length : a < b
-}
-
-// Which of the curve's metrics are records for its rank: a metric is a record
-// when no curve of equal or higher rank has a strictly smaller value (i.e. the
-// curve is on the rank-vs-metric Pareto frontier).
-async function recordFlags(env: Bindings, curve: CurveRow): Promise<RecordFlags> {
-  const { results: rivals } = await env.DB.prepare(
-    `SELECT naive_height, faltings_height, conductor FROM curves
-       WHERE rank_lower_bound >= ? AND id != ?`,
-  )
-    .bind(curve.rank_lower_bound, curve.id)
-    .all<{ naive_height: number; faltings_height: number | null; conductor: string | null }>()
-  return {
-    naive: !rivals.some((o) => o.naive_height < curve.naive_height),
-    faltings:
-      curve.faltings_height != null &&
-      !rivals.some((o) => o.faltings_height != null && o.faltings_height < curve.faltings_height!),
-    conductor:
-      curve.conductor != null &&
-      !rivals.some((o) => o.conductor != null && lessDecimal(o.conductor, curve.conductor!)),
-  }
-}
 
 app.post('/curve/:id/commentary', async (c) => {
   const user = c.get('user')
@@ -342,6 +316,11 @@ app.post('/api/submit', async (c) => {
   const gp = await getGp()
   const result = verify(gp, body)
   const leaderboard = result.ok ? await recordCurve(c.env, user.id, result, commentary) : undefined
+  if (leaderboard) {
+    c.executionCtx.waitUntil(
+      notifyRecord(c.env, leaderboard, user.display_name ?? null, new URL(c.req.url).origin),
+    )
+  }
   return c.json({ ...result, leaderboard }, result.ok ? 200 : 422)
 })
 
@@ -383,6 +362,11 @@ app.post('/submit-form', async (c) => {
   const gp = await getGp()
   const result = verify(gp, input)
   const submit: SubmitInfo | null = result.ok ? await recordCurve(c.env, user.id, result) : null
+  if (submit) {
+    c.executionCtx.waitUntil(
+      notifyRecord(c.env, submit, user.display_name ?? null, new URL(c.req.url).origin),
+    )
+  }
   return c.html(submitResultPage(result, user, submit), result.ok ? 200 : 422)
 })
 
