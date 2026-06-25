@@ -132,7 +132,10 @@ interface PlotPoint {
 // Server-rendered SVG scatter of a quantity `q` (e.g. naive/Faltings height or
 // log conductor, on the vertical axis) against rank (horizontal). Each dot is an
 // anchor to the curve's page — clickable, no JS.
-function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => string): string {
+// `sort` is the table column key for this plot's quantity ('conductor',
+// 'naive', or 'faltings'); the rank ticks link to the table filtered to that
+// rank and sorted on it (ascending — smallest first, matching the frontier).
+function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => string, sort: string): string {
   if (pts.length === 0) {
     return `<p class="muted plot-empty">No curves with a recorded ${qLabel} yet.</p>`
   }
@@ -171,7 +174,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
       const tickLen = labeled ? 5 : 10
       const mark = `<line class="tick-mark" x1="${x.toFixed(1)}" y1="${T + plotH}" x2="${x.toFixed(1)}" y2="${T + plotH + tickLen}"/>`
       const hit = `<rect class="tick-hit" x="${(x - dx / 2).toFixed(1)}" y="${T + plotH}" width="${dx.toFixed(1)}" height="22"/>`
-      grid += `<a class="tick-link" href="/curves?minrank=${r}&amp;rankmode=eq"><title>curves with rank lower bound = ${r}</title>${hit}${mark}${label}</a>`
+      grid += `<a class="tick-link" href="/curves?sort=${sort}&amp;minrank=${r}&amp;rankmode=eq"><title>curves with rank lower bound = ${r}</title>${hit}${mark}${label}</a>`
     } else {
       grid += label
     }
@@ -226,6 +229,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
           curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
           'log conductor',
           (v) => v.toFixed(0),
+          'conductor',
         )}
         <h3>naive height vs rank</h3>
         <p class="muted board-caption">Naive height = <span class="eqi">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span> of the global minimal model. Recorded for every curve.</p>
@@ -233,6 +237,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
           curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
           'naive height',
           (v) => v.toFixed(0),
+          'naive',
         )}
         <h3>Faltings height vs rank</h3>
         <p class="muted board-caption">Stable Faltings height (LMFDB normalization), computed from the period lattice and the minimal discriminant. Recorded when a submission supplies the primes dividing the discriminant.</p>
@@ -240,6 +245,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
           curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
           'Faltings height',
           (v) => v.toFixed(1),
+          'faltings',
         )}
       </section>
 
