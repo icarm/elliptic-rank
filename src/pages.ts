@@ -168,7 +168,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
     if (r >= 1 && r < rankMax) {
       const mark = labeled
         ? ''
-        : `<line class="tick-mark" x1="${x.toFixed(1)}" y1="${T + plotH}" x2="${x.toFixed(1)}" y2="${T + plotH + 5}"/>`
+        : `<line class="tick-mark" x1="${x.toFixed(1)}" y1="${T + plotH}" x2="${x.toFixed(1)}" y2="${T + plotH + 10}"/>`
       const hit = `<rect class="tick-hit" x="${(x - dx / 2).toFixed(1)}" y="${T + plotH}" width="${dx.toFixed(1)}" height="22"/>`
       grid += `<a class="tick-link" href="/curves?minrank=${r}&amp;rankmode=eq"><title>curves with rank lower bound = ${r}</title>${hit}${mark}${label}</a>`
     } else {

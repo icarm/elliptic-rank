@@ -407,9 +407,9 @@ pre code {
    transparent rect is a wide, gap-free hit target spanning each rank's column. */
 .rank-plot a.tick-link { cursor: pointer; }
 .rank-plot .tick-hit { fill: transparent; }
-.rank-plot .tick-mark { stroke: var(--muted); stroke-width: 1; }
+.rank-plot .tick-mark { stroke: var(--muted); stroke-width: 2; }
 .rank-plot a.tick-link:hover .tick { fill: var(--accent); font-weight: 600; }
-.rank-plot a.tick-link:hover .tick-mark { stroke: var(--accent); stroke-width: 2; }
+.rank-plot a.tick-link:hover .tick-mark { stroke: var(--accent); stroke-width: 3; }
 
 .board-caption { font-size: 0.95rem; margin-top: 0.25rem; }
 .plot-empty { margin: 1.5rem 0; }
