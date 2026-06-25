@@ -255,7 +255,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
         Each point is checked to lie on the curve, and their N&eacute;ron&ndash;Tate height-pairing matrix
         is checked to be positive definite &mdash; so the points are independent in <span class="eqi">E(&#8474;)</span>,
         proving rank &ge; the number of points. Supplying the primes dividing the discriminant additionally records its
-        conductor, minimal discriminant, and Faltings height.</p>
+        conductor and Faltings height.</p>
         <div class="eq-line">
           <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
         </div>
@@ -269,7 +269,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
             <textarea name="points" rows="12" ${user ? 'required' : 'disabled'} placeholder="${escapeHtml(SAMPLE_POINTS)}"></textarea>
           </label>
           <label class="field">
-            <span>primes dividing the discriminant <span class="muted">&mdash; optional; comma- or space-separated. If given, the conductor, minimal discriminant, and Faltings height are recorded.</span></span>
+            <span>primes dividing the discriminant <span class="muted">&mdash; optional; comma- or space-separated. If given, the conductor and Faltings height are recorded.</span></span>
             <input type="text" name="primes" ${user ? '' : 'disabled'} />
           </label>
           <div class="submit-row">${
@@ -536,8 +536,8 @@ export interface RecordFlags {
 
 // Form (on the curve page) for supplying the primes dividing the discriminant
 // when they are
-// not yet recorded, backfilling the conductor / minimal discriminant / Faltings
-// height. `error` is shown when a prior submission was rejected.
+// not yet recorded, backfilling the conductor / Faltings height. `error` is
+// shown when a prior submission was rejected.
 function badPrimesSection(curveId: number, user: User | null, error: string | null): string {
   const err = error ? `<p class="result-errors primes-error">${escapeHtml(error)}</p>` : ''
   const body = user
@@ -556,7 +556,7 @@ function badPrimesSection(curveId: number, user: User | null, error: string | nu
     : `<p class="muted"><a href="/auth/github">Log in</a> to supply the primes dividing the discriminant.</p>`
   return `<section class="primes-section" id="bad-primes">
         <h3>Primes dividing the discriminant not yet recorded</h3>
-        <p class="muted">Supplying the primes dividing the discriminant records this curve's conductor, minimal discriminant, and Faltings height.</p>
+        <p class="muted">Supplying the primes dividing the discriminant records this curve's conductor and Faltings height.</p>
         ${body}
       </section>`
 }
@@ -593,8 +593,7 @@ export function curveDetailPage(
         <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badge(records.naive, curve.rank_lower_bound, 'naive')}</dd>
         ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}${badge(records.faltings, curve.rank_lower_bound, 'faltings')}</dd>` : ''}
         ${curve.conductor ? `<dt>conductor</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code>${badge(records.conductor, curve.rank_lower_bound, 'conductor')}</dd>` : ''}
-        <dt>discriminant</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code></dd>
-        ${curve.minimal_discriminant ? `<dt>minimal discriminant</dt><dd><code class="break">${escapeHtml(curve.minimal_discriminant)}</code></dd>` : ''}
+        <dt>minimal discriminant</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code></dd>
         <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
         <dt>submitted by</dt><dd>${submitter}</dd>
         <dt>last updated</dt><dd>${escapeHtml(curve.updated_at)}</dd>
@@ -706,7 +705,7 @@ function leaderboardStatus(submit: SubmitInfo | null): string {
       added = false
       break
   }
-  const cond = submit.conductor ? ' Conductor, minimal discriminant &amp; Faltings height recorded.' : ''
+  const cond = submit.conductor ? ' Conductor &amp; Faltings height recorded.' : ''
   const tick = added || submit.conductor ? '&#10003; ' : ''
   const cls = added || submit.conductor ? 'leaderboard-status added' : 'leaderboard-status'
   const link = ` <a href="/curve/${submit.id}">view the curve &rarr;</a>`
@@ -732,9 +731,8 @@ export function submitResultPage(
           <dt>min. eigenvalue</dt><dd><code>${escapeHtml(clip(ind.minEigenvalue))}</code></dd>
           <dt>naive height</dt><dd><code>${escapeHtml(clip(result.height!.naiveLogHeight))}</code></dd>
           ${result.faltingsHeight ? `<dt>Faltings height</dt><dd><code>${escapeHtml(clip(result.faltingsHeight))}</code></dd>` : ''}
-          <dt>discriminant</dt><dd><code>${escapeHtml(clip(c.discriminant, 80))}</code></dd>
+          <dt>minimal discriminant</dt><dd><code>${escapeHtml(clip(c.discriminant, 80))}</code></dd>
           ${result.conductor ? `<dt>conductor</dt><dd><code>${escapeHtml(clip(result.conductor, 80))}</code></dd>` : ''}
-          ${result.minimalDiscriminant ? `<dt>minimal discriminant</dt><dd><code>${escapeHtml(clip(result.minimalDiscriminant, 80))}</code></dd>` : ''}
         </dl>
         <p class="result-method">${escapeHtml(ind.method)}.</p>
         ${result.conductorNote ? `<p class="muted">Conductor not recorded: ${escapeHtml(result.conductorNote)}.</p>` : ''}
@@ -781,7 +779,8 @@ export function apiDocsPage(user: User | null = null): string {
     "precisionDigits": 62, "stable": true, "method": "..."
   },
   "height": { "naiveLogHeight": "79.3286..." },
-  "conductor": "...", "minimalDiscriminant": "...", "faltingsHeight": "...",  // if primes valid
+  "minimalDiscriminant": "...",
+  "conductor": "...", "faltingsHeight": "...",  // if primes valid
   "leaderboard": { "status": "created", "rank": 12 }
 }`
   const primesReq = `curl -X POST https://elliptic-rank.icarm.cloud/api/curve/123/primes \\
@@ -814,10 +813,10 @@ export function apiDocsPage(user: User | null = null): string {
       witness points are stored in the curve's global minimal model. Body:
       <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>.</p>
       <p>Optionally include <code>primes</code>: the primes dividing the discriminant. If they check out
-      (each prime, and together dividing the discriminant to a unit) the <strong>conductor</strong>,
-      <strong>minimal discriminant</strong>, and <strong>Faltings height</strong> are computed and
-      recorded &mdash; no factoring needed. Re-submitting an existing curve with <code>primes</code>
-      backfills these even if the rank is unchanged.</p>
+      (each prime, and together dividing the discriminant to a unit) the <strong>conductor</strong>
+      and <strong>Faltings height</strong> are computed and recorded &mdash; no factoring needed.
+      Re-submitting an existing curve with <code>primes</code> backfills these even if the rank is
+      unchanged.</p>
       <p>Optionally include <code>commentary</code>: a string recorded as the curve's initial
       commentary, attributed to you. It is applied only when the curve has no commentary yet
       &mdash; if the curve already exists and already has commentary, this field is
@@ -836,8 +835,8 @@ export function apiDocsPage(user: User | null = null): string {
       <pre><code>${escapeHtml(verifyResp)}</code></pre>
 
       <h3>POST <code>/api/curve/:id/primes</code></h3>
-      <p>Backfill the <strong>conductor</strong>, <strong>minimal discriminant</strong>, and
-      <strong>Faltings height</strong> of an already-recorded curve from the primes dividing its
+      <p>Backfill the <strong>conductor</strong> and <strong>Faltings height</strong> of an
+      already-recorded curve from the primes dividing its
       discriminant &mdash; the programmatic equivalent of the primes form on a curve's page, and an
       alternative to re-submitting through <code>/api/submit</code>. Send <code>{ primes: [...] }</code>
       with the primes dividing the discriminant (each a prime, together dividing the discriminant to a
@@ -854,9 +853,9 @@ export function apiDocsPage(user: User | null = null): string {
 
       <h3>GET <code>/database.json</code></h3>
       <p>The entire database as one JSON download: <code>{ count, curves }</code>, each curve with its
-      global-minimal a-invariants, transformed witness points, rank lower bound, naive height, and
-      (when recorded) conductor, minimal discriminant, Faltings height, submitter, and commentary. No
-      auth required.</p>
+      global-minimal a-invariants, transformed witness points, <code>discriminant</code> (the minimal
+      discriminant), rank lower bound, naive height, and (when recorded) conductor, Faltings height,
+      submitter, and commentary. No auth required.</p>
 
       <h3>GET <code>/curve/:id.json</code></h3>
       <p>A single curve as JSON &mdash; the same shape as one entry of the

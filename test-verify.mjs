@@ -108,7 +108,8 @@ if (
 } else if (
   JSON.stringify(rNonMin.curve.ainvs) !== JSON.stringify(ELKIES_MIN.ainvs) ||
   JSON.stringify(rNonMin.points.map((p) => p.point)) !== JSON.stringify(ELKIES_MIN.points) ||
-  rNonMin.curve.discriminant !== rMin.curve.discriminant
+  rNonMin.curve.discriminant !== rMin.curve.discriminant ||
+  rNonMin.minimalDiscriminant !== rNonMin.curve.discriminant
 ) {
   console.error('FAIL: non-minimal model was not returned in global minimal storage form')
   process.exitCode = 1

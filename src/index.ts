@@ -138,8 +138,8 @@ app.get('/curve/:id', async (c) => {
 })
 
 // Supply the primes dividing the curve's discriminant from its detail page,
-// backfilling the conductor, minimal discriminant, and Faltings height (no factoring). Only meaningful when
-// these are not yet recorded; otherwise it is a no-op.
+// backfilling the conductor and Faltings height (no factoring). Only meaningful
+// when these are not yet recorded; otherwise it is a no-op.
 app.post('/curve/:id/primes', async (c) => {
   const user = c.get('user')
   if (!user) return c.redirect('/auth/github', 302)
@@ -196,7 +196,7 @@ app.get('/acknowledge', (c) => c.html(acknowledgePage(c.get('user'))))
 
 // Shared SELECT + JSON shape for the database download and the per-curve JSON.
 const CURVE_JSON_SELECT = `SELECT c.id, c.curve_key, c.ainvs, c.discriminant, c.naive_height, c.rank_lower_bound,
-            c.regulator, c.points, c.conductor, c.minimal_discriminant, c.faltings_height,
+            c.regulator, c.points, c.conductor, c.faltings_height,
             c.created_at, c.updated_at, u.display_name AS submitter, cl.content AS commentary
        FROM curves c
        LEFT JOIN users u ON u.id = c.submitter_user_id
@@ -212,7 +212,6 @@ interface CurveJsonRow {
   regulator: string
   points: string
   conductor: string | null
-  minimal_discriminant: string | null
   faltings_height: number | null
   created_at: string
   updated_at: string
@@ -237,7 +236,6 @@ function curveJson(r: CurveJsonRow) {
     faltings_height: r.faltings_height,
     conductor: r.conductor,
     discriminant: r.discriminant,
-    minimal_discriminant: r.minimal_discriminant,
     regulator: r.regulator,
     points: parse(r.points),
     submitter: r.submitter,
@@ -323,8 +321,8 @@ app.post('/api/submit', async (c) => {
   return c.json({ ...result, leaderboard }, result.ok ? 200 : 422)
 })
 
-// JSON API: backfill the conductor, minimal discriminant, and Faltings height of
-// an already-recorded curve from the primes dividing its discriminant — the
+// JSON API: backfill the conductor and Faltings height of an already-recorded
+// curve from the primes dividing its discriminant — the
 // programmatic counterpart of the curve page's primes form. Requires a bearer
 // token. Body: { primes: [...] } to use the supplied primes, or { mode: "auto" }
 // to attempt bounded trial division. No factoring of large discriminants.

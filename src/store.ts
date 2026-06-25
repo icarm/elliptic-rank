@@ -143,10 +143,11 @@ export async function recordFlags(env: Bindings, curve: RecordCandidate): Promis
   }
 }
 
-// Backfill the factoring-gated invariants (conductor, minimal discriminant,
-// Faltings height) for an existing curve from supplied primes dividing the
-// discriminant. Only fills
-// fields that are currently missing, so it never overwrites recorded values.
+// Backfill the factoring-gated invariants (conductor and Faltings height) for
+// an existing curve from supplied primes dividing the discriminant. Also keeps
+// the legacy minimal_discriminant column filled for callers that pass it. Only
+// fills fields that are currently missing, so it never overwrites recorded
+// values.
 export async function setCurveInvariants(
   env: Bindings,
   curveId: number,
@@ -164,7 +165,7 @@ export async function setCurveInvariants(
     .run()
 }
 
-// Outcome of backfilling a curve's factoring-gated invariants from the primes
+// Outcome of backfilling a curve's prime-gated invariants from the primes
 // dividing its discriminant. 'rejected' carries the failed PrimesResult so the
 // caller can surface `note`/`errors`.
 export type PrimesBackfill =
@@ -173,11 +174,11 @@ export type PrimesBackfill =
   | { status: 'recorded'; result: PrimesResult }
   | { status: 'rejected'; result: PrimesResult }
 
-// Backfill the conductor, minimal discriminant, and Faltings height of a curve
-// from the primes dividing its discriminant: `mode: 'auto'` attempts bounded
-// trial division, otherwise the supplied `primes` are used. A no-op when the
-// curve already has these recorded. Shared by the curve-page form and the JSON
-// API, which differ only in how they present this outcome.
+// Backfill the conductor and Faltings height of a curve from the primes dividing
+// its discriminant: `mode: 'auto'` attempts bounded trial division, otherwise
+// the supplied `primes` are used. A no-op when the conductor is already
+// recorded. Shared by the curve-page form and the JSON API, which differ only in
+// how they present this outcome.
 export async function backfillPrimes(
   env: Bindings,
   gp: Gp,
@@ -221,7 +222,8 @@ export async function recordCurve(
   const points = JSON.stringify(result.points.map((p) => p.point))
   const height = toFloat(result.height!.naiveLogHeight)
   const regulator = result.independence!.regulator
-  // Factoring-gated invariants, present together iff valid primes were supplied.
+  // Minimal discriminant is known from the global minimal model. Conductor and
+  // Faltings height are still prime-gated.
   const conductor = result.conductor // string | null
   const minDisc = result.minimalDiscriminant // string | null
   const faltings = result.faltingsHeight != null ? toFloat(result.faltingsHeight) : null
@@ -285,13 +287,12 @@ export async function recordCurve(
       .run()
   }
 
-  // Backfill the factoring-gated invariants whenever we now have them and the
-  // curve is missing any of them, independent of whether the rank improves.
-  const setInvariants =
-    !!conductor &&
-    (existing.conductor == null ||
-      existing.minimal_discriminant == null ||
-      existing.faltings_height == null)
+  // Backfill invariants whenever we now have them and the curve is missing any
+  // of them, independent of whether the rank improves.
+  const setMinimalDiscriminant = minDisc != null && existing.minimal_discriminant == null
+  const setConductorInvariants =
+    conductor != null && (existing.conductor == null || existing.faltings_height == null)
+  const setInvariants = setMinimalDiscriminant || setConductorInvariants
 
   if (rank > existing.rank_lower_bound) {
     await env.DB.prepare(
@@ -303,16 +304,18 @@ export async function recordCurve(
     )
       .bind(rank, regulator, points, ainvs, userId, conductor, minDisc, faltings, existing.id)
       .run()
-    return { id: existing.id, status: 'improved', rank, previousRank: existing.rank_lower_bound, conductor: setInvariants }
+    return { id: existing.id, status: 'improved', rank, previousRank: existing.rank_lower_bound, conductor: setConductorInvariants }
   }
 
   if (setInvariants) {
     await env.DB.prepare(
-      `UPDATE curves SET conductor = ?, minimal_discriminant = ?, faltings_height = ?,
+      `UPDATE curves SET conductor = COALESCE(conductor, ?),
+         minimal_discriminant = COALESCE(minimal_discriminant, ?),
+         faltings_height = COALESCE(faltings_height, ?),
          updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
     )
       .bind(conductor, minDisc, faltings, existing.id)
       .run()
   }
-  return { id: existing.id, status: 'unchanged', rank: existing.rank_lower_bound, conductor: setInvariants }
+  return { id: existing.id, status: 'unchanged', rank: existing.rank_lower_bound, conductor: setConductorInvariants }
 }

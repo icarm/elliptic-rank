@@ -85,9 +85,11 @@ export interface VerifyResult {
   // Computed only when valid primes were supplied or quick automatic recovery
   // found all primes dividing the discriminant; else null.
   conductor: string | null
+  // The discriminant of the global minimal model. Always present for a
+  // nonsingular verified curve.
   minimalDiscriminant: string | null
   faltingsHeight: string | null
-  // Set when primes were supplied but failed validation (nothing recorded).
+  // Set when primes were supplied but failed validation (conductor/Faltings not recorded).
   conductorNote: string | null
 }
 
@@ -463,9 +465,9 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
         `log(vecmax([abs(${minModel.c4})^3, (${minModel.c6})^2]))*1.0`,
       ),
     }
+    result.minimalDiscriminant = minModel.discriminant
 
-    // Conductor / minimal discriminant / Faltings height from the primes
-    // dividing the discriminant.
+    // Conductor / Faltings height from the primes dividing the discriminant.
     // If none were supplied, try to recover them by bounded trial division — a
     // best-effort that completes in milliseconds and gives up (rather than
     // factoring a hard composite) when it cannot fully factor the discriminant.
@@ -476,7 +478,7 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     }
     const inv = invariantsFromPrimes(gp, primes)
     result.conductor = inv.conductor
-    result.minimalDiscriminant = inv.minDisc
+    result.minimalDiscriminant = inv.minDisc ?? minModel.discriminant
     result.faltingsHeight = inv.faltings
     result.conductorNote = inv.note
     evalGp(gp, 'E = Einput;')
