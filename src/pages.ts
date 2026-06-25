@@ -199,7 +199,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
         <h2>Plots</h2>
         <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness. The frontier is down and to the right: high rank, small height/conductor.</p>
         <h3>log conductor vs rank</h3>
-        <p class="muted board-caption">Natural log of the conductor <em>N</em> = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup>. Recorded when a submission supplies the primes dividing the discriminant.</p>
+        <p class="muted board-caption">Natural log of the conductor <span class="eq">N = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup></span>. Recorded when a submission supplies the primes dividing the discriminant.</p>
         ${scatterPlot(
           curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
           'log conductor',
