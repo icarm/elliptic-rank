@@ -593,7 +593,7 @@ export function curveDetailPage(
         <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badge(records.naive, curve.rank_lower_bound, 'naive')}</dd>
         ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}${badge(records.faltings, curve.rank_lower_bound, 'faltings')}</dd>` : ''}
         ${curve.conductor ? `<dt>conductor</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code>${badge(records.conductor, curve.rank_lower_bound, 'conductor')}</dd>` : ''}
-        <dt>minimal discriminant</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code></dd>
+        <dt>discriminant</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code></dd>
         <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
         <dt>submitted by</dt><dd>${submitter}</dd>
         <dt>last updated</dt><dd>${escapeHtml(curve.updated_at)}</dd>
