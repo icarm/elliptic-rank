@@ -149,18 +149,30 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   const Y = (q: number) => T + plotH - ((q - qmin) / (qmax - qmin)) * plotH
 
   let grid = ''
+  // Gridlines and numeric labels are spaced out for readability, but every
+  // integer rank is clickable: labeled ranks use their number as the target,
+  // unlabeled ones get a small tick mark, and each owns a full-width hit column.
   const rStep = rankMax <= 16 ? 1 : Math.ceil(rankMax / 12)
-  for (let r = 0; r <= rankMax; r += rStep) {
-    const x = X(r).toFixed(1)
-    grid += `<line class="grid" x1="${x}" y1="${T}" x2="${x}" y2="${T + plotH}"/>`
-    const tick = `<text class="tick" x="${x}" y="${T + plotH + 18}" text-anchor="middle">${r}</text>`
-    // Rank ticks (r >= 1) link to the table filtered to that exact lower bound; a
-    // transparent rect widens the click target around the small label.
-    if (r >= 1) {
-      const hit = `<rect class="tick-hit" x="${(X(r) - 14).toFixed(1)}" y="${T + plotH + 5}" width="28" height="20"/>`
-      grid += `<a class="tick-link" href="/curves?minrank=${r}&amp;rankmode=eq"><title>curves with rank lower bound = ${r}</title>${hit}${tick}</a>`
+  const dx = plotW / rankMax // x-distance between adjacent integer ranks
+  for (let r = 0; r <= rankMax; r++) {
+    const x = X(r)
+    const labeled = r % rStep === 0
+    if (labeled) {
+      grid += `<line class="grid" x1="${x.toFixed(1)}" y1="${T}" x2="${x.toFixed(1)}" y2="${T + plotH}"/>`
+    }
+    const label = labeled
+      ? `<text class="tick" x="${x.toFixed(1)}" y="${T + plotH + 18}" text-anchor="middle">${r}</text>`
+      : ''
+    // r = 0 is the axis origin (rank ≥ 0 = everything) and rankMax is empty
+    // padding past the data, so link only the real ranks 1..rankMax-1.
+    if (r >= 1 && r < rankMax) {
+      const mark = labeled
+        ? ''
+        : `<line class="tick-mark" x1="${x.toFixed(1)}" y1="${T + plotH}" x2="${x.toFixed(1)}" y2="${T + plotH + 5}"/>`
+      const hit = `<rect class="tick-hit" x="${(x - dx / 2).toFixed(1)}" y="${T + plotH}" width="${dx.toFixed(1)}" height="22"/>`
+      grid += `<a class="tick-link" href="/curves?minrank=${r}&amp;rankmode=eq"><title>curves with rank lower bound = ${r}</title>${hit}${mark}${label}</a>`
     } else {
-      grid += tick
+      grid += label
     }
   }
   for (let i = 0; i <= 5; i++) {
