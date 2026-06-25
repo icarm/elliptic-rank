@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS curves (
   curve_key TEXT UNIQUE NOT NULL,        -- canonical "c4:c6"
   c4 TEXT NOT NULL,
   c6 TEXT NOT NULL,
-  ainvs TEXT NOT NULL,                   -- JSON [a1,a2,a3,a4,a6] of the display model
+  ainvs TEXT NOT NULL,                   -- JSON [a1,a2,a3,a4,a6] of the global minimal model
   discriminant TEXT NOT NULL,
   naive_height REAL NOT NULL,            -- log max(|c4|^3, |c6|^2), for ordering
   rank_lower_bound INTEGER NOT NULL,

@@ -1,6 +1,7 @@
 // Leaderboard storage. A verified submission is recorded into `curves`, deduped
-// by the canonical key; the stored witness is replaced only when a new
-// submission proves a strictly higher rank lower bound.
+// by the canonical key. The verifier normalizes accepted witnesses to the
+// global minimal model before they reach this layer; the stored witness is
+// replaced only when a new submission proves a strictly higher rank lower bound.
 
 import type { Bindings } from './auth'
 import { verifyPrimes, autoPrimes, type VerifyResult, type PrimesResult } from './verify'

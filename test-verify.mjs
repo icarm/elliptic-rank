@@ -105,6 +105,13 @@ if (
 ) {
   console.error('FAIL: naive height / key differ between models of the same curve')
   process.exitCode = 1
+} else if (
+  JSON.stringify(rNonMin.curve.ainvs) !== JSON.stringify(ELKIES_MIN.ainvs) ||
+  JSON.stringify(rNonMin.points.map((p) => p.point)) !== JSON.stringify(ELKIES_MIN.points) ||
+  rNonMin.curve.discriminant !== rMin.curve.discriminant
+) {
+  console.error('FAIL: non-minimal model was not returned in global minimal storage form')
+  process.exitCode = 1
 } else {
   console.log(`elkies model check OK: key=${rMin.canonical.key.slice(0, 30)}… naiveH=${rMin.height.naiveLogHeight.slice(0, 10)}`)
 }

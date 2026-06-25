@@ -23,8 +23,13 @@
 // recover all such primes.
 // All input numbers are regex-validated and substituted into GP expressions;
 // submitter strings are never evaluated as GP code.
+// Accepted submissions are returned in the global minimal model: points are
+// transported through PARI's minimal-model change of variables before storage.
 
 import type { Gp } from './pari'
+
+type Ainvs = [string, string, string, string, string]
+type Point = [string, string]
 
 export interface VerifyInput {
   // Weierstrass a-invariants: [a4,a6] (short form) or [a1,a2,a3,a4,a6].
@@ -40,7 +45,7 @@ export interface VerifyInput {
 }
 
 export interface PointResult {
-  point: [string, string]
+  point: Point
   onCurve: boolean
 }
 
@@ -66,7 +71,7 @@ export interface VerifyResult {
   ok: boolean
   errors: string[]
   curve: {
-    ainvs: [string, string, string, string, string]
+    ainvs: Ainvs
     c4: string
     c6: string
     discriminant: string
@@ -125,24 +130,54 @@ function pariFloat(s: string): number {
   return Number(s.replace(/\s+/g, '').replace(/E/i, 'e'))
 }
 
-function normalizeAinvs(ainvs: (string | number)[]): [string, string, string, string, string] {
+function parseGpVector(out: string, label: string): string[] {
+  const m = out.match(/^\[(.*)\]$/s)
+  if (!m) throw new Error(`unexpected ${label} form: ${out.slice(0, 80)}`)
+  const inner = m[1].trim()
+  return inner === '' ? [] : inner.split(',').map((s) => s.trim())
+}
+
+function parseGpAinvs(out: string): Ainvs {
+  const v = parseGpVector(out, 'a-invariants')
+  if (v.length !== 5) throw new Error(`unexpected a-invariants length: ${out.slice(0, 80)}`)
+  return [v[0], v[1], v[2], v[3], v[4]]
+}
+
+function parseGpPoint(out: string): Point {
+  const v = parseGpVector(out, 'point')
+  if (v.length !== 2) throw new Error(`unexpected point length: ${out.slice(0, 80)}`)
+  return [v[0], v[1]]
+}
+
+function normalizeAinvs(ainvs: (string | number)[]): Ainvs {
   const t = ainvs.map((a, i) => token(a, `a-invariant[${i}]`))
   if (t.length === 2) return ['0', '0', '0', t[0], t[1]]
   if (t.length === 5) return [t[0], t[1], t[2], t[3], t[4]]
   throw new InputError('ainvs must have length 2 ([a4,a6]) or 5 ([a1,a2,a3,a4,a6])')
 }
 
+interface MinimalModel extends Canonical {
+  ainvs: Ainvs
+  discriminant: string
+}
+
+// Global minimal model for the curve `E` already loaded in the gp session.
+// PARI also stores the change of variables in `EminChange`; `ellchangepoint(P,
+// EminChange)` maps a point on `E` to this minimal model.
+function minimalModel(gp: Gp): MinimalModel {
+  evalGp(gp, 'Emin = ellminimalmodel(E, &EminChange);')
+  const ainvs = parseGpAinvs(evalGp(gp, '[Emin.a1, Emin.a2, Emin.a3, Emin.a4, Emin.a6]'))
+  const c4 = evalGp(gp, 'Emin.c4')
+  const c6 = evalGp(gp, 'Emin.c6')
+  const discriminant = evalGp(gp, 'Emin.disc')
+  return { ainvs, c4, c6, discriminant, key: `${c4}:${c6}` }
+}
+
 // Global-minimal-model (c4,c6) for the curve `E` already loaded in the gp
-// session. Used for both the canonical key and naive height. PARI's
-// minimal-model routine computes this directly and does not require the
-// conductor or a list of primes dividing the discriminant.
+// session. Used for both the canonical key and naive height.
 function minimalC4C6(gp: Gp): Canonical {
-  const vec = evalGp(gp, 'my(Em=ellminimalmodel(E)); [Em.c4, Em.c6]')
-  const m = vec.match(/^\[(.+),\s*(.+)\]$/)
-  if (!m) throw new Error(`unexpected minimal model form: ${vec.slice(0, 80)}`)
-  const c4 = m[1].trim()
-  const c6 = m[2].trim()
-  return { c4, c6, key: `${c4}:${c6}` }
+  const m = minimalModel(gp)
+  return { c4: m.c4, c6: m.c6, key: m.key }
 }
 
 const MAX_PRIMES = 256
@@ -373,8 +408,8 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
   }
 
   // --- 1. Parse & validate input (no GP evaluation of raw strings) ---
-  let ainvs: [string, string, string, string, string]
-  let pts: [string, string][]
+  let ainvs: Ainvs
+  let pts: Point[]
   let primes: string[]
   try {
     ainvs = normalizeAinvs(input.ainvs ?? [])
@@ -383,7 +418,7 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     if (rawPts.length > MAX_POINTS) throw new InputError(`too many points (max ${MAX_POINTS})`)
     pts = rawPts.map((p, i) => {
       if (!Array.isArray(p) || p.length !== 2) throw new InputError(`point[${i}] must be [x,y]`)
-      return [token(p[0], `point[${i}].x`), token(p[1], `point[${i}].y`)] as [string, string]
+      return [token(p[0], `point[${i}].x`), token(p[1], `point[${i}].y`)] as Point
     })
     const rawPrimes = input.primes ?? []
     if (rawPrimes.length > MAX_PRIMES) throw new InputError(`too many primes (max ${MAX_PRIMES})`)
@@ -410,17 +445,18 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
       result.errors.push('curve is singular (discriminant 0): not an elliptic curve')
       return result
     }
+    evalGp(gp, 'Einput = E;')
 
-    // Canonical dedup key: global minimal (c4,c6), identifying the
-    // Q-isomorphism class.
-    result.canonical = minimalC4C6(gp)
+    // Canonical storage/dedup model: the global minimal model, identifying the
+    // Q-isomorphism class by (c4,c6).
+    const minModel = minimalModel(gp)
+    result.canonical = { c4: minModel.c4, c6: minModel.c6, key: minModel.key }
 
     // Naive height log max(|c4|^3, |c6|^2) of the GLOBAL MINIMAL MODEL — the
     // convention used by EW 2004 / LMFDB / Cremona, so the value is comparable
     // to the literature records on the board. This prevents non-minimal
     // submissions from changing the recorded height. (Substituted strings are
     // PARI integer output, not submitter input.)
-    const minModel = result.canonical
     result.height = {
       naiveLogHeight: evalGp(
         gp,
@@ -433,6 +469,7 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     // If none were supplied, try to recover them by bounded trial division — a
     // best-effort that completes in milliseconds and gives up (rather than
     // factoring a hard composite) when it cannot fully factor the discriminant.
+    evalGp(gp, 'E = Emin;')
     if (primes.length === 0) {
       const auto = autoBadPrimes(gp)
       if (auto) primes = auto
@@ -442,6 +479,7 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     result.minimalDiscriminant = inv.minDisc
     result.faltingsHeight = inv.faltings
     result.conductorNote = inv.note
+    evalGp(gp, 'E = Einput;')
 
     // --- 3. Check every point lies on the curve (exact) ---
     result.points = pts.map((p) => ({
@@ -498,6 +536,17 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
       return result
     }
 
+    result.curve = {
+      ainvs: minModel.ainvs,
+      c4: minModel.c4,
+      c6: minModel.c6,
+      discriminant: minModel.discriminant,
+      nonsingular: true,
+    }
+    result.points = pts.map((p) => ({
+      point: parseGpPoint(evalGp(gp, `ellchangepoint([${p[0]},${p[1]}], EminChange)`)),
+      onCurve: true,
+    }))
     result.ok = true
     return result
   } catch (e) {

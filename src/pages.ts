@@ -807,7 +807,8 @@ export function apiDocsPage(user: User | null = null): string {
       <p>Submits a curve with a set of witness points. The points are checked to lie on the curve, and
       their N&eacute;ron&ndash;Tate height-pairing matrix is checked to be positive definite (so they
       are independent in <span class="eqi">E(&#8474;)</span>, proving <code>rank &ge; #points</code>). On success the
-      curve is <strong>recorded on the leaderboard</strong>, attributed to you. Body:
+      curve is <strong>recorded on the leaderboard</strong>, attributed to you. Accepted curves and
+      witness points are stored in the curve's global minimal model. Body:
       <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>.</p>
       <p>Optionally include <code>primes</code>: the primes dividing the discriminant. If they check out
       (each prime, and together dividing the discriminant to a unit) the <strong>conductor</strong>,
@@ -850,8 +851,9 @@ export function apiDocsPage(user: User | null = null): string {
 
       <h3>GET <code>/database.json</code></h3>
       <p>The entire database as one JSON download: <code>{ count, curves }</code>, each curve with its
-      a-invariants, witness points, rank lower bound, naive height, and (when recorded) conductor,
-      minimal discriminant, Faltings height, submitter, and commentary. No auth required.</p>
+      global-minimal a-invariants, transformed witness points, rank lower bound, naive height, and
+      (when recorded) conductor, minimal discriminant, Faltings height, submitter, and commentary. No
+      auth required.</p>
 
       <h3>GET <code>/curve/:id.json</code></h3>
       <p>A single curve as JSON &mdash; the same shape as one entry of the
