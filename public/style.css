@@ -127,8 +127,14 @@ main a {
   color: var(--muted);
 }
 
-code, .eq {
+code, .eq, .eqi {
   font-family: "Cambria Math", Cambria, Georgia, serif;
+}
+
+/* Inline math (e.g. E/ℚ, E(ℚ)): the math font at the surrounding text size,
+   unlike .eq which is sized up for display equations. */
+.eqi {
+  font-style: normal;
 }
 
 main p code, .result code, pre code, .submit-help code {

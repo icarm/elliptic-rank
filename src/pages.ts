@@ -190,7 +190,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       </section>
       <p>
       Inspired by <a class="external" href="https://web.math.pmf.unizg.hr/~duje/tors/rankhist.html">Dujella's rank tables</a>,
-      this site tracks elliptic curves <em>E</em>/&#8474; of high
+      this site tracks elliptic curves <span class="eqi">E/&#8474;</span> of high
       <a class="external" href="https://en.wikipedia.org/wiki/Rank_of_an_elliptic_curve">Mordell&ndash;Weil rank</a>
       relative to their size &mdash; measured by naive height, Faltings height, or
       <a class="external" href="https://en.wikipedia.org/wiki/Conductor_of_an_elliptic_curve">conductor</a>.</p>
@@ -225,7 +225,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
         <h2>Submit a curve</h2>
         <p class="submit-help">Give the Weierstrass coefficients and a set of independent rational points.
         Each point is checked to lie on the curve, and their N&eacute;ron&ndash;Tate height-pairing matrix
-        is checked to be positive definite &mdash; so the points are independent in <em>E</em>(&#8474;),
+        is checked to be positive definite &mdash; so the points are independent in <span class="eqi">E(&#8474;)</span>,
         proving rank &ge; the number of points. Supplying the primes dividing the discriminant additionally records its
         conductor, minimal discriminant, and Faltings height.</p>
         <div class="eq-line">
@@ -755,7 +755,7 @@ export function apiDocsPage(user: User | null = null): string {
       <h3>POST <code>/api/submit</code></h3>
       <p>Submits a curve with a set of witness points. The points are checked to lie on the curve, and
       their N&eacute;ron&ndash;Tate height-pairing matrix is checked to be positive definite (so they
-      are independent in <em>E</em>(&#8474;), proving <code>rank &ge; #points</code>). On success the
+      are independent in <span class="eqi">E(&#8474;)</span>, proving <code>rank &ge; #points</code>). On success the
       curve is <strong>recorded on the leaderboard</strong>, attributed to you. Body:
       <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>.</p>
       <p>Optionally include <code>primes</code>: the primes dividing the discriminant. If they check out
@@ -773,7 +773,7 @@ export function apiDocsPage(user: User | null = null): string {
       invalid (singular curve, point off curve, or not independent), <code>401</code> without a valid
       token, <code>413</code> if the request body is too large, <code>429</code> if your account is
       submitting too quickly, or <code>400</code> if the body isn't JSON. <code>independence.rankLowerBound</code> is
-      the proven bound, <code>canonical.key</code> identifies the curve up to &#8474;-isomorphism, and
+      the proven bound, <code>canonical.key</code> identifies the curve up to <span class="eqi">&#8474;</span>-isomorphism, and
       the <code>leaderboard</code> field reports the outcome &mdash; <code>status</code> is
       <code>"created"</code>, <code>"improved"</code> (with <code>previousRank</code>), or
       <code>"unchanged"</code> (a curve's record only changes when a witness proves a strictly higher
