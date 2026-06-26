@@ -226,7 +226,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
     </svg>`
 }
 
-export function progressPage(curves: ProgressCurve[], user: User | null = null): string {
+export function progressPage(curves: ProgressCurve[], user: User | null = null, requestedStartId?: number): string {
   if (curves.length === 0) {
     return layout(
       'Progress — Elliptic Curve Rank Leaderboard',
@@ -254,7 +254,10 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null):
   const Y = (q: number) => T + plotH - ((q - qmin) / (qmax - qmin)) * plotH
   const minId = pts[0].id
   const maxId = pts[pts.length - 1].id
-  const initialId = minId
+  const initialStartId = requestedStartId === undefined
+    ? minId
+    : Math.min(maxId, Math.max(minId, requestedStartId))
+  const initialId = initialStartId
 
   let grid = ''
   const rStep = rankMax <= 16 ? 1 : Math.ceil(rankMax / 12)
@@ -272,9 +275,11 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null):
 
   const dots = pts
     .map((p) => {
-      const visible = p.id <= initialId
+      const baseline = p.id <= initialStartId
+      const active = p.id > initialStartId && p.id <= initialId
+      const visible = baseline || active
       return `<a href="/curve/${p.id}" class="progress-link" data-id="${p.id}">
-          <circle class="progress-dot${visible ? ' is-visible' : ''}" cx="${X(p.rank).toFixed(1)}" cy="${Y(p.x).toFixed(1)}" r="${visible ? '4' : '0'}">
+          <circle class="progress-dot${baseline ? ' is-baseline' : ''}${active ? ' is-visible' : ''}" cx="${X(p.rank).toFixed(1)}" cy="${Y(p.x).toFixed(1)}" r="${visible ? '4' : '0'}">
             <title>curve #${p.id}: rank &ge; ${p.rank}, log conductor ${p.x.toFixed(0)}</title>
           </circle>
         </a>`
@@ -287,7 +292,10 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null):
       <h2>Progress</h2>
       <section class="progress-tool">
         <div class="progress-controls">
-          <label for="progress-id">curve id</label>
+          <label for="progress-start">starting id</label>
+          <input id="progress-start" type="range" min="${minId}" max="${maxId}" value="${initialStartId}" step="1" />
+          <output id="progress-start-current" for="progress-start">#${initialStartId}</output>
+          <label class="progress-row-start" for="progress-id">curve id</label>
           <input id="progress-id" type="range" min="${minId}" max="${maxId}" value="${initialId}" step="1" />
           <output id="progress-current" for="progress-id">#${initialId}</output>
           <button id="progress-play" type="button">Play</button>
@@ -305,6 +313,8 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null):
       <script>
       (() => {
         const ids = ${ids};
+        const startSlider = document.getElementById('progress-start');
+        const startCurrent = document.getElementById('progress-start-current');
         const slider = document.getElementById('progress-id');
         const current = document.getElementById('progress-current');
         const count = document.getElementById('progress-count');
@@ -323,15 +333,22 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null):
         }
 
         function render() {
+          const start = Number(startSlider.value);
+          if (Number(slider.value) < start) slider.value = String(start);
           const cutoff = Number(slider.value);
+          const baseline = visibleCount(start);
           const shown = visibleCount(cutoff);
+          startCurrent.value = '#' + start;
           current.value = '#' + cutoff;
-          count.textContent = shown + ' / ' + ids.length;
+          count.textContent = Math.max(0, shown - baseline) + ' new; ' + baseline + ' gray';
           dots.forEach((a) => {
-            const on = Number(a.dataset.id) <= cutoff;
+            const id = Number(a.dataset.id);
+            const gray = id <= start;
+            const on = id > start && id <= cutoff;
             const c = a.querySelector('circle');
+            c.classList.toggle('is-baseline', gray);
             c.classList.toggle('is-visible', on);
-            c.setAttribute('r', on ? '4' : '0');
+            c.setAttribute('r', gray || on ? '4' : '0');
           });
         }
 
@@ -341,10 +358,20 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null):
           play.textContent = 'Play';
         }
 
+        function updateStartUrl() {
+          const url = new URL(window.location.href);
+          url.searchParams.set('start', startSlider.value);
+          url.searchParams.delete('startId');
+          url.searchParams.delete('starting');
+          url.searchParams.delete('startingId');
+          window.history.replaceState(null, '', url);
+        }
+
+        startSlider.addEventListener('input', () => { stop(); updateStartUrl(); render(); });
         slider.addEventListener('input', () => { stop(); render(); });
         play.addEventListener('click', () => {
           if (timer) { stop(); return; }
-          if (Number(slider.value) >= Number(slider.max)) slider.value = slider.min;
+          if (Number(slider.value) >= Number(slider.max)) slider.value = startSlider.value;
           play.textContent = 'Pause';
           timer = setInterval(() => {
             const next = ids[visibleCount(Number(slider.value))];

@@ -76,12 +76,18 @@ app.get('/recent', async (c) => {
 })
 
 app.get('/progress', async (c) => {
+  const startParam = c.req.query('start')
+    ?? c.req.query('startId')
+    ?? c.req.query('starting')
+    ?? c.req.query('startingId')
+  const parsedStartId = startParam === undefined ? undefined : Math.floor(Number(startParam))
+  const startId = parsedStartId !== undefined && Number.isFinite(parsedStartId) ? parsedStartId : undefined
   const { results } = await c.env.DB.prepare(
     `SELECT id, rank_lower_bound, conductor FROM curves
        WHERE conductor IS NOT NULL
        ORDER BY id ASC`,
   ).all<ProgressCurve>()
-  return c.html(progressPage(results, c.get('user')))
+  return c.html(progressPage(results, c.get('user'), startId))
 })
 
 // Single curve as downloadable JSON — the same shape as a database.json entry.

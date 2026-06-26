@@ -441,6 +441,10 @@ pre code {
   min-width: 5rem;
 }
 
+.progress-controls .progress-row-start {
+  grid-column: 1;
+}
+
 .progress-controls button {
   padding: 0.4rem 0.85rem;
   background: var(--accent);
@@ -465,9 +469,20 @@ pre code {
   opacity: 0.82;
 }
 
+.progress-plot .progress-dot.is-baseline {
+  fill: var(--muted);
+  opacity: 0.38;
+}
+
 .progress-plot .progress-link:hover .progress-dot.is-visible {
   fill: var(--accent-dark);
   opacity: 1;
+  r: 7;
+}
+
+.progress-plot .progress-link:hover .progress-dot.is-baseline {
+  fill: var(--fg);
+  opacity: 0.62;
   r: 7;
 }
 
