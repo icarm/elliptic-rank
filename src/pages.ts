@@ -387,7 +387,7 @@ export function progressPage(
     .map((key) => `<label><input type="radio" name="progress-metric" value="${key}"${key === selectedMetric ? ' checked' : ''} /><span>${metricLabels[key]}</span></label>`)
     .join('\n')
   const referenceControls = referenceCurves
-    .map((curve) => `<label><input class="progress-reference-toggle" type="checkbox" value="${curve.key}"${selectedMetric === 'conductor' ? '' : ' disabled'} /><span class="progress-ref-swatch ${curve.className}"></span><span>${curve.equation}</span></label>`)
+    .map((curve) => `<label title="${curve.equation}"><input class="progress-reference-toggle" type="checkbox" value="${curve.key}"${selectedMetric === 'conductor' ? '' : ' disabled'} /><span class="progress-ref-swatch ${curve.className}"></span><span>${curve.label.replace('c = ', 'c=')}</span></label>`)
     .join('\n')
   const referenceCurvesMarkup = referenceCurves
     .map((curve) => {
@@ -412,6 +412,7 @@ export function progressPage(
           </div>
           <div id="progress-reference-controls" class="progress-reference-controls${referenceControlsDisabledClass}">
             <span class="progress-control-label">reference curves</span>
+            <span class="progress-reference-formula">r = c * log N / log log N</span>
             ${referenceControls}
           </div>
           <label for="progress-start">starting id</label>
