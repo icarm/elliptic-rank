@@ -322,11 +322,10 @@ export function progressPage(
       },
     }
   }
-  const minId = pts[0].id
   const maxId = pts[pts.length - 1].id
   const initialStartId = requestedStartId === undefined
-    ? minId
-    : Math.min(maxId, Math.max(minId, requestedStartId))
+    ? 0
+    : Math.min(maxId, Math.max(0, requestedStartId))
   const initialId = initialStartId
 
   let grid = ''
@@ -346,8 +345,8 @@ export function progressPage(
   const dots = pts
     .map((p) => {
       const value = p[selectedMetric]
-      const baseline = value != null && p.id < initialStartId
-      const active = value != null && p.id >= initialStartId && p.id <= initialId
+      const baseline = value != null && p.id <= initialStartId
+      const active = value != null && p.id > initialStartId && p.id <= initialId
       const title = value == null
         ? `curve #${p.id}: ${metricLabels[selectedMetric]} not recorded`
         : `curve #${p.id}: rank >= ${p.rank}, ${metricLabels[selectedMetric]} ${fmtMetric(selectedMetric, value)}`
@@ -393,10 +392,10 @@ export function progressPage(
             ${referenceControls}
           </div>
           <label for="progress-start">starting id</label>
-          <input id="progress-start" type="range" min="${minId}" max="${maxId}" value="${initialStartId}" step="1" />
+          <input id="progress-start" type="range" min="0" max="${maxId}" value="${initialStartId}" step="1" />
           <output id="progress-start-current" for="progress-start">#${initialStartId}</output>
           <label class="progress-row-start" for="progress-id">curve id</label>
-          <input id="progress-id" type="range" min="${minId}" max="${maxId}" value="${initialId}" step="1" />
+          <input id="progress-id" type="range" min="0" max="${maxId}" value="${initialId}" step="1" />
           <output id="progress-current" for="progress-id">#${initialId}</output>
           <button id="progress-play" type="button">Play</button>
           <span id="progress-count" class="muted">0 / ${pts.length}</span>
@@ -565,8 +564,8 @@ export function progressPage(
             const p = points[i];
             const value = p[metric];
             const hasValue = value != null;
-            const gray = hasValue && p.id < start;
-            const on = hasValue && p.id >= start && p.id <= cutoff;
+            const gray = hasValue && p.id <= start;
+            const on = hasValue && p.id > start && p.id <= cutoff;
             if (gray) baseline += 1;
             if (on) shown += 1;
             const c = a.querySelector('circle');
