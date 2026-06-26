@@ -84,7 +84,7 @@ app.get('/progress', async (c) => {
   const startId = parsedStartId !== undefined && Number.isFinite(parsedStartId) ? parsedStartId : undefined
   const metric = c.req.query('metric')
   const { results } = await c.env.DB.prepare(
-    `SELECT id, rank_lower_bound, naive_height, faltings_height, conductor FROM curves
+    `SELECT id, rank_lower_bound, naive_height, faltings_height, conductor, discriminant FROM curves
        ORDER BY id ASC`,
   ).all<ProgressCurve>()
   return c.html(progressPage(results, c.get('user'), startId, metric))

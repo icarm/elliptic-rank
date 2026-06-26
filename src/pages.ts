@@ -122,12 +122,15 @@ export interface ProgressCurve {
   naive_height: number
   faltings_height: number | null
   conductor: string | null
+  discriminant: string
 }
 
-type ProgressMetric = 'conductor' | 'naive' | 'faltings'
+type ProgressMetric = 'conductor' | 'naive' | 'faltings' | 'discriminant'
 
 function progressMetricKey(metric: string | undefined): ProgressMetric {
-  return metric === 'naive' || metric === 'faltings' || metric === 'conductor' ? metric : 'conductor'
+  return metric === 'naive' || metric === 'faltings' || metric === 'conductor' || metric === 'discriminant'
+    ? metric
+    : 'conductor'
 }
 
 // Natural log of a non-negative big integer given as a decimal string.
@@ -255,6 +258,7 @@ export function progressPage(
     conductor: 'log conductor',
     naive: 'naive height',
     faltings: 'Faltings height',
+    discriminant: 'log |discriminant|',
   }
   const referenceCurves = [
     { key: 'c1', c: 1, label: 'c = 1', className: 'progress-ref-c1' },
@@ -272,6 +276,7 @@ export function progressPage(
       conductor: c.conductor == null ? null : logBigInt(c.conductor),
       naive: c.naive_height,
       faltings: c.faltings_height,
+      discriminant: logBigInt(c.discriminant),
     }))
   const W = 900, H = 540, L = 68, R = 28, T = 22, B = 54
   const plotW = W - L - R, plotH = H - T - B
@@ -360,7 +365,7 @@ export function progressPage(
   const ids = JSON.stringify(pts.map((p) => p.id)).replace(/</g, '\\u003c')
   const progressData = JSON.stringify(pts).replace(/</g, '\\u003c')
   const referenceData = JSON.stringify(referenceCurves.map(({ key, c, label }) => ({ key, c, label }))).replace(/</g, '\\u003c')
-  const metricControls = (['conductor', 'naive', 'faltings'] as const)
+  const metricControls = (['conductor', 'naive', 'faltings', 'discriminant'] as const)
     .map((key) => `<label><input type="radio" name="progress-metric" value="${key}"${key === selectedMetric ? ' checked' : ''} /><span>${metricLabels[key]}</span></label>`)
     .join('\n')
   const referenceControls = referenceCurves
@@ -426,6 +431,7 @@ export function progressPage(
           conductor: { label: 'log conductor', format: (v) => v.toFixed(0) },
           naive: { label: 'naive height', format: (v) => v.toFixed(0) },
           faltings: { label: 'Faltings height', format: (v) => v.toFixed(2) },
+          discriminant: { label: 'log |discriminant|', format: (v) => v.toFixed(0) },
         };
         const T = ${T}, plotH = ${plotH}, L = ${L}, RANK_MAX = ${rankMax}, PLOT_W = ${plotW}, PLOT_RIGHT = ${W - R};
         const startSlider = document.getElementById('progress-start');
