@@ -186,8 +186,20 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   }
   // A point is on the frontier (a record) when no curve of equal or higher rank
   // has a smaller value — the same rule that earns the star badge on curve pages.
-  const isRecord = (p: PlotPoint): boolean =>
-    !pts.some((o) => o.rank >= p.rank && o.x < p.x)
+  const minByRank = new Map<number, number>()
+  for (const p of pts) {
+    const prev = minByRank.get(p.rank)
+    if (prev == null || p.x < prev) minByRank.set(p.rank, p.x)
+  }
+  const frontierValueByRank = new Map<number, number>()
+  let bestAtHigherRank = Infinity
+  const ranks = [...minByRank.keys()].sort((a, b) => b - a)
+  for (const rank of ranks) {
+    const rankMin = minByRank.get(rank)!
+    frontierValueByRank.set(rank, Math.min(rankMin, bestAtHigherRank))
+    if (rankMin < bestAtHigherRank) bestAtHigherRank = rankMin
+  }
+  const isRecord = (p: PlotPoint): boolean => p.x <= frontierValueByRank.get(p.rank)!
   const dot = (p: PlotPoint): string => {
     const x = X(p.rank).toFixed(1)
     const y = Y(p.x).toFixed(1)
