@@ -509,11 +509,20 @@ pre code {
   gap: 0.65rem;
 }
 
+.progress-reference-controls.is-disabled {
+  color: var(--muted);
+  opacity: 0.55;
+}
+
 .progress-reference-controls label {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   cursor: pointer;
+}
+
+.progress-reference-controls.is-disabled label {
+  cursor: default;
 }
 
 .progress-reference-toggle {

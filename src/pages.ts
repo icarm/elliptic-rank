@@ -365,7 +365,7 @@ export function progressPage(
     .map((key) => `<label><input type="radio" name="progress-metric" value="${key}"${key === selectedMetric ? ' checked' : ''} /><span>${metricLabels[key]}</span></label>`)
     .join('\n')
   const referenceControls = referenceCurves
-    .map((curve) => `<label><input class="progress-reference-toggle" type="checkbox" value="${curve.key}" checked /><span class="progress-ref-swatch ${curve.className}"></span><span>${curve.label}</span></label>`)
+    .map((curve) => `<label><input class="progress-reference-toggle" type="checkbox" value="${curve.key}"${selectedMetric === 'conductor' ? '' : ' disabled'} /><span class="progress-ref-swatch ${curve.className}"></span><span>${curve.label}</span></label>`)
     .join('\n')
   const referenceCurvesMarkup = referenceCurves
     .map((curve) => {
@@ -377,7 +377,7 @@ export function progressPage(
     })
     .join('\n')
   const referenceHiddenClass = selectedMetric === 'conductor' ? '' : ' is-hidden'
-  const referenceControlsHidden = selectedMetric === 'conductor' ? '' : ' hidden'
+  const referenceControlsDisabledClass = selectedMetric === 'conductor' ? '' : ' is-disabled'
 
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a></p>
@@ -388,7 +388,7 @@ export function progressPage(
             <span class="progress-control-label">measure</span>
             ${metricControls}
           </div>
-          <div id="progress-reference-controls" class="progress-reference-controls"${referenceControlsHidden}>
+          <div id="progress-reference-controls" class="progress-reference-controls${referenceControlsDisabledClass}">
             <span class="progress-control-label">reference curves</span>
             ${referenceControls}
           </div>
@@ -522,8 +522,9 @@ export function progressPage(
 
         function renderReferenceCurves(metric, scale) {
           const conductorMode = metric === 'conductor';
-          referenceControls.hidden = !conductorMode;
+          referenceControls.classList.toggle('is-disabled', !conductorMode);
           referenceGroup.classList.toggle('is-hidden', !conductorMode);
+          referenceToggles.forEach((input) => { input.disabled = !conductorMode; });
           referenceCurves.forEach((curve) => {
             const toggle = referenceToggle(curve.key);
             const path = referenceGroup.querySelector('[data-ref="' + curve.key + '"]');
