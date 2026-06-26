@@ -413,6 +413,7 @@ export function progressPage(
           <div id="progress-reference-controls" class="progress-reference-controls${referenceControlsDisabledClass}">
             <span class="progress-control-label">reference curves</span>
             <span class="progress-reference-formula">r = c * log N / log log N</span>
+            <span class="progress-reference-separator" aria-hidden="true"></span>
             ${referenceControls}
           </div>
           <label for="progress-start">starting id</label>
