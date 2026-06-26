@@ -471,7 +471,7 @@ pre code {
 
 .progress-plot .progress-dot.is-baseline {
   fill: var(--muted);
-  opacity: 0.38;
+  opacity: 1;
 }
 
 .progress-plot .progress-link:hover .progress-dot.is-visible {
@@ -482,7 +482,7 @@ pre code {
 
 .progress-plot .progress-link:hover .progress-dot.is-baseline {
   fill: var(--fg);
-  opacity: 0.62;
+  opacity: 1;
   r: 7;
 }
 
