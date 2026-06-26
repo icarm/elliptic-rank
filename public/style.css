@@ -445,6 +445,54 @@ pre code {
   grid-column: 1;
 }
 
+.progress-metric {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.progress-control-label {
+  font-weight: 600;
+  margin-right: 0.25rem;
+}
+
+.progress-metric label {
+  font-weight: 400;
+}
+
+.progress-metric input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.progress-metric label span {
+  display: inline-block;
+  padding: 0.32rem 0.65rem;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--fg);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.progress-metric input:checked + span {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.progress-metric input:focus-visible + span {
+  outline: 2px solid var(--accent-dark);
+  outline-offset: 2px;
+}
+
+.progress-metric label:hover span {
+  border-color: var(--accent);
+}
+
 .progress-controls button {
   padding: 0.4rem 0.85rem;
   background: var(--accent);

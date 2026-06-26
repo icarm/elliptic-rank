@@ -119,7 +119,15 @@ export interface PlotCurve {
 export interface ProgressCurve {
   id: number
   rank_lower_bound: number
-  conductor: string
+  naive_height: number
+  faltings_height: number | null
+  conductor: string | null
+}
+
+type ProgressMetric = 'conductor' | 'naive' | 'faltings'
+
+function progressMetricKey(metric: string | undefined): ProgressMetric {
+  return metric === 'naive' || metric === 'faltings' || metric === 'conductor' ? metric : 'conductor'
 }
 
 // Natural log of a non-negative big integer given as a decimal string.
@@ -226,32 +234,56 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
     </svg>`
 }
 
-export function progressPage(curves: ProgressCurve[], user: User | null = null, requestedStartId?: number): string {
+export function progressPage(
+  curves: ProgressCurve[],
+  user: User | null = null,
+  requestedStartId?: number,
+  requestedMetric?: string,
+): string {
   if (curves.length === 0) {
     return layout(
       'Progress — Elliptic Curve Rank Leaderboard',
       `<p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>Progress</h2>
-      <p class="muted">No conductor data recorded yet.</p>`,
+      <p class="muted">No curves recorded yet.</p>`,
       user,
     )
   }
 
+  const selectedMetric = progressMetricKey(requestedMetric)
+  const metricLabels: Record<ProgressMetric, string> = {
+    conductor: 'log conductor',
+    naive: 'naive height',
+    faltings: 'Faltings height',
+  }
+  const fmtMetric = (metric: ProgressMetric, value: number): string =>
+    metric === 'faltings' ? value.toFixed(2) : value.toFixed(0)
   const pts = curves
     .slice()
     .sort((a, b) => a.id - b.id)
-    .map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor) }))
+    .map((c) => ({
+      id: c.id,
+      rank: c.rank_lower_bound,
+      conductor: c.conductor == null ? null : logBigInt(c.conductor),
+      naive: c.naive_height,
+      faltings: c.faltings_height,
+    }))
   const W = 900, H = 540, L = 68, R = 28, T = 22, B = 54
   const plotW = W - L - R, plotH = H - T - B
-  const qs = pts.map((p) => p.x)
-  let qmin = Math.min(...qs), qmax = Math.max(...qs)
-  if (qmin === qmax) { qmin -= 1; qmax += 1 }
-  const qpad = (qmax - qmin) * 0.05
-  qmin -= qpad
-  qmax += qpad
   const rankMax = Math.max(...pts.map((p) => p.rank)) + 1
   const X = (r: number) => L + (r / rankMax) * plotW
-  const Y = (q: number) => T + plotH - ((q - qmin) / (qmax - qmin)) * plotH
+  const scaleForMetric = (metric: ProgressMetric): { qmin: number; qmax: number } => {
+    const qs = pts
+      .map((p) => p[metric])
+      .filter((v): v is number => v != null)
+    if (qs.length === 0) return { qmin: 0, qmax: 1 }
+    let qmin = Math.min(...qs), qmax = Math.max(...qs)
+    if (qmin === qmax) { qmin -= 1; qmax += 1 }
+    const qpad = (qmax - qmin) * 0.05
+    return { qmin: qmin - qpad, qmax: qmax + qpad }
+  }
+  const initialScale = scaleForMetric(selectedMetric)
+  const Y = (q: number, scale = initialScale) => T + plotH - ((q - scale.qmin) / (scale.qmax - scale.qmin)) * plotH
   const minId = pts[0].id
   const maxId = pts[pts.length - 1].id
   const initialStartId = requestedStartId === undefined
@@ -268,29 +300,41 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null, 
     }
   }
   for (let i = 0; i <= 5; i++) {
-    const q = qmin + (i / 5) * (qmax - qmin)
-    const y = Y(q).toFixed(1)
-    grid += `<line class="grid" x1="${L}" y1="${y}" x2="${W - R}" y2="${y}"/><text class="tick" x="${L - 8}" y="${(Y(q) + 4).toFixed(1)}" text-anchor="end">${q.toFixed(0)}</text>`
+    const q = initialScale.qmin + (i / 5) * (initialScale.qmax - initialScale.qmin)
+    const y = (T + plotH - (i / 5) * plotH).toFixed(1)
+    grid += `<line class="grid" x1="${L}" y1="${y}" x2="${W - R}" y2="${y}"/><text class="tick progress-y-tick" data-tick="${i}" x="${L - 8}" y="${(Number(y) + 4).toFixed(1)}" text-anchor="end">${fmtMetric(selectedMetric, q)}</text>`
   }
 
   const dots = pts
     .map((p) => {
-      const baseline = p.id <= initialStartId
-      const active = p.id > initialStartId && p.id <= initialId
+      const value = p[selectedMetric]
+      const baseline = value != null && p.id <= initialStartId
+      const active = value != null && p.id > initialStartId && p.id <= initialId
+      const title = value == null
+        ? `curve #${p.id}: ${metricLabels[selectedMetric]} not recorded`
+        : `curve #${p.id}: rank >= ${p.rank}, ${metricLabels[selectedMetric]} ${fmtMetric(selectedMetric, value)}`
       return `<a href="/curve/${p.id}" class="progress-link" data-id="${p.id}">
-          <circle class="progress-dot${baseline ? ' is-baseline' : ''}${active ? ' is-visible' : ''}" cx="${X(p.rank).toFixed(1)}" cy="${Y(p.x).toFixed(1)}" r="${baseline ? '3' : active ? '4' : '0'}">
-            <title>curve #${p.id}: rank &ge; ${p.rank}, log conductor ${p.x.toFixed(0)}</title>
+          <circle class="progress-dot${baseline ? ' is-baseline' : ''}${active ? ' is-visible' : ''}" cx="${X(p.rank).toFixed(1)}" cy="${value == null ? (T + plotH).toFixed(1) : Y(value).toFixed(1)}" r="${baseline ? '3' : active ? '4' : '0'}">
+            <title>${title}</title>
           </circle>
         </a>`
     })
     .join('\n')
   const ids = JSON.stringify(pts.map((p) => p.id)).replace(/</g, '\\u003c')
+  const progressData = JSON.stringify(pts).replace(/</g, '\\u003c')
+  const metricControls = (['conductor', 'naive', 'faltings'] as const)
+    .map((key) => `<label><input type="radio" name="progress-metric" value="${key}"${key === selectedMetric ? ' checked' : ''} /><span>${metricLabels[key]}</span></label>`)
+    .join('\n')
 
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>Progress</h2>
       <section class="progress-tool">
         <div class="progress-controls">
+          <div class="progress-metric" role="radiogroup" aria-label="plot measure">
+            <span class="progress-control-label">measure</span>
+            ${metricControls}
+          </div>
           <label for="progress-start">starting id</label>
           <input id="progress-start" type="range" min="${minId}" max="${maxId}" value="${initialStartId}" step="1" />
           <output id="progress-start-current" for="progress-start">#${initialStartId}</output>
@@ -300,18 +344,25 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null, 
           <button id="progress-play" type="button">Play</button>
           <span id="progress-count" class="muted">0 / ${pts.length}</span>
         </div>
-        <svg class="rank-plot progress-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="log conductor versus rank over time">
+        <svg class="rank-plot progress-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${metricLabels[selectedMetric]} versus rank over time">
           ${grid}
           <line class="axis" x1="${L}" y1="${T}" x2="${L}" y2="${T + plotH}"/>
           <line class="axis" x1="${L}" y1="${T + plotH}" x2="${W - R}" y2="${T + plotH}"/>
           <text class="axis-title" x="${L + plotW / 2}" y="${H - 8}" text-anchor="middle">rank (lower bound) &rarr;</text>
-          <text class="axis-title" transform="rotate(-90)" x="${-(T + plotH / 2)}" y="16" text-anchor="middle">log conductor &rarr;</text>
+          <text id="progress-y-title" class="axis-title" transform="rotate(-90)" x="${-(T + plotH / 2)}" y="16" text-anchor="middle">${metricLabels[selectedMetric]} &rarr;</text>
           ${dots}
         </svg>
       </section>
       <script>
       (() => {
         const ids = ${ids};
+        const points = ${progressData};
+        const metrics = {
+          conductor: { label: 'log conductor', format: (v) => v.toFixed(0) },
+          naive: { label: 'naive height', format: (v) => v.toFixed(0) },
+          faltings: { label: 'Faltings height', format: (v) => v.toFixed(2) },
+        };
+        const T = ${T}, plotH = ${plotH};
         const startSlider = document.getElementById('progress-start');
         const startCurrent = document.getElementById('progress-start-current');
         const slider = document.getElementById('progress-id');
@@ -319,6 +370,10 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null, 
         const count = document.getElementById('progress-count');
         const play = document.getElementById('progress-play');
         const dots = Array.from(document.querySelectorAll('.progress-link'));
+        const metricInputs = Array.from(document.querySelectorAll('input[name="progress-metric"]'));
+        const yTicks = Array.from(document.querySelectorAll('.progress-y-tick'));
+        const yTitle = document.getElementById('progress-y-title');
+        const svg = document.querySelector('.progress-plot');
         let timer = null;
 
         function visibleCount(cutoff) {
@@ -331,24 +386,67 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null, 
           return lo;
         }
 
+        function currentMetric() {
+          const checked = metricInputs.find((input) => input.checked);
+          return checked ? checked.value : 'conductor';
+        }
+
+        function scaleFor(metric) {
+          let min = Infinity, max = -Infinity, count = 0;
+          points.forEach((p) => {
+            const value = p[metric];
+            if (value == null) return;
+            if (value < min) min = value;
+            if (value > max) max = value;
+            count += 1;
+          });
+          if (count === 0) return { min: 0, max: 1 };
+          if (min === max) { min -= 1; max += 1; }
+          const pad = (max - min) * 0.05;
+          return { min: min - pad, max: max + pad };
+        }
+
+        function yFor(value, scale) {
+          return T + plotH - ((value - scale.min) / (scale.max - scale.min)) * plotH;
+        }
+
         function render() {
+          const metric = currentMetric();
+          const cfg = metrics[metric];
+          const scale = scaleFor(metric);
           const start = Number(startSlider.value);
           if (Number(slider.value) < start) slider.value = String(start);
           const cutoff = Number(slider.value);
-          const baseline = visibleCount(start);
-          const shown = visibleCount(cutoff);
+          let baseline = 0;
+          let shown = 0;
           startCurrent.value = '#' + start;
           current.value = '#' + cutoff;
-          count.textContent = Math.max(0, shown - baseline) + ' new; ' + baseline + ' gray';
-          dots.forEach((a) => {
-            const id = Number(a.dataset.id);
-            const gray = id <= start;
-            const on = id > start && id <= cutoff;
+          yTicks.forEach((tick) => {
+            const i = Number(tick.dataset.tick);
+            const value = scale.min + (i / 5) * (scale.max - scale.min);
+            tick.textContent = cfg.format(value);
+          });
+          yTitle.textContent = cfg.label + ' \\u2192';
+          svg.setAttribute('aria-label', cfg.label + ' versus rank over time');
+          dots.forEach((a, i) => {
+            const p = points[i];
+            const value = p[metric];
+            const hasValue = value != null;
+            const gray = hasValue && p.id <= start;
+            const on = hasValue && p.id > start && p.id <= cutoff;
+            if (gray) baseline += 1;
+            if (on) shown += 1;
             const c = a.querySelector('circle');
+            const title = c.querySelector('title');
             c.classList.toggle('is-baseline', gray);
             c.classList.toggle('is-visible', on);
             c.setAttribute('r', gray ? '3' : on ? '4' : '0');
+            c.setAttribute('cy', hasValue ? yFor(value, scale).toFixed(1) : String(T + plotH));
+            title.textContent = hasValue
+              ? 'curve #' + p.id + ': rank >= ' + p.rank + ', ' + cfg.label + ' ' + cfg.format(value)
+              : 'curve #' + p.id + ': ' + cfg.label + ' not recorded';
           });
+          count.textContent = shown + ' new; ' + baseline + ' gray';
         }
 
         function stop() {
@@ -366,8 +464,17 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null, 
           window.history.replaceState(null, '', url);
         }
 
+        function updateMetricUrl() {
+          const url = new URL(window.location.href);
+          url.searchParams.set('metric', currentMetric());
+          window.history.replaceState(null, '', url);
+        }
+
         startSlider.addEventListener('input', () => { stop(); updateStartUrl(); render(); });
         slider.addEventListener('input', () => { stop(); render(); });
+        metricInputs.forEach((input) => {
+          input.addEventListener('change', () => { stop(); updateMetricUrl(); render(); });
+        });
         play.addEventListener('click', () => {
           if (timer) { stop(); return; }
           if (Number(slider.value) >= Number(slider.max)) slider.value = startSlider.value;
