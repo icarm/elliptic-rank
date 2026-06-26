@@ -470,7 +470,7 @@ pre code {
 }
 
 .progress-plot .progress-dot.is-baseline {
-  fill: var(--muted);
+  fill: #aab6b3;
   opacity: 1;
 }
 

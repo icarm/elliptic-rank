@@ -277,9 +277,8 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null, 
     .map((p) => {
       const baseline = p.id <= initialStartId
       const active = p.id > initialStartId && p.id <= initialId
-      const visible = baseline || active
       return `<a href="/curve/${p.id}" class="progress-link" data-id="${p.id}">
-          <circle class="progress-dot${baseline ? ' is-baseline' : ''}${active ? ' is-visible' : ''}" cx="${X(p.rank).toFixed(1)}" cy="${Y(p.x).toFixed(1)}" r="${visible ? '4' : '0'}">
+          <circle class="progress-dot${baseline ? ' is-baseline' : ''}${active ? ' is-visible' : ''}" cx="${X(p.rank).toFixed(1)}" cy="${Y(p.x).toFixed(1)}" r="${baseline ? '3' : active ? '4' : '0'}">
             <title>curve #${p.id}: rank &ge; ${p.rank}, log conductor ${p.x.toFixed(0)}</title>
           </circle>
         </a>`
@@ -348,7 +347,7 @@ export function progressPage(curves: ProgressCurve[], user: User | null = null, 
             const c = a.querySelector('circle');
             c.classList.toggle('is-baseline', gray);
             c.classList.toggle('is-visible', on);
-            c.setAttribute('r', gray || on ? '4' : '0');
+            c.setAttribute('r', gray ? '3' : on ? '4' : '0');
           });
         }
 
