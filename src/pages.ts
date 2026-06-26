@@ -346,8 +346,8 @@ export function progressPage(
   const dots = pts
     .map((p) => {
       const value = p[selectedMetric]
-      const baseline = value != null && p.id <= initialStartId
-      const active = value != null && p.id > initialStartId && p.id <= initialId
+      const baseline = value != null && p.id < initialStartId
+      const active = value != null && p.id >= initialStartId && p.id <= initialId
       const title = value == null
         ? `curve #${p.id}: ${metricLabels[selectedMetric]} not recorded`
         : `curve #${p.id}: rank >= ${p.rank}, ${metricLabels[selectedMetric]} ${fmtMetric(selectedMetric, value)}`
@@ -565,8 +565,8 @@ export function progressPage(
             const p = points[i];
             const value = p[metric];
             const hasValue = value != null;
-            const gray = hasValue && p.id <= start;
-            const on = hasValue && p.id > start && p.id <= cutoff;
+            const gray = hasValue && p.id < start;
+            const on = hasValue && p.id >= start && p.id <= cutoff;
             if (gray) baseline += 1;
             if (on) shown += 1;
             const c = a.querySelector('circle');
