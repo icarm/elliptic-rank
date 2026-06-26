@@ -256,6 +256,11 @@ export function progressPage(
     naive: 'naive height',
     faltings: 'Faltings height',
   }
+  const referenceCurves = [
+    { key: 'c1', c: 1, label: 'c = 1', className: 'progress-ref-c1' },
+    { key: 'c0865', c: 0.865, label: 'c = 0.865', className: 'progress-ref-c0865' },
+    { key: 'c05', c: 0.5, label: 'c = 0.5', className: 'progress-ref-c05' },
+  ] as const
   const fmtMetric = (metric: ProgressMetric, value: number): string =>
     metric === 'faltings' ? value.toFixed(2) : value.toFixed(0)
   const pts = curves
@@ -284,6 +289,39 @@ export function progressPage(
   }
   const initialScale = scaleForMetric(selectedMetric)
   const Y = (q: number, scale = initialScale) => T + plotH - ((q - scale.qmin) / (scale.qmax - scale.qmin)) * plotH
+  const conductorScale = scaleForMetric('conductor')
+  const referenceGeometry = (c: number, scale: { qmin: number; qmax: number }) => {
+    const qStart = Math.max(scale.qmin, 1.000001)
+    const qEnd = scale.qmax
+    if (qEnd <= qStart) return { d: '', label: null as null | { x: number; y: number; anchor: string } }
+    let d = ''
+    let drawing = false
+    let last: null | { x: number; y: number } = null
+    for (let i = 0; i <= 180; i++) {
+      const q = qStart + (i / 180) * (qEnd - qStart)
+      const denom = Math.log(q)
+      const rank = c * q / denom
+      if (!Number.isFinite(rank) || rank < 0 || rank > rankMax) {
+        drawing = false
+        continue
+      }
+      const x = X(rank)
+      const y = Y(q, scale)
+      d += `${drawing ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`
+      drawing = true
+      last = { x, y }
+    }
+    if (last == null) return { d, label: null }
+    const nearRight = last.x > W - R - 80
+    return {
+      d,
+      label: {
+        x: nearRight ? Math.max(L + 8, last.x - 8) : Math.min(W - R - 8, last.x + 8),
+        y: Math.max(T + 16, Math.min(T + plotH - 8, last.y - 6)),
+        anchor: nearRight ? 'end' : 'start',
+      },
+    }
+  }
   const minId = pts[0].id
   const maxId = pts[pts.length - 1].id
   const initialStartId = requestedStartId === undefined
@@ -322,9 +360,24 @@ export function progressPage(
     .join('\n')
   const ids = JSON.stringify(pts.map((p) => p.id)).replace(/</g, '\\u003c')
   const progressData = JSON.stringify(pts).replace(/</g, '\\u003c')
+  const referenceData = JSON.stringify(referenceCurves.map(({ key, c, label }) => ({ key, c, label }))).replace(/</g, '\\u003c')
   const metricControls = (['conductor', 'naive', 'faltings'] as const)
     .map((key) => `<label><input type="radio" name="progress-metric" value="${key}"${key === selectedMetric ? ' checked' : ''} /><span>${metricLabels[key]}</span></label>`)
     .join('\n')
+  const referenceControls = referenceCurves
+    .map((curve) => `<label><input class="progress-reference-toggle" type="checkbox" value="${curve.key}" checked /><span class="progress-ref-swatch ${curve.className}"></span><span>${curve.label}</span></label>`)
+    .join('\n')
+  const referenceCurvesMarkup = referenceCurves
+    .map((curve) => {
+      const geom = referenceGeometry(curve.c, conductorScale)
+      return `<path class="progress-reference-line ${curve.className}" data-ref="${curve.key}" d="${geom.d}">
+            <title>rank = ${curve.label.replace('c = ', '')} * log(conductor) / log(log(conductor))</title>
+          </path>
+          <text class="progress-reference-label ${curve.className}" data-ref-label="${curve.key}" x="${geom.label?.x.toFixed(1) ?? 0}" y="${geom.label?.y.toFixed(1) ?? 0}" text-anchor="${geom.label?.anchor ?? 'start'}"${geom.label == null ? ' style="display:none"' : ''}>${curve.label}</text>`
+    })
+    .join('\n')
+  const referenceHiddenClass = selectedMetric === 'conductor' ? '' : ' is-hidden'
+  const referenceControlsHidden = selectedMetric === 'conductor' ? '' : ' hidden'
 
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a></p>
@@ -334,6 +387,10 @@ export function progressPage(
           <div class="progress-metric" role="radiogroup" aria-label="plot measure">
             <span class="progress-control-label">measure</span>
             ${metricControls}
+          </div>
+          <div id="progress-reference-controls" class="progress-reference-controls"${referenceControlsHidden}>
+            <span class="progress-control-label">reference curves</span>
+            ${referenceControls}
           </div>
           <label for="progress-start">starting id</label>
           <input id="progress-start" type="range" min="${minId}" max="${maxId}" value="${initialStartId}" step="1" />
@@ -345,11 +402,19 @@ export function progressPage(
           <span id="progress-count" class="muted">0 / ${pts.length}</span>
         </div>
         <svg class="rank-plot progress-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${metricLabels[selectedMetric]} versus rank over time">
+          <defs>
+            <clipPath id="progress-plot-clip">
+              <rect x="${L}" y="${T}" width="${plotW}" height="${plotH}"/>
+            </clipPath>
+          </defs>
           ${grid}
           <line class="axis" x1="${L}" y1="${T}" x2="${L}" y2="${T + plotH}"/>
           <line class="axis" x1="${L}" y1="${T + plotH}" x2="${W - R}" y2="${T + plotH}"/>
           <text class="axis-title" x="${L + plotW / 2}" y="${H - 8}" text-anchor="middle">rank (lower bound) &rarr;</text>
           <text id="progress-y-title" class="axis-title" transform="rotate(-90)" x="${-(T + plotH / 2)}" y="16" text-anchor="middle">${metricLabels[selectedMetric]} &rarr;</text>
+          <g id="progress-reference-curves" class="progress-reference-curves${referenceHiddenClass}" clip-path="url(#progress-plot-clip)">
+            ${referenceCurvesMarkup}
+          </g>
           ${dots}
         </svg>
       </section>
@@ -357,12 +422,13 @@ export function progressPage(
       (() => {
         const ids = ${ids};
         const points = ${progressData};
+        const referenceCurves = ${referenceData};
         const metrics = {
           conductor: { label: 'log conductor', format: (v) => v.toFixed(0) },
           naive: { label: 'naive height', format: (v) => v.toFixed(0) },
           faltings: { label: 'Faltings height', format: (v) => v.toFixed(2) },
         };
-        const T = ${T}, plotH = ${plotH};
+        const T = ${T}, plotH = ${plotH}, L = ${L}, RANK_MAX = ${rankMax}, PLOT_W = ${plotW}, PLOT_RIGHT = ${W - R};
         const startSlider = document.getElementById('progress-start');
         const startCurrent = document.getElementById('progress-start-current');
         const slider = document.getElementById('progress-id');
@@ -374,6 +440,9 @@ export function progressPage(
         const yTicks = Array.from(document.querySelectorAll('.progress-y-tick'));
         const yTitle = document.getElementById('progress-y-title');
         const svg = document.querySelector('.progress-plot');
+        const referenceControls = document.getElementById('progress-reference-controls');
+        const referenceGroup = document.getElementById('progress-reference-curves');
+        const referenceToggles = Array.from(document.querySelectorAll('.progress-reference-toggle'));
         let timer = null;
 
         function visibleCount(cutoff) {
@@ -410,6 +479,68 @@ export function progressPage(
           return T + plotH - ((value - scale.min) / (scale.max - scale.min)) * plotH;
         }
 
+        function xForRank(rank) {
+          return L + (rank / RANK_MAX) * PLOT_W;
+        }
+
+        function referenceGeometry(c, scale) {
+          const qStart = Math.max(scale.min, 1.000001);
+          const qEnd = scale.max;
+          if (qEnd <= qStart) return { d: '', label: null };
+          let d = '';
+          let drawing = false;
+          let last = null;
+          for (let i = 0; i <= 180; i++) {
+            const q = qStart + (i / 180) * (qEnd - qStart);
+            const denom = Math.log(q);
+            const rank = c * q / denom;
+            if (!Number.isFinite(rank) || rank < 0 || rank > RANK_MAX) {
+              drawing = false;
+              continue;
+            }
+            const x = xForRank(rank);
+            const y = yFor(q, scale);
+            d += (drawing ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1);
+            drawing = true;
+            last = { x, y };
+          }
+          if (last == null) return { d, label: null };
+          const nearRight = last.x > PLOT_RIGHT - 80;
+          return {
+            d,
+            label: {
+              x: nearRight ? Math.max(L + 8, last.x - 8) : Math.min(PLOT_RIGHT - 8, last.x + 8),
+              y: Math.max(T + 16, Math.min(T + plotH - 8, last.y - 6)),
+              anchor: nearRight ? 'end' : 'start',
+            },
+          };
+        }
+
+        function referenceToggle(key) {
+          return referenceToggles.find((input) => input.value === key);
+        }
+
+        function renderReferenceCurves(metric, scale) {
+          const conductorMode = metric === 'conductor';
+          referenceControls.hidden = !conductorMode;
+          referenceGroup.classList.toggle('is-hidden', !conductorMode);
+          referenceCurves.forEach((curve) => {
+            const toggle = referenceToggle(curve.key);
+            const path = referenceGroup.querySelector('[data-ref="' + curve.key + '"]');
+            const label = referenceGroup.querySelector('[data-ref-label="' + curve.key + '"]');
+            const enabled = conductorMode && toggle && toggle.checked;
+            const geom = enabled ? referenceGeometry(curve.c, scale) : { d: '', label: null };
+            path.setAttribute('d', geom.d);
+            path.style.display = enabled && geom.d ? '' : 'none';
+            label.style.display = enabled && geom.label ? '' : 'none';
+            if (geom.label) {
+              label.setAttribute('x', geom.label.x.toFixed(1));
+              label.setAttribute('y', geom.label.y.toFixed(1));
+              label.setAttribute('text-anchor', geom.label.anchor);
+            }
+          });
+        }
+
         function render() {
           const metric = currentMetric();
           const cfg = metrics[metric];
@@ -428,6 +559,7 @@ export function progressPage(
           });
           yTitle.textContent = cfg.label + ' \\u2192';
           svg.setAttribute('aria-label', cfg.label + ' versus rank over time');
+          renderReferenceCurves(metric, scale);
           dots.forEach((a, i) => {
             const p = points[i];
             const value = p[metric];
@@ -474,6 +606,9 @@ export function progressPage(
         slider.addEventListener('input', () => { stop(); render(); });
         metricInputs.forEach((input) => {
           input.addEventListener('change', () => { stop(); updateMetricUrl(); render(); });
+        });
+        referenceToggles.forEach((input) => {
+          input.addEventListener('change', render);
         });
         play.addEventListener('click', () => {
           if (timer) { stop(); return; }

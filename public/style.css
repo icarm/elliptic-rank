@@ -455,7 +455,8 @@ pre code {
   grid-column: 1;
 }
 
-.progress-metric {
+.progress-metric,
+.progress-reference-controls {
   grid-column: 1 / -1;
   display: flex;
   align-items: center;
@@ -468,7 +469,8 @@ pre code {
   margin-right: 0.25rem;
 }
 
-.progress-metric label {
+.progress-metric label,
+.progress-reference-controls label {
   font-weight: 400;
 }
 
@@ -501,6 +503,28 @@ pre code {
 
 .progress-metric label:hover span {
   border-color: var(--accent);
+}
+
+.progress-reference-controls {
+  gap: 0.65rem;
+}
+
+.progress-reference-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
+.progress-reference-toggle {
+  accent-color: var(--accent);
+}
+
+.progress-ref-swatch {
+  display: inline-block;
+  width: 1.4rem;
+  height: 0.22rem;
+  border-radius: 999px;
 }
 
 .progress-controls button {
@@ -542,6 +566,47 @@ pre code {
   fill: var(--fg);
   opacity: 1;
   r: 7;
+}
+
+.progress-reference-curves.is-hidden {
+  display: none;
+}
+
+.progress-reference-line {
+  fill: none;
+  stroke-width: 2.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.95;
+  pointer-events: none;
+}
+
+.progress-reference-label {
+  font-size: 14px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: var(--panel);
+  stroke-width: 4;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.progress-ref-c1 {
+  background: #b3261e;
+  stroke: #b3261e;
+  fill: #b3261e;
+}
+
+.progress-ref-c0865 {
+  background: #2563eb;
+  stroke: #2563eb;
+  fill: #2563eb;
+}
+
+.progress-ref-c05 {
+  background: #b26a00;
+  stroke: #b26a00;
+  fill: #b26a00;
 }
 
 @media (max-width: 680px) {
