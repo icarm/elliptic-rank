@@ -17,9 +17,11 @@ import {
   activityPage,
   curveTablePage,
   acknowledgePage,
+  progressPage,
   type TokenRow,
   type SubmitInfo,
   type PlotCurve,
+  type ProgressCurve,
   type TableCurve,
   type CurveRow,
 } from './pages'
@@ -71,6 +73,15 @@ app.get('/recent', async (c) => {
   const p = Math.max(0, Math.floor(Number(c.req.query('p')) || 0))
   const { items, page, hasOlder } = await recentActivity(c.env, p)
   return c.html(activityPage(items, page, hasOlder, c.get('user')))
+})
+
+app.get('/progress', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    `SELECT id, rank_lower_bound, conductor FROM curves
+       WHERE conductor IS NOT NULL
+       ORDER BY id ASC`,
+  ).all<ProgressCurve>()
+  return c.html(progressPage(results, c.get('user')))
 })
 
 // Single curve as downloadable JSON — the same shape as a database.json entry.

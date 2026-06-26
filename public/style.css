@@ -415,6 +415,73 @@ pre code {
 .board-caption { font-size: 0.95rem; margin-top: 0.25rem; }
 .plot-empty { margin: 1.5rem 0; }
 
+.progress-tool {
+  margin: 1.5rem 0 0;
+}
+
+.progress-controls {
+  display: grid;
+  grid-template-columns: max-content minmax(12rem, 1fr) max-content max-content max-content;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 0 0 0.75rem;
+}
+
+.progress-controls label {
+  font-weight: 600;
+}
+
+.progress-controls input[type="range"] {
+  width: 100%;
+}
+
+.progress-controls output {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--fg);
+  min-width: 5rem;
+}
+
+.progress-controls button {
+  padding: 0.4rem 0.85rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.progress-controls button:hover {
+  background: var(--accent-dark);
+}
+
+.progress-plot .progress-dot {
+  fill: var(--accent);
+  opacity: 0;
+  transition: opacity 0.22s ease, r 0.22s ease;
+}
+
+.progress-plot .progress-dot.is-visible {
+  opacity: 0.82;
+}
+
+.progress-plot .progress-link:hover .progress-dot.is-visible {
+  fill: var(--accent-dark);
+  opacity: 1;
+  r: 7;
+}
+
+@media (max-width: 680px) {
+  .progress-controls {
+    grid-template-columns: 1fr max-content;
+  }
+
+  .progress-controls label,
+  .progress-controls input[type="range"] {
+    grid-column: 1 / -1;
+  }
+}
+
 /* Curve detail page */
 .curve-eq {
   margin: 0.5rem 0 1.5rem;

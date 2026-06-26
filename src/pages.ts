@@ -116,6 +116,12 @@ export interface PlotCurve {
   conductor: string | null
 }
 
+export interface ProgressCurve {
+  id: number
+  rank_lower_bound: number
+  conductor: string
+}
+
 // Natural log of a non-negative big integer given as a decimal string.
 function logBigInt(s: string): number {
   const t = s.replace('-', '')
@@ -218,6 +224,140 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
       ${dots}
       ${records}
     </svg>`
+}
+
+export function progressPage(curves: ProgressCurve[], user: User | null = null): string {
+  if (curves.length === 0) {
+    return layout(
+      'Progress — Elliptic Curve Rank Leaderboard',
+      `<p class="page-nav"><a href="/">&larr; home</a></p>
+      <h2>Progress</h2>
+      <p class="muted">No conductor data recorded yet.</p>`,
+      user,
+    )
+  }
+
+  const pts = curves
+    .slice()
+    .sort((a, b) => a.id - b.id)
+    .map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor) }))
+  const W = 900, H = 540, L = 68, R = 28, T = 22, B = 54
+  const plotW = W - L - R, plotH = H - T - B
+  const qs = pts.map((p) => p.x)
+  let qmin = Math.min(...qs), qmax = Math.max(...qs)
+  if (qmin === qmax) { qmin -= 1; qmax += 1 }
+  const qpad = (qmax - qmin) * 0.05
+  qmin -= qpad
+  qmax += qpad
+  const rankMax = Math.max(...pts.map((p) => p.rank)) + 1
+  const X = (r: number) => L + (r / rankMax) * plotW
+  const Y = (q: number) => T + plotH - ((q - qmin) / (qmax - qmin)) * plotH
+  const minId = pts[0].id
+  const maxId = pts[pts.length - 1].id
+  const initialId = minId
+
+  let grid = ''
+  const rStep = rankMax <= 16 ? 1 : Math.ceil(rankMax / 12)
+  for (let r = 0; r <= rankMax; r++) {
+    const x = X(r).toFixed(1)
+    if (r % rStep === 0) {
+      grid += `<line class="grid" x1="${x}" y1="${T}" x2="${x}" y2="${T + plotH}"/><text class="tick" x="${x}" y="${T + plotH + 20}" text-anchor="middle">${r}</text>`
+    }
+  }
+  for (let i = 0; i <= 5; i++) {
+    const q = qmin + (i / 5) * (qmax - qmin)
+    const y = Y(q).toFixed(1)
+    grid += `<line class="grid" x1="${L}" y1="${y}" x2="${W - R}" y2="${y}"/><text class="tick" x="${L - 8}" y="${(Y(q) + 4).toFixed(1)}" text-anchor="end">${q.toFixed(0)}</text>`
+  }
+
+  const dots = pts
+    .map((p) => {
+      const visible = p.id <= initialId
+      return `<a href="/curve/${p.id}" class="progress-link" data-id="${p.id}">
+          <circle class="progress-dot${visible ? ' is-visible' : ''}" cx="${X(p.rank).toFixed(1)}" cy="${Y(p.x).toFixed(1)}" r="${visible ? '4' : '0'}">
+            <title>curve #${p.id}: rank &ge; ${p.rank}, log conductor ${p.x.toFixed(0)}</title>
+          </circle>
+        </a>`
+    })
+    .join('\n')
+  const ids = JSON.stringify(pts.map((p) => p.id)).replace(/</g, '\\u003c')
+
+  const inner = `
+      <p class="page-nav"><a href="/">&larr; home</a></p>
+      <h2>Progress</h2>
+      <section class="progress-tool">
+        <div class="progress-controls">
+          <label for="progress-id">curve id</label>
+          <input id="progress-id" type="range" min="${minId}" max="${maxId}" value="${initialId}" step="1" />
+          <output id="progress-current" for="progress-id">#${initialId}</output>
+          <button id="progress-play" type="button">Play</button>
+          <span id="progress-count" class="muted">0 / ${pts.length}</span>
+        </div>
+        <svg class="rank-plot progress-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="log conductor versus rank over time">
+          ${grid}
+          <line class="axis" x1="${L}" y1="${T}" x2="${L}" y2="${T + plotH}"/>
+          <line class="axis" x1="${L}" y1="${T + plotH}" x2="${W - R}" y2="${T + plotH}"/>
+          <text class="axis-title" x="${L + plotW / 2}" y="${H - 8}" text-anchor="middle">rank (lower bound) &rarr;</text>
+          <text class="axis-title" transform="rotate(-90)" x="${-(T + plotH / 2)}" y="16" text-anchor="middle">log conductor &rarr;</text>
+          ${dots}
+        </svg>
+      </section>
+      <script>
+      (() => {
+        const ids = ${ids};
+        const slider = document.getElementById('progress-id');
+        const current = document.getElementById('progress-current');
+        const count = document.getElementById('progress-count');
+        const play = document.getElementById('progress-play');
+        const dots = Array.from(document.querySelectorAll('.progress-link'));
+        let timer = null;
+
+        function visibleCount(cutoff) {
+          let lo = 0, hi = ids.length;
+          while (lo < hi) {
+            const mid = (lo + hi) >> 1;
+            if (ids[mid] <= cutoff) lo = mid + 1;
+            else hi = mid;
+          }
+          return lo;
+        }
+
+        function render() {
+          const cutoff = Number(slider.value);
+          const shown = visibleCount(cutoff);
+          current.value = '#' + cutoff;
+          count.textContent = shown + ' / ' + ids.length;
+          dots.forEach((a) => {
+            const on = Number(a.dataset.id) <= cutoff;
+            const c = a.querySelector('circle');
+            c.classList.toggle('is-visible', on);
+            c.setAttribute('r', on ? '4' : '0');
+          });
+        }
+
+        function stop() {
+          if (timer) clearInterval(timer);
+          timer = null;
+          play.textContent = 'Play';
+        }
+
+        slider.addEventListener('input', () => { stop(); render(); });
+        play.addEventListener('click', () => {
+          if (timer) { stop(); return; }
+          if (Number(slider.value) >= Number(slider.max)) slider.value = slider.min;
+          play.textContent = 'Pause';
+          timer = setInterval(() => {
+            const next = ids[visibleCount(Number(slider.value))];
+            if (next == null) { slider.value = slider.max; render(); stop(); return; }
+            slider.value = String(next);
+            render();
+          }, 90);
+          render();
+        });
+        render();
+      })();
+      </script>`
+  return layout('Progress — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
 export function landingPage(user: User | null = null, curves: PlotCurve[] = []): string {
