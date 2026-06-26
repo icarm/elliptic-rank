@@ -525,6 +525,7 @@ pre code {
   width: 1.4rem;
   height: 0.22rem;
   border-radius: 999px;
+  background: var(--progress-ref-color);
 }
 
 .progress-controls button {
@@ -574,6 +575,7 @@ pre code {
 
 .progress-reference-line {
   fill: none;
+  stroke: var(--progress-ref-color);
   stroke-width: 2.8;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -583,30 +585,25 @@ pre code {
 
 .progress-reference-label {
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 600;
+  fill: var(--progress-ref-color);
   paint-order: stroke;
   stroke: var(--panel);
-  stroke-width: 4;
+  stroke-width: 2.5;
   stroke-linejoin: round;
   pointer-events: none;
 }
 
 .progress-ref-c1 {
-  background: #b3261e;
-  stroke: #b3261e;
-  fill: #b3261e;
+  --progress-ref-color: #b3261e;
 }
 
 .progress-ref-c0865 {
-  background: #2563eb;
-  stroke: #2563eb;
-  fill: #2563eb;
+  --progress-ref-color: #2563eb;
 }
 
 .progress-ref-c05 {
-  background: #b26a00;
-  stroke: #b26a00;
-  fill: #b26a00;
+  --progress-ref-color: #b26a00;
 }
 
 @media (max-width: 680px) {
