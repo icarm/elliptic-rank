@@ -261,9 +261,27 @@ export function progressPage(
     discriminant: 'log |discriminant|',
   }
   const referenceCurves = [
-    { key: 'c1', c: 1, label: 'c = 1', className: 'progress-ref-c1' },
-    { key: 'c0865', c: 0.865, label: 'c = 0.865', className: 'progress-ref-c0865' },
-    { key: 'c05', c: 0.5, label: 'c = 0.5', className: 'progress-ref-c05' },
+    {
+      key: 'c1',
+      c: 1,
+      label: 'c = 1',
+      equation: 'r = 1 * (log N) / (log (log N))',
+      className: 'progress-ref-c1',
+    },
+    {
+      key: 'c0865',
+      c: 0.865,
+      label: 'c = 0.865',
+      equation: 'r = 0.865 * (log N) / (log (log N))',
+      className: 'progress-ref-c0865',
+    },
+    {
+      key: 'c05',
+      c: 0.5,
+      label: 'c = 0.5',
+      equation: 'r = 0.5 * (log N) / (log (log N))',
+      className: 'progress-ref-c05',
+    },
   ] as const
   const fmtMetric = (metric: ProgressMetric, value: number): string =>
     metric === 'faltings' ? value.toFixed(2) : value.toFixed(0)
@@ -364,18 +382,18 @@ export function progressPage(
     .join('\n')
   const ids = JSON.stringify(pts.map((p) => p.id)).replace(/</g, '\\u003c')
   const progressData = JSON.stringify(pts).replace(/</g, '\\u003c')
-  const referenceData = JSON.stringify(referenceCurves.map(({ key, c, label }) => ({ key, c, label }))).replace(/</g, '\\u003c')
+  const referenceData = JSON.stringify(referenceCurves.map(({ key, c, label, equation }) => ({ key, c, label, equation }))).replace(/</g, '\\u003c')
   const metricControls = (['conductor', 'naive', 'faltings', 'discriminant'] as const)
     .map((key) => `<label><input type="radio" name="progress-metric" value="${key}"${key === selectedMetric ? ' checked' : ''} /><span>${metricLabels[key]}</span></label>`)
     .join('\n')
   const referenceControls = referenceCurves
-    .map((curve) => `<label><input class="progress-reference-toggle" type="checkbox" value="${curve.key}"${selectedMetric === 'conductor' ? '' : ' disabled'} /><span class="progress-ref-swatch ${curve.className}"></span><span>${curve.label}</span></label>`)
+    .map((curve) => `<label><input class="progress-reference-toggle" type="checkbox" value="${curve.key}"${selectedMetric === 'conductor' ? '' : ' disabled'} /><span class="progress-ref-swatch ${curve.className}"></span><span>${curve.equation}</span></label>`)
     .join('\n')
   const referenceCurvesMarkup = referenceCurves
     .map((curve) => {
       const geom = referenceGeometry(curve.c, conductorScale)
       return `<path class="progress-reference-line ${curve.className}" data-ref="${curve.key}" d="${geom.d}">
-            <title>rank = ${curve.label.replace('c = ', '')} * log(conductor) / log(log(conductor))</title>
+            <title>${curve.equation}</title>
           </path>
           <text class="progress-reference-label ${curve.className}" data-ref-label="${curve.key}" x="${geom.label?.x.toFixed(1) ?? 0}" y="${geom.label?.y.toFixed(1) ?? 0}" text-anchor="${geom.label?.anchor ?? 'start'}"${geom.label == null ? ' style="display:none"' : ''}>${curve.label}</text>`
     })
