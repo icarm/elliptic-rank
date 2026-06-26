@@ -374,7 +374,7 @@ export function progressPage(
         ? `curve #${p.id}: ${metricLabels[selectedMetric]} not recorded`
         : `curve #${p.id}: rank >= ${p.rank}, ${metricLabels[selectedMetric]} ${fmtMetric(selectedMetric, value)}`
       return `<a href="/curve/${p.id}" class="progress-link" data-id="${p.id}">
-          <circle class="progress-dot${baseline ? ' is-baseline' : ''}${active ? ' is-visible' : ''}" cx="${X(p.rank).toFixed(1)}" cy="${value == null ? (T + plotH).toFixed(1) : Y(value).toFixed(1)}" r="${baseline ? '4' : active ? '5' : '0'}">
+          <circle class="progress-dot${baseline ? ' is-baseline' : ''}${active ? ' is-visible' : ''}" cx="${X(p.rank).toFixed(1)}" cy="${value == null ? (T + plotH).toFixed(1) : Y(value).toFixed(1)}" r="${baseline ? '3.5' : active ? '5' : '0'}">
             <title>${title}</title>
           </circle>
         </a>`
@@ -598,7 +598,7 @@ export function progressPage(
             const title = c.querySelector('title');
             c.classList.toggle('is-baseline', gray);
             c.classList.toggle('is-visible', on);
-            c.setAttribute('r', gray ? '4' : on ? '5' : '0');
+            c.setAttribute('r', gray ? '3.5' : on ? '5' : '0');
             c.setAttribute('cy', hasValue ? yFor(value, scale).toFixed(1) : String(T + plotH));
             title.textContent = hasValue
               ? 'curve #' + p.id + ': rank >= ' + p.rank + ', ' + cfg.label + ' ' + cfg.format(value)
