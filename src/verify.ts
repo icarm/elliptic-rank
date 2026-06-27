@@ -82,14 +82,13 @@ export interface VerifyResult {
   allPointsOnCurve: boolean
   independence: IndependenceResult | null
   height: { naiveLogHeight: string } | null
-  // Computed only when valid primes were supplied or quick automatic recovery
-  // found all primes of bad reduction; else null.
+  // Conductor is the one prime-gated invariant: computed only when valid primes
+  // were supplied or quick automatic recovery found all primes of bad reduction.
   conductor: string | null
-  // The discriminant of the global minimal model. Always present for a
-  // nonsingular verified curve.
-  minimalDiscriminant: string | null
+  // Stable Faltings height of the global minimal model — computed from its period
+  // lattice alone (no primes needed), so always present for a verified curve.
   faltingsHeight: string | null
-  // Set when primes were supplied but failed validation (conductor/Faltings not recorded).
+  // Set when primes were supplied but failed validation (conductor not recorded).
   conductorNote: string | null
 }
 
@@ -213,35 +212,26 @@ function autoBadPrimes(gp: Gp): string[] | null {
   return inner.split(',').map((s) => s.trim())
 }
 
-interface Invariants {
-  conductor: string | null
-  minDisc: string | null
-  faltings: string | null
-  note: string | null
-}
 
-// Invariants of the curve `E` (already loaded in `gp`) that otherwise require
-// factoring the minimal discriminant, computed instead from a supplied list of
-// candidate primes of bad reduction — but only if the primes are each a (BPSW)
-// probable prime AND together divide the minimal discriminant down to a unit,
-// which proves they include every bad prime. No factoring is done. Per-prime
-// Tate's algorithm (elllocalred) gives
-// the conductor exponents f_p and the local minimal-model scalings u_p; with
-// U = prod p^v_p(u_p):
-//   conductor = prod p^f_p
-//   minimal discriminant = disc / U^12
-//   Faltings height = -1/2 log(area(period lattice) * U^2)   [LMFDB normalization]
-function invariantsFromPrimes(gp: Gp, primes: string[]): Invariants {
-  const none: Invariants = { conductor: null, minDisc: null, faltings: null, note: null }
-  if (primes.length === 0) return none
-  if (primes.length > MAX_PRIMES) return { ...none, note: `too many primes (max ${MAX_PRIMES})` }
+// The conductor of the curve `E` (already loaded in `gp`, in its global minimal
+// model) — the one invariant that needs the primes of bad reduction, computed
+// from a supplied list rather than by factoring the discriminant. The primes are
+// accepted only if each is a (BPSW) probable prime AND together they divide the
+// minimal discriminant down to a unit, which proves they include every bad
+// prime. Per-prime Tate's algorithm (elllocalred) gives the conductor exponents
+// f_p, and conductor = prod p^f_p. (Minimal discriminant and Faltings height do
+// NOT need the primes — the model is already minimal — so they are recorded at
+// submission, not here.)
+function conductorFromPrimes(gp: Gp, primes: string[]): { conductor: string | null; note: string | null } {
+  if (primes.length === 0) return { conductor: null, note: null }
+  if (primes.length > MAX_PRIMES) return { conductor: null, note: `too many primes (max ${MAX_PRIMES})` }
   evalGp(gp, `cps = [${primes.join(',')}]`)
   // Two distinct failure modes, reported separately: a supplied value is not
   // prime, or the (prime) values are incomplete and leave an unaccounted factor
   // of the minimal discriminant.
   const allPrime = evalGp(gp, 'my(ok=1); for(i=1,#cps, if(!ispseudoprime(cps[i]), ok=0)); ok')
   if (allPrime !== '1') {
-    return { ...none, note: 'supplied values are not all prime' }
+    return { conductor: null, note: 'supplied values are not all prime' }
   }
   // Residual after dividing out every supplied prime; 1 iff they account for the
   // entire minimal discriminant. Extraneous primes (not of bad reduction) are
@@ -250,16 +240,12 @@ function invariantsFromPrimes(gp: Gp, primes: string[]): Invariants {
   if (leftover !== '1') {
     const shown = leftover.length > 40 ? `${leftover.slice(0, 40)}…` : leftover
     return {
-      ...none,
+      conductor: null,
       note: `supplied primes of bad reduction are incomplete: they leave an unaccounted factor ${shown} of the minimal discriminant`,
     }
   }
-  evalGp(gp, 'lr = vector(#cps, i, elllocalred(E, cps[i]))')
-  evalGp(gp, 'Umin = prod(i=1, #cps, cps[i]^valuation(lr[i][3][1], cps[i]))')
-  const conductor = evalGp(gp, 'prod(i=1, #cps, cps[i]^lr[i][1])')
-  const minDisc = evalGp(gp, 'E.disc / Umin^12')
-  const faltings = evalGp(gp, 'my(A=abs(imag(conj(E.omega[1])*E.omega[2]))); -(1/2)*log(A*Umin^2)')
-  return { conductor, minDisc, faltings, note: null }
+  const conductor = evalGp(gp, 'prod(i=1, #cps, cps[i]^elllocalred(E, cps[i])[1])')
+  return { conductor, note: null }
 }
 
 // Standalone canonical dedup key for a curve, without verifying points.
@@ -286,19 +272,18 @@ export function naiveLogHeight(gp: Gp, ainvs: (string | number)[]): string {
 export interface PrimesResult {
   ok: boolean
   conductor: string | null
-  minimalDiscriminant: string | null
-  faltingsHeight: string | null
   // Set when primes were supplied but failed validation, or input was rejected.
   note: string | null
   errors: string[]
 }
 
-// Compute the conductor, minimal discriminant, and Faltings height for an
-// already-recorded curve from a supplied list of primes of bad reduction — without
-// re-verifying points and without factoring. The a-invariants come from a
-// trusted stored curve; the primes are validated exactly as in `verify` (each a
-// probable prime, together dividing the minimal discriminant to a unit). `ok` is true
-// iff the invariants were computed; otherwise `note`/`errors` say why not.
+// Compute the conductor for an already-recorded curve from a supplied list of
+// primes of bad reduction — without re-verifying points and without factoring.
+// The a-invariants come from a trusted stored curve (already the global minimal
+// model); the primes are validated exactly as in `verify` (each a probable
+// prime, together dividing the minimal discriminant to a unit). `ok` is true iff
+// the conductor was computed; otherwise `note`/`errors` say why not. (The
+// discriminant and Faltings height are recorded at submission, not here.)
 export function verifyPrimes(
   gp: Gp,
   ainvs: (string | number)[],
@@ -307,8 +292,6 @@ export function verifyPrimes(
   const out: PrimesResult = {
     ok: false,
     conductor: null,
-    minimalDiscriminant: null,
-    faltingsHeight: null,
     note: null,
     errors: [],
   }
@@ -334,12 +317,10 @@ export function verifyPrimes(
       out.errors.push('curve is singular (discriminant 0)')
       return out
     }
-    const inv = invariantsFromPrimes(gp, primes)
-    out.conductor = inv.conductor
-    out.minimalDiscriminant = inv.minDisc
-    out.faltingsHeight = inv.faltings
-    out.note = inv.note
-    out.ok = inv.conductor != null
+    const cond = conductorFromPrimes(gp, primes)
+    out.conductor = cond.conductor
+    out.note = cond.note
+    out.ok = cond.conductor != null
     return out
   } catch (e) {
     out.errors.push(e instanceof Error ? e.message : String(e))
@@ -347,16 +328,14 @@ export function verifyPrimes(
   }
 }
 
-// Like `verifyPrimes`, but recovers the primes of bad reduction automatically by bounded
-// trial division instead of taking them from the caller. `ok` is true iff the
-// minimal discriminant fully factored within the budget and the invariants were
-// computed; otherwise `note` explains that manual entry is needed.
+// Like `verifyPrimes`, but recovers the primes of bad reduction automatically by
+// bounded trial division instead of taking them from the caller. `ok` is true
+// iff the minimal discriminant fully factored within the budget and the
+// conductor was computed; otherwise `note` explains that manual entry is needed.
 export function autoPrimes(gp: Gp, ainvs: (string | number)[]): PrimesResult {
   const out: PrimesResult = {
     ok: false,
     conductor: null,
-    minimalDiscriminant: null,
-    faltingsHeight: null,
     note: null,
     errors: [],
   }
@@ -379,12 +358,10 @@ export function autoPrimes(gp: Gp, ainvs: (string | number)[]): PrimesResult {
         'could not find the primes of bad reduction within the quick budget — please enter them manually'
       return out
     }
-    const inv = invariantsFromPrimes(gp, primes)
-    out.conductor = inv.conductor
-    out.minimalDiscriminant = inv.minDisc
-    out.faltingsHeight = inv.faltings
-    out.note = inv.note
-    out.ok = inv.conductor != null
+    const cond = conductorFromPrimes(gp, primes)
+    out.conductor = cond.conductor
+    out.note = cond.note
+    out.ok = cond.conductor != null
     return out
   } catch (e) {
     out.errors.push(e instanceof Error ? e.message : String(e))
@@ -403,7 +380,6 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     independence: null,
     height: null,
     conductor: null,
-    minimalDiscriminant: null,
     faltingsHeight: null,
     conductorNote: null,
   }
@@ -464,22 +440,27 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
         `log(vecmax([abs(${minModel.c4})^3, (${minModel.c6})^2]))*1.0`,
       ),
     }
-    result.minimalDiscriminant = minModel.discriminant
-
-    // Conductor / Faltings height from the primes of bad reduction.
-    // If none were supplied, try to recover them by bounded trial division — a
-    // best-effort that completes in milliseconds and gives up (rather than
-    // factoring a hard composite) when it cannot fully factor the minimal discriminant.
     evalGp(gp, 'E = Emin;')
+
+    // Stable Faltings height (LMFDB normalization): -1/2 log of the period
+    // lattice covolume of the global minimal model. No primes needed, so it is
+    // recorded for every curve.
+    result.faltingsHeight = evalGp(
+      gp,
+      'my(A=abs(imag(conj(Emin.omega[1])*Emin.omega[2]))); -(1/2)*log(A)',
+    )
+
+    // Conductor — the one prime-gated invariant. If no primes were supplied, try
+    // to recover them by bounded trial division: a best-effort that completes in
+    // milliseconds and gives up (rather than factoring a hard composite) when it
+    // cannot fully factor the minimal discriminant.
     if (primes.length === 0) {
       const auto = autoBadPrimes(gp)
       if (auto) primes = auto
     }
-    const inv = invariantsFromPrimes(gp, primes)
-    result.conductor = inv.conductor
-    result.minimalDiscriminant = inv.minDisc ?? minModel.discriminant
-    result.faltingsHeight = inv.faltings
-    result.conductorNote = inv.note
+    const cond = conductorFromPrimes(gp, primes)
+    result.conductor = cond.conductor
+    result.conductorNote = cond.note
     evalGp(gp, 'E = Einput;')
 
     // --- 3. Check every point lies on the curve (exact) ---

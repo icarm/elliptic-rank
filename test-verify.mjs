@@ -108,13 +108,21 @@ if (
 } else if (
   JSON.stringify(rNonMin.curve.ainvs) !== JSON.stringify(ELKIES_MIN.ainvs) ||
   JSON.stringify(rNonMin.points.map((p) => p.point)) !== JSON.stringify(ELKIES_MIN.points) ||
-  rNonMin.curve.discriminant !== rMin.curve.discriminant ||
-  rNonMin.minimalDiscriminant !== rNonMin.curve.discriminant
+  rNonMin.curve.discriminant !== rMin.curve.discriminant
 ) {
   console.error('FAIL: non-minimal model was not returned in global minimal storage form')
   process.exitCode = 1
 } else {
   console.log(`elkies model check OK: key=${rMin.canonical.key.slice(0, 30)}… naiveH=${rMin.height.naiveLogHeight.slice(0, 10)}`)
+}
+
+// Faltings height is computed from the minimal model's period lattice, so it is
+// present for every verified curve regardless of whether primes were supplied.
+if (!rMin.faltingsHeight || !Number.isFinite(Number(rMin.faltingsHeight.replace(/\s+/g, '').replace(/E/i, 'e')))) {
+  console.error('FAIL: Faltings height should be recorded without primes')
+  process.exitCode = 1
+} else {
+  console.log(`faltings without primes OK: ${rMin.faltingsHeight.slice(0, 12)}`)
 }
 
 // Regression for exact minimal-model key/height with a non-minimal model scaled

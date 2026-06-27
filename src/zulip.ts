@@ -56,7 +56,7 @@ function recordPhrases(curve: RecordCandidate, flags: RecordFlags, consider: Met
     out.push(`smallest **conductor** (${curve.conductor})`)
   }
   if (consider.includes('disc') && flags.discriminant) {
-    out.push(`smallest **|Δ|** (log ${logBigInt(curve.discriminant).toFixed(2)})`)
+    out.push(`smallest **log |Δ|** (${logBigInt(curve.discriminant).toFixed(2)})`)
   }
   return out
 }
@@ -83,7 +83,14 @@ export async function notifyRecord(
 ): Promise<void> {
   const url = env.ZULIP_WEBHOOK_URL
   if (!url) return
-  if (status.status === 'unchanged') return
+  // An 'unchanged' submission didn't move the board — but re-submitting an
+  // existing curve with its primes of bad reduction backfills the conductor and
+  // Faltings height, which can newly make it a record just like the dedicated
+  // primes-backfill endpoints. Hand those off to the backfill notifier.
+  if (status.status === 'unchanged') {
+    if (status.conductor) await notifyBackfillRecord(env, status.id, submitter, baseUrl)
+    return
+  }
 
   const curve = await loadCurve(env, status.id)
   if (!curve) return
@@ -102,12 +109,10 @@ export async function notifyRecord(
   await send(url, text)
 }
 
-// Notify Zulip if a primes backfill newly made the curve a record. Backfilling
-// records the conductor and Faltings height, which can newly make the curve the
-// smallest-conductor or smallest-Faltings curve for its rank — so only those two
-// metrics are considered (the naive height is fixed at submission, so a backfill
-// never creates a naive record). No-op when the webhook is unconfigured or
-// neither metric is now a record.
+// Notify Zulip if a primes backfill newly made the curve a record. The conductor
+// is the only invariant a backfill records (naive height, discriminant, and
+// Faltings height are all fixed at submission), so only a new smallest-conductor
+// record can result. No-op when the webhook is unconfigured or it isn't a record.
 //
 // Intended to be called via `ctx.waitUntil(...)` after a successful backfill.
 export async function notifyBackfillRecord(
@@ -122,7 +127,7 @@ export async function notifyBackfillRecord(
   const curve = await loadCurve(env, curveId)
   if (!curve) return
   const flags = await recordFlags(env, curve)
-  const records = recordPhrases(curve, flags, ['faltings', 'conductor'])
+  const records = recordPhrases(curve, flags, ['conductor'])
   if (records.length === 0) return
 
   const link = `${baseUrl}/curve/${curve.id}`

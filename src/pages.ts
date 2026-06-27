@@ -742,7 +742,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
         Each point is checked to lie on the curve, and their N&eacute;ron&ndash;Tate height-pairing matrix
         is checked to be positive definite &mdash; so the points are independent in <span class="eqi">E(&#8474;)</span>,
         proving rank &ge; the number of points. Supplying the primes of bad reduction additionally records its
-        conductor and Faltings height.</p>
+        conductor.</p>
         <div class="eq-line">
           <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
         </div>
@@ -756,7 +756,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
             <textarea name="points" rows="12" ${user ? 'required' : 'disabled'} placeholder="${escapeHtml(SAMPLE_POINTS)}"></textarea>
           </label>
           <label class="field">
-            <span>primes of bad reduction <span class="muted">&mdash; optional; equivalently, primes dividing the minimal discriminant. If given, the conductor and Faltings height are recorded.</span></span>
+            <span>primes of bad reduction <span class="muted">&mdash; optional; equivalently, primes dividing the minimal discriminant. If given, the conductor is recorded.</span></span>
             <input type="text" name="primes" ${user ? '' : 'disabled'} />
           </label>
           <div class="submit-row">${
@@ -939,7 +939,6 @@ export interface CurveRow {
   regulator: string
   points: string // JSON [[x,y],...]
   conductor: string | null
-  minimal_discriminant: string | null
   faltings_height: number | null
   submitter_name: string | null
   created_at: string
@@ -1027,7 +1026,7 @@ export interface RecordFlags {
 
 // Form (on the curve page) for supplying the primes of bad reduction
 // when they are
-// not yet recorded, backfilling the conductor / Faltings height. `error` is
+// not yet recorded, backfilling the conductor. `error` is
 // shown when a prior submission was rejected.
 function badPrimesSection(curveId: number, user: User | null, error: string | null): string {
   const err = error ? `<p class="result-errors primes-error">${escapeHtml(error)}</p>` : ''
@@ -1047,7 +1046,7 @@ function badPrimesSection(curveId: number, user: User | null, error: string | nu
     : `<p class="muted"><a href="/auth/github">Log in</a> to supply the primes of bad reduction.</p>`
   return `<section class="primes-section" id="bad-primes">
         <h3>Primes of bad reduction not yet recorded</h3>
-        <p class="muted">Supplying the primes of bad reduction records this curve's conductor and Faltings height.</p>
+        <p class="muted">Supplying the primes of bad reduction records this curve's conductor.</p>
         ${body}
       </section>`
 }
@@ -1196,7 +1195,7 @@ function leaderboardStatus(submit: SubmitInfo | null): string {
       added = false
       break
   }
-  const cond = submit.conductor ? ' Conductor &amp; Faltings height recorded.' : ''
+  const cond = submit.conductor ? ' Conductor recorded.' : ''
   const tick = added || submit.conductor ? '&#10003; ' : ''
   const cls = added || submit.conductor ? 'leaderboard-status added' : 'leaderboard-status'
   const link = ` <a href="/curve/${submit.id}">view the curve &rarr;</a>`
@@ -1270,8 +1269,8 @@ export function apiDocsPage(user: User | null = null): string {
     "precisionDigits": 62, "stable": true, "method": "..."
   },
   "height": { "naiveLogHeight": "79.3286..." },
-  "minimalDiscriminant": "...",
-  "conductor": "...", "faltingsHeight": "...",  // if primes valid
+  "faltingsHeight": "...",
+  "conductor": "...",  // only if primes were supplied/recovered
   "leaderboard": { "status": "created", "rank": 12 }
 }`
   const primesReq = `curl -X POST https://elliptic-rank.icarm.cloud/api/curve/123/primes \\
@@ -1282,7 +1281,7 @@ export function apiDocsPage(user: User | null = null): string {
   "ok": true,
   "id": 123,
   "alreadyRecorded": false,
-  "conductor": "...", "minimalDiscriminant": "...", "faltingsHeight": "..."
+  "conductor": "..."
 }`
   const commentReq = `curl -X POST https://elliptic-rank.icarm.cloud/curve/123/commentary \\
   -H 'authorization: Bearer erank_...' \\
@@ -1303,11 +1302,11 @@ export function apiDocsPage(user: User | null = null): string {
       curve is <strong>recorded on the leaderboard</strong>, attributed to you. Accepted curves and
       witness points are stored in the curve's global minimal model. Body:
       <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>.</p>
-      <p>Optionally include <code>primes</code>: the primes of bad reduction, equivalently the primes
-      dividing the minimal discriminant. If they check out, the <strong>conductor</strong> and
-      <strong>Faltings height</strong> are computed and recorded &mdash; no factoring needed.
-      Re-submitting an existing curve with <code>primes</code> backfills these even if the rank is
-      unchanged.</p>
+      <p>The <strong>discriminant</strong> and <strong>Faltings height</strong> are recorded for every
+      curve (neither needs the primes). Optionally include <code>primes</code>: the primes of bad
+      reduction, equivalently the primes dividing the minimal discriminant. If they check out, the
+      <strong>conductor</strong> is computed and recorded &mdash; no factoring needed. Re-submitting an
+      existing curve with <code>primes</code> backfills the conductor even if the rank is unchanged.</p>
       <p>Optionally include <code>commentary</code>: a string recorded as the curve's initial
       commentary, attributed to you. It is applied only when the curve has no commentary yet
       &mdash; if the curve already exists and already has commentary, this field is
@@ -1326,10 +1325,11 @@ export function apiDocsPage(user: User | null = null): string {
       <pre><code>${escapeHtml(verifyResp)}</code></pre>
 
       <h3>POST <code>/api/curve/:id/primes</code></h3>
-      <p>Backfill the <strong>conductor</strong> and <strong>Faltings height</strong> of an
+      <p>Backfill the <strong>conductor</strong> of an
       already-recorded curve from its primes of bad reduction &mdash; the programmatic equivalent of
       the primes form on a curve's page, and an alternative to re-submitting through
-      <code>/api/submit</code>. Send <code>{ primes: [...] }</code>
+      <code>/api/submit</code>. (The discriminant and Faltings height are already recorded at
+      submission.) Send <code>{ primes: [...] }</code>
       with the primes of bad reduction (each a prime, together dividing the minimal discriminant to a
       unit), or <code>{ "mode": "auto" }</code> to attempt bounded trial division (which gives up on
       hard factorizations). No factoring of large discriminants is performed otherwise.</p>
@@ -1345,7 +1345,7 @@ export function apiDocsPage(user: User | null = null): string {
       <h3>GET <code>/database.json</code></h3>
       <p>The entire database as one JSON download: <code>{ count, curves }</code>, each curve with its
       global-minimal a-invariants, transformed witness points, <code>discriminant</code> (the minimal
-      discriminant), rank lower bound, naive height, and (when recorded) conductor, Faltings height,
+      discriminant), rank lower bound, naive height, Faltings height, and (when recorded) conductor,
       submitter, and commentary. No auth required.</p>
 
       <h3>GET <code>/curve/:id.json</code></h3>

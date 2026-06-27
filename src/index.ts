@@ -154,9 +154,9 @@ app.get('/curve/:id', async (c) => {
   return c.html(curveDetailPage(row, comment, c.get('user'), await recordFlags(c.env, row), primesError))
 })
 
-// Supply the primes of bad reduction from the curve's detail page,
-// backfilling the conductor and Faltings height (no factoring). Only meaningful
-// when these are not yet recorded; otherwise it is a no-op.
+// Supply the primes of bad reduction from the curve's detail page, backfilling
+// the conductor (no factoring). Only meaningful when it is not yet recorded;
+// otherwise it is a no-op.
 app.post('/curve/:id/primes', async (c) => {
   const user = c.get('user')
   if (!user) return c.redirect('/auth/github', 302)
@@ -338,11 +338,11 @@ app.post('/api/submit', async (c) => {
   return c.json({ ...result, leaderboard }, result.ok ? 200 : 422)
 })
 
-// JSON API: backfill the conductor and Faltings height of an already-recorded
-// curve from its primes of bad reduction — the
-// programmatic counterpart of the curve page's primes form. Requires a bearer
-// token. Body: { primes: [...] } to use a supplied list, or { mode: "auto" }
-// to attempt bounded trial division. No factoring of large discriminants.
+// JSON API: backfill the conductor of an already-recorded curve from its primes
+// of bad reduction — the programmatic counterpart of the curve page's primes
+// form. Requires a bearer token. Body: { primes: [...] } to use a supplied list,
+// or { mode: "auto" } to attempt bounded trial division. No factoring of large
+// discriminants.
 app.post('/api/curve/:id/primes', async (c) => {
   const user = c.get('user')
   if (!user) return c.json({ ok: false, errors: ['authentication required'] }, 401)
@@ -378,8 +378,6 @@ app.post('/api/curve/:id/primes', async (c) => {
         id,
         alreadyRecorded: false,
         conductor: outcome.result.conductor,
-        minimalDiscriminant: outcome.result.minimalDiscriminant,
-        faltingsHeight: outcome.result.faltingsHeight,
       })
     case 'rejected': {
       const res = outcome.result
@@ -543,7 +541,6 @@ function rejectedVerification(message: string): VerifyResult {
     independence: null,
     height: null,
     conductor: null,
-    minimalDiscriminant: null,
     faltingsHeight: null,
     conductorNote: null,
   }
