@@ -378,6 +378,10 @@ pre code {
 /* Rank-vs-height scatter plot */
 .board { margin: 2rem 0; }
 
+/* Plot switcher on the landing page: pill buttons (styled via .progress-metric)
+   that show one .plot-panel at a time. */
+.plot-tabs { margin: 0.75rem 0 0.25rem; }
+
 .rank-plot {
   width: 100%;
   height: auto;

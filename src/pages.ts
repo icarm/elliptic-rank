@@ -654,7 +654,11 @@ export function progressPage(
   return layout('Progress — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
-export function landingPage(user: User | null = null, curves: PlotCurve[] = []): string {
+export function landingPage(user: User | null = null, curves: PlotCurve[] = [], metric?: string): string {
+  // Which plot the switcher shows first; honored from ?metric= so the view is
+  // shareable and renders without a flash. Defaults to the conductor plot.
+  const sel: 'conductor' | 'naive' | 'faltings' =
+    metric === 'naive' || metric === 'faltings' ? metric : 'conductor'
   const inner = `
       <section class="hero">
         <p class="lede">Can we find <em>small</em> elliptic curves of <em>high rank</em>?</p>
@@ -669,30 +673,55 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = []):
       <section class="board">
         <h2>Plots</h2>
         <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness, or click a rank on the axis to list the curves at that rank. The frontier is down and to the right: high rank, small height/conductor.</p>
-        <h3>log conductor vs rank</h3>
-        <p class="muted board-caption">Natural log of the conductor <span class="eqi">N = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup></span>. Recorded when a submission supplies the primes of bad reduction.</p>
-        ${scatterPlot(
-          curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
-          'log conductor',
-          (v) => v.toFixed(0),
-          'conductor',
-        )}
-        <h3>naive height vs rank</h3>
-        <p class="muted board-caption">Naive height = <span class="eqi">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span> of the global minimal model. Recorded for every curve.</p>
-        ${scatterPlot(
-          curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
-          'naive height',
-          (v) => v.toFixed(0),
-          'naive',
-        )}
-        <h3>Faltings height vs rank</h3>
-        <p class="muted board-caption">Stable Faltings height (LMFDB normalization), computed from the period lattice and the minimal discriminant. Recorded when a submission supplies the primes of bad reduction.</p>
-        ${scatterPlot(
-          curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
-          'Faltings height',
-          (v) => v.toFixed(1),
-          'faltings',
-        )}
+        <div class="plot-tabs progress-metric" role="radiogroup" aria-label="plot measure">
+          <label><input type="radio" name="plot-metric" value="conductor"${sel === 'conductor' ? ' checked' : ''} /><span>log conductor</span></label>
+          <label><input type="radio" name="plot-metric" value="naive"${sel === 'naive' ? ' checked' : ''} /><span>naive height</span></label>
+          <label><input type="radio" name="plot-metric" value="faltings"${sel === 'faltings' ? ' checked' : ''} /><span>Faltings height</span></label>
+        </div>
+        <div class="plot-panel" data-metric="conductor"${sel === 'conductor' ? '' : ' hidden'}>
+          <p class="muted board-caption">Natural log of the conductor <span class="eqi">N = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup></span>. Recorded when a submission supplies the primes of bad reduction.</p>
+          ${scatterPlot(
+            curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
+            'log conductor',
+            (v) => v.toFixed(0),
+            'conductor',
+          )}
+        </div>
+        <div class="plot-panel" data-metric="naive"${sel === 'naive' ? '' : ' hidden'}>
+          <p class="muted board-caption">Naive height = <span class="eqi">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span> of the global minimal model. Recorded for every curve.</p>
+          ${scatterPlot(
+            curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
+            'naive height',
+            (v) => v.toFixed(0),
+            'naive',
+          )}
+        </div>
+        <div class="plot-panel" data-metric="faltings"${sel === 'faltings' ? '' : ' hidden'}>
+          <p class="muted board-caption">Stable Faltings height (LMFDB normalization), computed from the period lattice and the minimal discriminant. Recorded when a submission supplies the primes of bad reduction.</p>
+          ${scatterPlot(
+            curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
+            'Faltings height',
+            (v) => v.toFixed(1),
+            'faltings',
+          )}
+        </div>
+        <noscript><style>.plot-tabs { display: none; } .board .plot-panel[hidden] { display: block; }</style></noscript>
+        <script>
+        (function () {
+          var tabs = Array.prototype.slice.call(document.querySelectorAll('input[name="plot-metric"]'));
+          var panels = Array.prototype.slice.call(document.querySelectorAll('.board .plot-panel'));
+          // The server renders the selected panel already; we only handle switches.
+          tabs.forEach(function (t) {
+            t.addEventListener('change', function () {
+              if (!t.checked) return;
+              panels.forEach(function (p) { p.hidden = p.dataset.metric !== t.value; });
+              var q = new URLSearchParams(location.search);
+              q.set('metric', t.value);
+              history.replaceState(null, '', location.pathname + '?' + q.toString());
+            });
+          });
+        })();
+        </script>
       </section>
 
       <section class="submit">

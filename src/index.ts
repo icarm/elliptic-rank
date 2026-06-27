@@ -54,7 +54,7 @@ app.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(
     'SELECT id, rank_lower_bound, naive_height, faltings_height, conductor FROM curves',
   ).all<PlotCurve>()
-  return c.html(landingPage(c.get('user'), results))
+  return c.html(landingPage(c.get('user'), results, c.req.query('metric')))
 })
 
 app.get('/curves', async (c) => {
