@@ -449,11 +449,11 @@ pre code {
    spanning each rank's column. */
 .rank-plot a.tick-link { cursor: pointer; }
 .rank-plot .tick-hit { fill: transparent; }
-/* Numbered ticks read as links (accent + underline) so it's clear they click
-   through; the in-between tick marks take the accent too for the same cue. */
-.rank-plot a.tick-link .tick { fill: var(--accent); text-decoration: underline; }
+/* Numbered ticks take the accent color so it's clear they click through; the
+   in-between tick marks take the accent too for the same cue. */
+.rank-plot a.tick-link .tick { fill: var(--accent); }
 .rank-plot .tick-mark { stroke: var(--accent); stroke-width: 2; }
-.rank-plot a.tick-link:hover .tick { fill: var(--accent-dark); font-weight: 600; }
+.rank-plot a.tick-link:hover .tick { fill: var(--accent-dark); text-decoration: underline; font-weight: 600; }
 .rank-plot a.tick-link:hover .tick-mark { stroke: var(--accent-dark); stroke-width: 3; }
 
 .board-caption { font-size: 0.95rem; margin-top: 0.25rem; }
