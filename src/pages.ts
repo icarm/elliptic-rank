@@ -700,7 +700,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
           )}
         </div>
         <div class="plot-panel" data-metric="faltings"${sel === 'faltings' ? '' : ' hidden'}>
-          <p class="muted board-caption">Stable Faltings height (LMFDB normalization). Recorded when a submission supplies the primes of bad reduction.</p>
+          <p class="muted board-caption">Stable Faltings height (LMFDB normalization), from the period lattice of the global minimal model. Recorded for every curve.</p>
           ${scatterPlot(
             curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
             'Faltings height',
