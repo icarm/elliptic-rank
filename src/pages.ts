@@ -829,7 +829,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             ${sortHeader('id', 'curve', '')}
             <th>a-invariants</th>
             ${sortHeader('rank', 'rank')}
-            ${sortHeader('conductor', 'log N', 'num', 'conductor')}
+            ${sortHeader('conductor', 'log N', 'num', 'log conductor')}
             ${sortHeader('naive', 'naive height')}
             ${sortHeader('faltings', 'Faltings height')}
             ${sortHeader('disc', 'log |&Delta;|')}
