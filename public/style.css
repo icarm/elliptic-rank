@@ -378,9 +378,46 @@ pre code {
 /* Rank-vs-height scatter plot */
 .board { margin: 2rem 0; }
 
-/* Plot switcher on the landing page: pill buttons (styled via .progress-metric)
-   that show one .plot-panel at a time. */
-.plot-tabs { margin: 0.75rem 0 0.25rem; }
+/* Plot switcher on the landing page: a tab bar that shows one .plot-panel at a
+   time. The hidden radio drives selection; the active label gets an accent
+   underline overlapping the shared bottom border. */
+.plot-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 1rem 0 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.plot-tabs input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.plot-tabs label span {
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  margin-bottom: -1px; /* overlap the container's bottom border */
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+
+.plot-tabs label:hover span {
+  color: var(--accent);
+}
+
+.plot-tabs input:checked + span {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.plot-tabs input:focus-visible + span {
+  outline: 2px solid var(--accent-dark);
+  outline-offset: 2px;
+}
 
 .rank-plot {
   width: 100%;
