@@ -1381,7 +1381,7 @@ function submittedCurvesSection(curves: TableCurve[]): string {
               <th>curve</th>
               <th>a-invariants</th>
               <th class="num">rank</th>
-              <th class="num" title="conductor">log N</th>
+              <th class="num" title="log conductor">log N</th>
               <th class="num">naive height</th>
               <th class="num">Faltings height</th>
               <th class="num">log |&Delta;|</th>
