@@ -1176,7 +1176,7 @@ export interface SubmitInfo {
   status: 'created' | 'improved' | 'unchanged'
   rank: number
   previousRank?: number
-  conductor?: boolean
+  conductorRecorded?: boolean
 }
 
 function leaderboardStatus(submit: SubmitInfo | null): string {
@@ -1195,9 +1195,9 @@ function leaderboardStatus(submit: SubmitInfo | null): string {
       added = false
       break
   }
-  const cond = submit.conductor ? ' Conductor recorded.' : ''
-  const tick = added || submit.conductor ? '&#10003; ' : ''
-  const cls = added || submit.conductor ? 'leaderboard-status added' : 'leaderboard-status'
+  const cond = submit.conductorRecorded ? ' Conductor recorded.' : ''
+  const tick = added || submit.conductorRecorded ? '&#10003; ' : ''
+  const cls = added || submit.conductorRecorded ? 'leaderboard-status added' : 'leaderboard-status'
   const link = ` <a href="/curve/${submit.id}">view the curve &rarr;</a>`
   return `<p class="${cls}">${tick}${msg}${cond}${link}</p>`
 }

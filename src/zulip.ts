@@ -88,7 +88,7 @@ export async function notifyRecord(
   // Faltings height, which can newly make it a record just like the dedicated
   // primes-backfill endpoints. Hand those off to the backfill notifier.
   if (status.status === 'unchanged') {
-    if (status.conductor) await notifyBackfillRecord(env, status.id, submitter, baseUrl)
+    if (status.conductorRecorded) await notifyBackfillRecord(env, status.id, submitter, baseUrl)
     return
   }
 

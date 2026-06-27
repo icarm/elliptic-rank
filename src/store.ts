@@ -99,8 +99,9 @@ export interface RecordStatus {
   status: 'created' | 'improved' | 'unchanged'
   rank: number
   previousRank?: number
-  // True when this submission newly recorded the conductor for the curve.
-  conductor?: boolean
+  // True when this submission newly recorded the conductor for the curve (i.e.
+  // the conductor was not previously on record). Not the conductor value itself.
+  conductorRecorded?: boolean
 }
 
 // Parse a PARI real ("79.328...", "1.5 E-17") to a JS number for sorting.
@@ -267,7 +268,7 @@ export async function recordCurve(
       .run()
     const id = ins.meta.last_row_id as number
     if (hasCommentary) await postComment(env, id, userId, commentary!)
-    return { id, status: 'created', rank, conductor: !!conductor }
+    return { id, status: 'created', rank, conductorRecorded: !!conductor }
   }
 
   // Existing curve: attach the supplied commentary only if it has none yet.
@@ -297,9 +298,9 @@ export async function recordCurve(
     )
       .bind(rank, regulator, points, ainvs, userId, conductor, faltings, existing.id)
       .run()
-    return { id: existing.id, status: 'improved', rank, previousRank: existing.rank_lower_bound, conductor: setConductor }
+    return { id: existing.id, status: 'improved', rank, previousRank: existing.rank_lower_bound, conductorRecorded: setConductor }
   }
 
   if (setConductor) await setCurveConductor(env, existing.id, conductor!)
-  return { id: existing.id, status: 'unchanged', rank: existing.rank_lower_bound, conductor: setConductor }
+  return { id: existing.id, status: 'unchanged', rank: existing.rank_lower_bound, conductorRecorded: setConductor }
 }
