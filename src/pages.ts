@@ -790,9 +790,9 @@ function curveTableRow(c: TableCurve): string {
             <td><a href="/curve/${c.id}">#${c.id}</a></td>
             <td><code>[${ainvs.map((a) => escapeHtml(clip(a, 14))).join(', ')}]</code></td>
             <td class="num"><a class="rank-link" href="/curves?minrank=${c.rank_lower_bound}&amp;rankmode=eq" title="show only curves with rank lower bound = ${c.rank_lower_bound}">&ge; ${c.rank_lower_bound}</a></td>
+            <td class="num">${logCond != null ? logCond.toFixed(2) : unknown}</td>
             <td class="num">${c.naive_height.toFixed(2)}</td>
             <td class="num">${c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown}</td>
-            <td class="num">${logCond != null ? logCond.toFixed(2) : unknown}</td>
             <td class="num">${logDisc.toFixed(2)}</td>
           </tr>`
 }
@@ -804,8 +804,8 @@ function curveTableRow(c: TableCurve): string {
 // increasing conductor (curves with no recorded conductor last).
 export function curveTablePage(curves: TableCurve[], user: User | null = null): string {
   const rows = curves.map(curveTableRow).join('\n')
-  const sortHeader = (key: string, label: string, extraClass = 'num'): string =>
-    `<th class="${extraClass}"><button type="button" class="sort" data-key="${key}">${label}</button></th>`
+  const sortHeader = (key: string, label: string, extraClass = 'num', title = ''): string =>
+    `<th class="${extraClass}"><button type="button" class="sort" data-key="${key}"${title ? ` title="${title}"` : ''}>${label}</button></th>`
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>All curves</h2>
@@ -829,9 +829,9 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             ${sortHeader('id', 'curve', '')}
             <th>a-invariants</th>
             ${sortHeader('rank', 'rank')}
+            ${sortHeader('conductor', 'log N', 'num', 'conductor')}
             ${sortHeader('naive', 'naive height')}
             ${sortHeader('faltings', 'Faltings height')}
-            ${sortHeader('conductor', 'log conductor')}
             ${sortHeader('disc', 'log |&Delta;|')}
           </tr>
         </thead>
@@ -1381,9 +1381,9 @@ function submittedCurvesSection(curves: TableCurve[]): string {
               <th>curve</th>
               <th>a-invariants</th>
               <th class="num">rank</th>
+              <th class="num" title="conductor">log N</th>
               <th class="num">naive height</th>
               <th class="num">Faltings height</th>
-              <th class="num">log conductor</th>
               <th class="num">log |&Delta;|</th>
             </tr>
           </thead>
