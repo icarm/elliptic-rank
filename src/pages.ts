@@ -114,6 +114,7 @@ export interface PlotCurve {
   naive_height: number
   faltings_height: number | null
   conductor: string | null
+  discriminant: string
 }
 
 export interface ProgressCurve {
@@ -133,8 +134,9 @@ function progressMetricKey(metric: string | undefined): ProgressMetric {
     : 'conductor'
 }
 
-// Natural log of a non-negative big integer given as a decimal string.
-function logBigInt(s: string): number {
+// Natural log of |n| for a big integer given as a (possibly signed) decimal
+// string.
+export function logBigInt(s: string): number {
   const t = s.replace('-', '')
   const k = Math.min(15, t.length)
   return Math.log(Number(t.slice(0, k))) + (t.length - k) * Math.LN10
@@ -657,8 +659,8 @@ export function progressPage(
 export function landingPage(user: User | null = null, curves: PlotCurve[] = [], metric?: string): string {
   // Which plot the switcher shows first; honored from ?metric= so the view is
   // shareable and renders without a flash. Defaults to the conductor plot.
-  const sel: 'conductor' | 'naive' | 'faltings' =
-    metric === 'naive' || metric === 'faltings' ? metric : 'conductor'
+  const sel: 'conductor' | 'naive' | 'faltings' | 'disc' =
+    metric === 'naive' || metric === 'faltings' || metric === 'disc' ? metric : 'conductor'
   const inner = `
       <section class="hero">
         <p class="lede">Can we find <em>small</em> elliptic curves of <em>high rank</em>?</p>
@@ -677,6 +679,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
           <label><input type="radio" name="plot-metric" value="conductor"${sel === 'conductor' ? ' checked' : ''} /><span>log conductor</span></label>
           <label><input type="radio" name="plot-metric" value="naive"${sel === 'naive' ? ' checked' : ''} /><span>naive height</span></label>
           <label><input type="radio" name="plot-metric" value="faltings"${sel === 'faltings' ? ' checked' : ''} /><span>Faltings height</span></label>
+          <label><input type="radio" name="plot-metric" value="disc"${sel === 'disc' ? ' checked' : ''} /><span>log |&Delta;|</span></label>
         </div>
         <div class="plot-panel" data-metric="conductor"${sel === 'conductor' ? '' : ' hidden'}>
           <p class="muted board-caption">Natural log of the conductor <span class="eqi">N = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup></span>. Recorded when a submission supplies the primes of bad reduction.</p>
@@ -703,6 +706,15 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
             'Faltings height',
             (v) => v.toFixed(1),
             'faltings',
+          )}
+        </div>
+        <div class="plot-panel" data-metric="disc"${sel === 'disc' ? '' : ' hidden'}>
+          <p class="muted board-caption">Natural log of the absolute discriminant <span class="eqi">|&Delta;|</span> of the global minimal model. Recorded for every curve.</p>
+          ${scatterPlot(
+            curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.discriminant) })),
+            'log |Δ|',
+            (v) => v.toFixed(0),
+            'disc',
           )}
         </div>
         <noscript><style>.plot-tabs { display: none; } .board .plot-panel[hidden] { display: block; }</style></noscript>
@@ -773,13 +785,15 @@ function curveTableRow(c: TableCurve): string {
     /* leave empty */
   }
   const logCond = c.conductor != null ? logBigInt(c.conductor) : null
-  return `<tr data-id="${c.id}" data-rank="${c.rank_lower_bound}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}">
+  const logDisc = logBigInt(c.discriminant)
+  return `<tr data-id="${c.id}" data-rank="${c.rank_lower_bound}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}" data-disc="${logDisc}">
             <td><a href="/curve/${c.id}">#${c.id}</a></td>
             <td><code>[${ainvs.map((a) => escapeHtml(clip(a, 14))).join(', ')}]</code></td>
             <td class="num"><a class="rank-link" href="/curves?minrank=${c.rank_lower_bound}&amp;rankmode=eq" title="show only curves with rank lower bound = ${c.rank_lower_bound}">&ge; ${c.rank_lower_bound}</a></td>
             <td class="num">${c.naive_height.toFixed(2)}</td>
             <td class="num">${c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown}</td>
             <td class="num">${logCond != null ? logCond.toFixed(2) : unknown}</td>
+            <td class="num">${logDisc.toFixed(2)}</td>
           </tr>`
 }
 
@@ -818,6 +832,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             ${sortHeader('naive', 'naive height')}
             ${sortHeader('faltings', 'Faltings height')}
             ${sortHeader('conductor', 'log conductor')}
+            ${sortHeader('disc', 'log |&Delta;|')}
           </tr>
         </thead>
         <tbody>
@@ -827,7 +842,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
       </div>
       <script>
       (function () {
-        var KEYS = ['id', 'rank', 'naive', 'faltings', 'conductor'];
+        var KEYS = ['id', 'rank', 'naive', 'faltings', 'conductor', 'disc'];
         var tbody = document.getElementById('curves-table').tBodies[0];
         var rows = Array.prototype.slice.call(tbody.rows);
         var rankInput = document.getElementById('rank-filter');
@@ -1007,6 +1022,7 @@ export interface RecordFlags {
   naive: boolean
   faltings: boolean
   conductor: boolean
+  discriminant: boolean
 }
 
 // Form (on the curve page) for supplying the primes of bad reduction
@@ -1040,7 +1056,7 @@ export function curveDetailPage(
   curve: CurveRow,
   comment: CommentView | null = null,
   user: User | null = null,
-  records: RecordFlags = { naive: false, faltings: false, conductor: false },
+  records: RecordFlags = { naive: false, faltings: false, conductor: false, discriminant: false },
   primesError: string | null = null,
 ): string {
   let ainvs: string[] = []
@@ -1068,7 +1084,7 @@ export function curveDetailPage(
         <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badge(records.naive, curve.rank_lower_bound, 'naive')}</dd>
         ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}${badge(records.faltings, curve.rank_lower_bound, 'faltings')}</dd>` : ''}
         ${curve.conductor ? `<dt>conductor</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code>${badge(records.conductor, curve.rank_lower_bound, 'conductor')}</dd>` : ''}
-        <dt>discriminant</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code></dd>
+        <dt>discriminant (&Delta;)</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code>${badge(records.discriminant, curve.rank_lower_bound, 'disc')}</dd>
         <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
         <dt>submitted by</dt><dd>${submitter}</dd>
         <dt>last updated</dt><dd>${escapeHtml(curve.updated_at)}</dd>
@@ -1368,6 +1384,7 @@ function submittedCurvesSection(curves: TableCurve[]): string {
               <th class="num">naive height</th>
               <th class="num">Faltings height</th>
               <th class="num">log conductor</th>
+              <th class="num">log |&Delta;|</th>
             </tr>
           </thead>
           <tbody>

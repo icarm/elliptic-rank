@@ -9,7 +9,7 @@
 
 import type { Bindings } from './auth'
 import { recordFlags, type RecordCandidate, type RecordStatus } from './store'
-import type { RecordFlags } from './pages'
+import { logBigInt, type RecordFlags } from './pages'
 
 // Send `text` as a Zulip message via the incoming webhook. Returns true on a 2xx
 // response. Never throws: delivery is best-effort and runs off the request path.
@@ -33,14 +33,14 @@ async function send(url: string, text: string): Promise<boolean> {
 
 function loadCurve(env: Bindings, curveId: number): Promise<RecordCandidate | null> {
   return env.DB.prepare(
-    `SELECT id, rank_lower_bound, naive_height, faltings_height, conductor
+    `SELECT id, rank_lower_bound, naive_height, faltings_height, conductor, discriminant
        FROM curves WHERE id = ?`,
   )
     .bind(curveId)
     .first<RecordCandidate>()
 }
 
-type Metric = 'naive' | 'faltings' | 'conductor'
+type Metric = 'naive' | 'faltings' | 'conductor' | 'disc'
 
 // "smallest **X** (value)" phrases for the curve's metrics that are records,
 // limited to the metrics in `consider`.
@@ -54,6 +54,9 @@ function recordPhrases(curve: RecordCandidate, flags: RecordFlags, consider: Met
   }
   if (consider.includes('conductor') && flags.conductor && curve.conductor != null) {
     out.push(`smallest **conductor** (${curve.conductor})`)
+  }
+  if (consider.includes('disc') && flags.discriminant) {
+    out.push(`smallest **|Δ|** (log ${logBigInt(curve.discriminant).toFixed(2)})`)
   }
   return out
 }
@@ -85,7 +88,7 @@ export async function notifyRecord(
   const curve = await loadCurve(env, status.id)
   if (!curve) return
   const flags = await recordFlags(env, curve)
-  const records = recordPhrases(curve, flags, ['naive', 'faltings', 'conductor'])
+  const records = recordPhrases(curve, flags, ['naive', 'faltings', 'conductor', 'disc'])
   if (records.length === 0) return
 
   const link = `${baseUrl}/curve/${curve.id}`

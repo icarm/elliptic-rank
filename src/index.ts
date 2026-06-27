@@ -52,14 +52,14 @@ app.use('*', async (c, next) => {
 
 app.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(
-    'SELECT id, rank_lower_bound, naive_height, faltings_height, conductor FROM curves',
+    'SELECT id, rank_lower_bound, naive_height, faltings_height, conductor, discriminant FROM curves',
   ).all<PlotCurve>()
   return c.html(landingPage(c.get('user'), results, c.req.query('metric')))
 })
 
 app.get('/curves', async (c) => {
   const { results } = await c.env.DB.prepare(
-    `SELECT id, ainvs, rank_lower_bound, naive_height, faltings_height, conductor
+    `SELECT id, ainvs, rank_lower_bound, naive_height, faltings_height, conductor, discriminant
        FROM curves
        -- Default order matches the table's JS default: increasing conductor,
        -- curves with no recorded conductor last. Conductor is a big-integer
@@ -501,7 +501,7 @@ function listTokens(env: Bindings, userId: number): Promise<TokenRow[]> {
 // "best curve" ordering the database download uses.
 function listUserCurves(env: Bindings, userId: number): Promise<TableCurve[]> {
   return env.DB.prepare(
-    `SELECT id, ainvs, rank_lower_bound, naive_height, faltings_height, conductor
+    `SELECT id, ainvs, rank_lower_bound, naive_height, faltings_height, conductor, discriminant
        FROM curves WHERE submitter_user_id = ?
        ORDER BY rank_lower_bound DESC, naive_height ASC`,
   )

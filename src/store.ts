@@ -113,6 +113,11 @@ function lessDecimal(a: string, b: string): boolean {
   return a.length !== b.length ? a.length < b.length : a < b
 }
 
+// |a| < |b| for signed decimal integer strings (compares magnitude).
+function lessAbsDecimal(a: string, b: string): boolean {
+  return lessDecimal(a.replace('-', ''), b.replace('-', ''))
+}
+
 // Curve fields needed to decide which metrics are records.
 export interface RecordCandidate {
   id: number
@@ -120,6 +125,7 @@ export interface RecordCandidate {
   naive_height: number
   faltings_height: number | null
   conductor: string | null
+  discriminant: string
 }
 
 // Which of the curve's metrics are records for its rank: a metric is a record
@@ -127,11 +133,11 @@ export interface RecordCandidate {
 // curve is on the rank-vs-metric Pareto frontier).
 export async function recordFlags(env: Bindings, curve: RecordCandidate): Promise<RecordFlags> {
   const { results: rivals } = await env.DB.prepare(
-    `SELECT naive_height, faltings_height, conductor FROM curves
+    `SELECT naive_height, faltings_height, conductor, discriminant FROM curves
        WHERE rank_lower_bound >= ? AND id != ?`,
   )
     .bind(curve.rank_lower_bound, curve.id)
-    .all<{ naive_height: number; faltings_height: number | null; conductor: string | null }>()
+    .all<{ naive_height: number; faltings_height: number | null; conductor: string | null; discriminant: string }>()
   return {
     naive: !rivals.some((o) => o.naive_height < curve.naive_height),
     faltings:
@@ -140,6 +146,8 @@ export async function recordFlags(env: Bindings, curve: RecordCandidate): Promis
     conductor:
       curve.conductor != null &&
       !rivals.some((o) => o.conductor != null && lessDecimal(o.conductor, curve.conductor!)),
+    // |Δ| is recorded for every curve (no factoring), so it is always comparable.
+    discriminant: !rivals.some((o) => lessAbsDecimal(o.discriminant, curve.discriminant)),
   }
 }
 
