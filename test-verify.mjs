@@ -152,6 +152,23 @@ if (!unicodeMinus.ok || unicodeMinus.points[0]?.point[0] !== '-3659') {
 } else {
   console.log('unicode minus sign accepted OK')
 }
+// Regression: duplicated primes of bad reduction must not inflate the
+// conductor (conductorFromPrimes multiplies p^f_p over the list, so each bad
+// prime must appear exactly once). 5077a1: y^2 + y = x^3 - 7x + 6, rank 3,
+// prime discriminant = conductor = 5077. Duplicates and leading zeros both
+// normalize away.
+const dupPrimes = verify(gp, {
+  ainvs: ['0', '0', '1', '-7', '6'],
+  points: [['-2', '3'], ['-1', '3'], ['0', '2']],
+  primes: ['5077', '5077', '0005077'],
+})
+if (!dupPrimes.ok || dupPrimes.conductor !== '5077') {
+  console.error(`FAIL: duplicated primes changed the conductor: got ${dupPrimes.conductor}`)
+  process.exitCode = 1
+} else {
+  console.log('duplicated primes conductor OK: 5077')
+}
+
 // failure cases
 show('singular curve', { ainvs: ['0', '0'], points: [['0', '0']] })
 const offCurve = verify(gp, { ainvs: ['0', '0', '1', '-6349808647', '193146346911036'], points: [['1', '1']] })

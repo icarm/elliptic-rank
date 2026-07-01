@@ -183,6 +183,24 @@ function minimalC4C6(gp: Gp): Canonical {
 
 const MAX_PRIMES = 256
 
+// Validate a supplied list of primes of bad reduction: each entry an integer
+// > 1 (primality itself is checked later, in GP). Returns canonical decimal
+// strings (no sign, no leading zeros), deduplicated: `conductorFromPrimes`
+// multiplies p^f_p over the list, so a repeated bad prime would otherwise
+// contribute its conductor factor twice.
+function normalizePrimes(rawPrimes: (string | number)[]): string[] {
+  if (rawPrimes.length > MAX_PRIMES) throw new InputError(`too many primes (max ${MAX_PRIMES})`)
+  const primes = new Set<string>()
+  rawPrimes.forEach((p, i) => {
+    const t = token(p, `prime[${i}]`)
+    if (!/^\d+$/.test(t)) throw new InputError(`prime[${i}] must be an integer > 1`)
+    const s = t.replace(/^0+(?=\d)/, '')
+    if (s === '0' || s === '1') throw new InputError(`prime[${i}] must be an integer > 1`)
+    primes.add(s)
+  })
+  return [...primes]
+}
+
 // Trial-division bound for automatic bad-prime detection. Trial division to this
 // bound costs at most ~25ms even on a several-hundred-digit discriminant.
 const AUTO_FACTOR_BOUND = '10^7'
@@ -299,13 +317,7 @@ export function verifyPrimes(
   let primes: string[]
   try {
     a = normalizeAinvs(ainvs)
-    if (rawPrimes.length > MAX_PRIMES) throw new InputError(`too many primes (max ${MAX_PRIMES})`)
-    primes = rawPrimes.map((p, i) => {
-      const s = token(p, `prime[${i}]`)
-      if (!/^\d+$/.test(s) || s === '0' || s === '1')
-        throw new InputError(`prime[${i}] must be an integer > 1`)
-      return s
-    })
+    primes = normalizePrimes(rawPrimes)
     if (primes.length === 0) throw new InputError('no primes provided')
   } catch (e) {
     out.errors.push(e instanceof Error ? e.message : String(e))
@@ -397,13 +409,7 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
       if (!Array.isArray(p) || p.length !== 2) throw new InputError(`point[${i}] must be [x,y]`)
       return [token(p[0], `point[${i}].x`), token(p[1], `point[${i}].y`)] as Point
     })
-    const rawPrimes = input.primes ?? []
-    if (rawPrimes.length > MAX_PRIMES) throw new InputError(`too many primes (max ${MAX_PRIMES})`)
-    primes = rawPrimes.map((p, i) => {
-      const s = token(p, `prime[${i}]`)
-      if (!/^\d+$/.test(s) || s === '0' || s === '1') throw new InputError(`prime[${i}] must be an integer > 1`)
-      return s
-    })
+    primes = normalizePrimes(input.primes ?? [])
   } catch (e) {
     result.errors.push(e instanceof Error ? e.message : String(e))
     return result
