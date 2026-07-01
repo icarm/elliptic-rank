@@ -441,7 +441,7 @@ app.post('/auth/logout', logout)
 // --- Profile & API tokens ---
 app.get('/profile', async (c) => {
   const user = c.get('user')
-  if (!user) return c.redirect('/auth/github', 302)
+  if (!user) return c.redirect('/auth/github?return_to=/profile', 302)
   const [tokens, curves] = await Promise.all([listTokens(c.env, user.id), listUserCurves(c.env, user.id)])
   return c.html(profilePage(user, tokens, null, curves))
 })

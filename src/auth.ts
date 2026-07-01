@@ -25,6 +25,7 @@ const TOKEN_RANDOM_BYTES = 20 // 40 hex chars → 160 bits
 
 const SESSION_COOKIE = 'session'
 const STATE_COOKIE = 'oauth_state'
+const RETURN_COOKIE = 'oauth_return'
 const SESSION_TTL_SEC = 30 * 24 * 60 * 60 // 30 days
 const STATE_TTL_SEC = 10 * 60
 
@@ -106,6 +107,31 @@ function isHttps(req: Request): boolean {
   return req.url.startsWith('https://')
 }
 
+// Reduce a candidate post-login destination to a safe same-site path. Rejects
+// absolute URLs, protocol-relative `//host` (open-redirect vectors), and the
+// /auth/* routes themselves (to avoid login loops). Returns null if unusable.
+function safeReturnPath(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  if (!raw.startsWith('/') || raw.startsWith('//')) return null
+  if (raw.startsWith('/auth/')) return null
+  return raw
+}
+
+// The path+query of the Referer, but only when it is same-origin as the current
+// request — so login links (plain `<a href="/auth/github">`) return the user to
+// the page they clicked from without any template plumbing.
+function refererPath(req: Request): string | null {
+  const referer = req.headers.get('referer')
+  if (!referer) return null
+  try {
+    const r = new URL(referer)
+    if (r.origin !== originOf(req)) return null
+    return r.pathname + r.search + r.hash
+  } catch {
+    return null
+  }
+}
+
 // KV key for a session: hash the cookie token so the store holds no usable token.
 async function sessionKey(token: string): Promise<string> {
   return `session:${await sha256Hex(token)}`
@@ -131,6 +157,20 @@ export async function startOAuth(c: Ctx): Promise<Response> {
     maxAge: STATE_TTL_SEC,
     path: '/',
   })
+  // Remember where to send the user back to. An explicit ?return_to wins (used
+  // by server-side redirects into login); otherwise fall back to the Referer.
+  const returnTo = safeReturnPath(c.req.query('return_to')) ?? refererPath(c.req.raw)
+  if (returnTo) {
+    setCookie(c, RETURN_COOKIE, returnTo, {
+      httpOnly: true,
+      secure: isHttps(c.req.raw),
+      sameSite: 'Lax',
+      maxAge: STATE_TTL_SEC,
+      path: '/',
+    })
+  } else {
+    deleteCookie(c, RETURN_COOKIE, { path: '/' })
+  }
   const redirectUri = `${originOf(c.req.raw)}/auth/${providerName}/callback`
   const authUrl = new URL(provider.authorize)
   authUrl.searchParams.set('client_id', clientId)
@@ -149,6 +189,8 @@ export async function handleCallback(c: Ctx): Promise<Response> {
   const stateParam = c.req.query('state')
   const stateCookie = getCookie(c, STATE_COOKIE)
   deleteCookie(c, STATE_COOKIE, { path: '/' })
+  const returnTo = safeReturnPath(getCookie(c, RETURN_COOKIE)) ?? '/'
+  deleteCookie(c, RETURN_COOKIE, { path: '/' })
   if (error || !code) return c.redirect('/', 302)
   if (!stateParam || !stateCookie || stateParam !== stateCookie) return c.redirect('/', 302)
 
@@ -236,7 +278,7 @@ export async function handleCallback(c: Ctx): Promise<Response> {
     maxAge: SESSION_TTL_SEC,
     path: '/',
   })
-  return c.redirect('/', 302)
+  return c.redirect(returnTo, 302)
 }
 
 export async function updateSessionUser(c: Ctx, partial: Partial<User>): Promise<void> {
