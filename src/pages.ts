@@ -939,6 +939,7 @@ export interface CurveRow {
   regulator: string
   points: string // JSON [[x,y],...]
   conductor: string | null
+  bad_primes: string | null // JSON array of decimal strings
   faltings_height: number | null
   submitter_name: string | null
   created_at: string
@@ -1060,9 +1061,11 @@ export function curveDetailPage(
 ): string {
   let ainvs: string[] = []
   let points: [string, string][] = []
+  let badPrimes: string[] = []
   try {
     ainvs = JSON.parse(curve.ainvs)
     points = JSON.parse(curve.points)
+    if (curve.bad_primes) badPrimes = JSON.parse(curve.bad_primes)
   } catch {
     /* leave empty */
   }
@@ -1083,6 +1086,7 @@ export function curveDetailPage(
         <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badge(records.naive, curve.rank_lower_bound, 'naive')}</dd>
         ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}${badge(records.faltings, curve.rank_lower_bound, 'faltings')}</dd>` : ''}
         ${curve.conductor ? `<dt>conductor (N)</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code>${badge(records.conductor, curve.rank_lower_bound, 'conductor')}</dd>` : ''}
+        ${badPrimes.length ? `<dt>primes of bad reduction</dt><dd><code class="break">${badPrimes.map(escapeHtml).join(', ')}</code></dd>` : ''}
         <dt>discriminant (&Delta;)</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code>${badge(records.discriminant, curve.rank_lower_bound, 'disc')}</dd>
         <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
         <dt>submitted by</dt><dd>${submitter}</dd>
@@ -1270,7 +1274,8 @@ export function apiDocsPage(user: User | null = null): string {
   },
   "height": { "naiveLogHeight": "79.3286..." },
   "faltingsHeight": "...",
-  "conductor": "...",  // only if primes were supplied/recovered
+  "conductor": "...",           // only if primes were supplied/recovered
+  "badPrimes": ["2","3","211", ...],  // ditto: the verified primes, sorted
   "leaderboard": { "status": "created", "rank": 12 }
 }`
   const primesReq = `curl -X POST https://elliptic-rank.icarm.cloud/api/curve/123/primes \\
@@ -1281,7 +1286,8 @@ export function apiDocsPage(user: User | null = null): string {
   "ok": true,
   "id": 123,
   "alreadyRecorded": false,
-  "conductor": "..."
+  "conductor": "...",
+  "badPrimes": ["2","3","211"]
 }`
   const commentReq = `curl -X POST https://elliptic-rank.icarm.cloud/curve/123/commentary \\
   -H 'authorization: Bearer erank_...' \\
@@ -1305,8 +1311,10 @@ export function apiDocsPage(user: User | null = null): string {
       <p>The <strong>discriminant</strong> and <strong>Faltings height</strong> are recorded for every
       curve (neither needs the primes). Optionally include <code>primes</code>: the primes of bad
       reduction, equivalently the primes dividing the minimal discriminant. If they check out, the
-      <strong>conductor</strong> is computed and recorded &mdash; no factoring needed. Re-submitting an
-      existing curve with <code>primes</code> backfills the conductor even if the rank is unchanged.</p>
+      <strong>conductor</strong> is computed and recorded &mdash; no factoring needed &mdash; along
+      with the verified prime list itself (deduplicated, sorted, extraneous good primes dropped).
+      Re-submitting an existing curve with <code>primes</code> backfills the conductor even if the
+      rank is unchanged.</p>
       <p>Optionally include <code>commentary</code>: a string recorded as the curve's initial
       commentary, attributed to you. It is applied only when the curve has no commentary yet
       &mdash; if the curve already exists and already has commentary, this field is
@@ -1346,7 +1354,8 @@ export function apiDocsPage(user: User | null = null): string {
       <p>The entire database as one JSON download: <code>{ count, curves }</code>, each curve with its
       global-minimal a-invariants, transformed witness points, <code>discriminant</code> (the minimal
       discriminant), rank lower bound, naive height, Faltings height, and (when recorded) conductor,
-      submitter, and commentary. No auth required.</p>
+      <code>bad_primes</code> (the verified primes of bad reduction &mdash; the factorization of the
+      conductor's support), submitter, and commentary. No auth required.</p>
 
       <h3>GET <code>/curve/:id.json</code></h3>
       <p>A single curve as JSON &mdash; the same shape as one entry of the

@@ -85,6 +85,9 @@ export interface VerifyResult {
   // Conductor is the one prime-gated invariant: computed only when valid primes
   // were supplied or quick automatic recovery found all primes of bad reduction.
   conductor: string | null
+  // The verified primes of bad reduction (sorted ascending), present iff the
+  // conductor is: the supplied/recovered primes minus any extraneous good ones.
+  badPrimes: string[] | null
   // Stable Faltings height of the global minimal model — computed from its period
   // lattice alone (no primes needed), so always present for a verified curve.
   faltingsHeight: string | null
@@ -240,16 +243,20 @@ function autoBadPrimes(gp: Gp): string[] | null {
 // f_p, and conductor = prod p^f_p. (Minimal discriminant and Faltings height do
 // NOT need the primes — the model is already minimal — so they are recorded at
 // submission, not here.)
-function conductorFromPrimes(gp: Gp, primes: string[]): { conductor: string | null; note: string | null } {
-  if (primes.length === 0) return { conductor: null, note: null }
-  if (primes.length > MAX_PRIMES) return { conductor: null, note: `too many primes (max ${MAX_PRIMES})` }
+function conductorFromPrimes(
+  gp: Gp,
+  primes: string[],
+): { conductor: string | null; badPrimes: string[] | null; note: string | null } {
+  if (primes.length === 0) return { conductor: null, badPrimes: null, note: null }
+  if (primes.length > MAX_PRIMES)
+    return { conductor: null, badPrimes: null, note: `too many primes (max ${MAX_PRIMES})` }
   evalGp(gp, `cps = [${primes.join(',')}]`)
   // Two distinct failure modes, reported separately: a supplied value is not
   // prime, or the (prime) values are incomplete and leave an unaccounted factor
   // of the minimal discriminant.
   const allPrime = evalGp(gp, 'my(ok=1); for(i=1,#cps, if(!ispseudoprime(cps[i]), ok=0)); ok')
   if (allPrime !== '1') {
-    return { conductor: null, note: 'supplied values are not all prime' }
+    return { conductor: null, badPrimes: null, note: 'supplied values are not all prime' }
   }
   // Residual after dividing out every supplied prime; 1 iff they account for the
   // entire minimal discriminant. Extraneous primes (not of bad reduction) are
@@ -259,11 +266,18 @@ function conductorFromPrimes(gp: Gp, primes: string[]): { conductor: string | nu
     const shown = leftover.length > 40 ? `${leftover.slice(0, 40)}…` : leftover
     return {
       conductor: null,
+      badPrimes: null,
       note: `supplied primes of bad reduction are incomplete: they leave an unaccounted factor ${shown} of the minimal discriminant`,
     }
   }
-  const conductor = evalGp(gp, 'prod(i=1, #cps, cps[i]^elllocalred(E, cps[i])[1])')
-  return { conductor, note: null }
+  // The canonical bad-prime set: the supplied primes that actually divide the
+  // minimal discriminant (extraneous good primes are dropped, not recorded),
+  // sorted ascending. Nonempty: leftover == 1 and |disc| > 1 over Q. The
+  // conductor product runs over exactly these (good primes contribute p^0).
+  evalGp(gp, 'bps = vecsort(select(p -> E.disc % p == 0, cps))')
+  const badPrimes = parseGpVector(evalGp(gp, 'bps'), 'bad primes')
+  const conductor = evalGp(gp, 'prod(i=1, #bps, bps[i]^elllocalred(E, bps[i])[1])')
+  return { conductor, badPrimes, note: null }
 }
 
 // Standalone canonical dedup key for a curve, without verifying points.
@@ -290,6 +304,9 @@ export function naiveLogHeight(gp: Gp, ainvs: (string | number)[]): string {
 export interface PrimesResult {
   ok: boolean
   conductor: string | null
+  // The verified primes of bad reduction (sorted ascending), present iff the
+  // conductor is.
+  badPrimes: string[] | null
   // Set when primes were supplied but failed validation, or input was rejected.
   note: string | null
   errors: string[]
@@ -310,6 +327,7 @@ export function verifyPrimes(
   const out: PrimesResult = {
     ok: false,
     conductor: null,
+    badPrimes: null,
     note: null,
     errors: [],
   }
@@ -331,6 +349,7 @@ export function verifyPrimes(
     }
     const cond = conductorFromPrimes(gp, primes)
     out.conductor = cond.conductor
+    out.badPrimes = cond.badPrimes
     out.note = cond.note
     out.ok = cond.conductor != null
     return out
@@ -348,6 +367,7 @@ export function autoPrimes(gp: Gp, ainvs: (string | number)[]): PrimesResult {
   const out: PrimesResult = {
     ok: false,
     conductor: null,
+    badPrimes: null,
     note: null,
     errors: [],
   }
@@ -372,6 +392,7 @@ export function autoPrimes(gp: Gp, ainvs: (string | number)[]): PrimesResult {
     }
     const cond = conductorFromPrimes(gp, primes)
     out.conductor = cond.conductor
+    out.badPrimes = cond.badPrimes
     out.note = cond.note
     out.ok = cond.conductor != null
     return out
@@ -392,6 +413,7 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     independence: null,
     height: null,
     conductor: null,
+    badPrimes: null,
     faltingsHeight: null,
     conductorNote: null,
   }
@@ -466,6 +488,7 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     }
     const cond = conductorFromPrimes(gp, primes)
     result.conductor = cond.conductor
+    result.badPrimes = cond.badPrimes
     result.conductorNote = cond.note
     evalGp(gp, 'E = Einput;')
 

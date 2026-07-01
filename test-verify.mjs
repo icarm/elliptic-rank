@@ -162,11 +162,33 @@ const dupPrimes = verify(gp, {
   points: [['-2', '3'], ['-1', '3'], ['0', '2']],
   primes: ['5077', '5077', '0005077'],
 })
-if (!dupPrimes.ok || dupPrimes.conductor !== '5077') {
-  console.error(`FAIL: duplicated primes changed the conductor: got ${dupPrimes.conductor}`)
+if (!dupPrimes.ok || dupPrimes.conductor !== '5077' || JSON.stringify(dupPrimes.badPrimes) !== '["5077"]') {
+  console.error(`FAIL: duplicated primes changed the conductor or bad primes: got ${dupPrimes.conductor}, ${JSON.stringify(dupPrimes.badPrimes)}`)
   process.exitCode = 1
 } else {
   console.log('duplicated primes conductor OK: 5077')
+}
+
+// Bad primes are recorded canonically: deduplicated, sorted ascending, and
+// with extraneous good primes (here 7) dropped rather than stored. The
+// congruent-number-5 curve y^2 = x^3 - 25x: disc 10^6, conductor 800 = 2^5*5^2,
+// generator (-4, 6).
+const unsortedPrimes = verify(gp, {
+  ainvs: ['0', '0', '0', '-25', '0'],
+  points: [['-4', '6']],
+  primes: ['5', '02', '5', '2', '7'],
+})
+if (
+  !unsortedPrimes.ok ||
+  unsortedPrimes.conductor !== '800' ||
+  JSON.stringify(unsortedPrimes.badPrimes) !== '["2","5"]'
+) {
+  console.error(
+    `FAIL: bad primes not canonicalized: conductor ${unsortedPrimes.conductor}, badPrimes ${JSON.stringify(unsortedPrimes.badPrimes)}`,
+  )
+  process.exitCode = 1
+} else {
+  console.log('bad primes canonicalized OK: [2, 5], conductor 800')
 }
 
 // failure cases

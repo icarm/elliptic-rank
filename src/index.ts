@@ -213,7 +213,7 @@ app.get('/acknowledge', (c) => c.html(acknowledgePage(c.get('user'))))
 
 // Shared SELECT + JSON shape for the database download and the per-curve JSON.
 const CURVE_JSON_SELECT = `SELECT c.id, c.curve_key, c.ainvs, c.discriminant, c.naive_height, c.rank_lower_bound,
-            c.regulator, c.points, c.conductor, c.faltings_height,
+            c.regulator, c.points, c.conductor, c.bad_primes, c.faltings_height,
             c.created_at, c.updated_at, u.display_name AS submitter, cl.content AS commentary
        FROM curves c
        LEFT JOIN users u ON u.id = c.submitter_user_id
@@ -229,6 +229,7 @@ interface CurveJsonRow {
   regulator: string
   points: string
   conductor: string | null
+  bad_primes: string | null // JSON array of decimal strings
   faltings_height: number | null
   created_at: string
   updated_at: string
@@ -252,6 +253,7 @@ function curveJson(r: CurveJsonRow) {
     naive_height: r.naive_height,
     faltings_height: r.faltings_height,
     conductor: r.conductor,
+    bad_primes: r.bad_primes == null ? null : parse(r.bad_primes),
     discriminant: r.discriminant,
     regulator: r.regulator,
     points: parse(r.points),
@@ -378,6 +380,7 @@ app.post('/api/curve/:id/primes', async (c) => {
         id,
         alreadyRecorded: false,
         conductor: outcome.result.conductor,
+        badPrimes: outcome.result.badPrimes,
       })
     case 'rejected': {
       const res = outcome.result
@@ -541,6 +544,7 @@ function rejectedVerification(message: string): VerifyResult {
     independence: null,
     height: null,
     conductor: null,
+    badPrimes: null,
     faltingsHeight: null,
     conductorNote: null,
   }

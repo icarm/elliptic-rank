@@ -152,18 +152,21 @@ export async function recordFlags(env: Bindings, curve: RecordCandidate): Promis
   }
 }
 
-// Backfill the conductor — the one prime-gated invariant — for an existing curve
-// from its primes of bad reduction. COALESCE so an already-recorded conductor is
-// never overwritten. (Discriminant and Faltings height are set at submission.)
+// Backfill the conductor — the one prime-gated invariant — and its verified
+// bad primes (JSON array string) for an existing curve. COALESCE so an
+// already-recorded value is never overwritten. (Discriminant and Faltings
+// height are set at submission.)
 export async function setCurveConductor(
   env: Bindings,
   curveId: number,
   conductor: string,
+  badPrimes: string | null,
 ): Promise<void> {
   await env.DB.prepare(
-    'UPDATE curves SET conductor = COALESCE(conductor, ?), updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    `UPDATE curves SET conductor = COALESCE(conductor, ?), bad_primes = COALESCE(bad_primes, ?),
+       updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
   )
-    .bind(conductor, curveId)
+    .bind(conductor, badPrimes, curveId)
     .run()
 }
 
@@ -201,7 +204,12 @@ export async function backfillPrimes(
   }
   const result = mode === 'auto' ? autoPrimes(gp, ainvs) : verifyPrimes(gp, ainvs, primes)
   if (result.ok && result.conductor != null) {
-    await setCurveConductor(env, curveId, result.conductor)
+    await setCurveConductor(
+      env,
+      curveId,
+      result.conductor,
+      result.badPrimes ? JSON.stringify(result.badPrimes) : null,
+    )
     return { status: 'recorded', result }
   }
   return { status: 'rejected', result }
@@ -225,14 +233,16 @@ export async function recordCurve(
   const height = toFloat(result.height!.naiveLogHeight)
   const regulator = result.independence!.regulator
   // Faltings height is computed from the minimal model at submission (no primes
-  // needed), so it is always present. The conductor is the one prime-gated value.
+  // needed), so it is always present. The conductor is the one prime-gated value;
+  // its verified bad primes (stored as a JSON array) travel with it.
   const conductor = result.conductor // string | null
+  const badPrimes = result.badPrimes ? JSON.stringify(result.badPrimes) : null
   const faltings = result.faltingsHeight != null ? toFloat(result.faltingsHeight) : null
 
   const hasCommentary = !!commentary && commentary.trim().length > 0
 
   const existing = await env.DB.prepare(
-    `SELECT id, rank_lower_bound, naive_height, conductor, current_comment_id
+    `SELECT id, rank_lower_bound, naive_height, conductor, bad_primes, current_comment_id
        FROM curves WHERE curve_key = ?`,
   )
     .bind(key)
@@ -241,6 +251,7 @@ export async function recordCurve(
       rank_lower_bound: number
       naive_height: number
       conductor: string | null
+      bad_primes: string | null
       current_comment_id: number | null
     }>()
 
@@ -248,8 +259,8 @@ export async function recordCurve(
     const ins = await env.DB.prepare(
       `INSERT INTO curves
          (curve_key, c4, c6, ainvs, discriminant, naive_height, rank_lower_bound,
-          regulator, points, submitter_user_id, conductor, faltings_height)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          regulator, points, submitter_user_id, conductor, bad_primes, faltings_height)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
         key,
@@ -263,6 +274,7 @@ export async function recordCurve(
         points,
         userId,
         conductor,
+        badPrimes,
         faltings,
       )
       .run()
@@ -285,22 +297,26 @@ export async function recordCurve(
       .run()
   }
 
-  // The conductor is the only prime-gated value, so it's the only thing a
-  // re-submission can backfill (Faltings height was set at the first submission).
+  // The conductor (with its bad primes) is the only prime-gated value, so it's
+  // the only thing a re-submission can backfill (Faltings height was set at the
+  // first submission). Bad primes can also lag the conductor on rows recorded
+  // before they were stored, so a re-submission may fill just them.
   const setConductor = conductor != null && existing.conductor == null
+  const setBadPrimes = badPrimes != null && existing.bad_primes == null
 
   if (rank > existing.rank_lower_bound) {
     await env.DB.prepare(
       `UPDATE curves SET rank_lower_bound = ?, regulator = ?, points = ?, ainvs = ?,
          submitter_user_id = ?, conductor = COALESCE(conductor, ?),
+         bad_primes = COALESCE(bad_primes, ?),
          faltings_height = COALESCE(faltings_height, ?), updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
     )
-      .bind(rank, regulator, points, ainvs, userId, conductor, faltings, existing.id)
+      .bind(rank, regulator, points, ainvs, userId, conductor, badPrimes, faltings, existing.id)
       .run()
     return { id: existing.id, status: 'improved', rank, previousRank: existing.rank_lower_bound, conductorRecorded: setConductor }
   }
 
-  if (setConductor) await setCurveConductor(env, existing.id, conductor!)
+  if (setConductor || setBadPrimes) await setCurveConductor(env, existing.id, conductor!, badPrimes)
   return { id: existing.id, status: 'unchanged', rank: existing.rank_lower_bound, conductorRecorded: setConductor }
 }
