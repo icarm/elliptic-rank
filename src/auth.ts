@@ -340,5 +340,6 @@ export async function logout(c: Ctx): Promise<Response> {
     await c.env.SESSIONS.delete(await sessionKey(token))
     deleteCookie(c, SESSION_COOKIE, { path: '/' })
   }
-  return c.redirect('/', 302)
+  // Return to the page the log-out form was submitted from, when it is safe.
+  return c.redirect(safeReturnPath(refererPath(c.req.raw)) ?? '/', 302)
 }
