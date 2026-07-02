@@ -77,9 +77,6 @@ app.get('/recent', async (c) => {
 
 app.get('/progress', async (c) => {
   const startParam = c.req.query('start')
-    ?? c.req.query('startId')
-    ?? c.req.query('starting')
-    ?? c.req.query('startingId')
   const parsedStartId = startParam === undefined ? undefined : Math.floor(Number(startParam))
   const startId = parsedStartId !== undefined && Number.isFinite(parsedStartId) ? parsedStartId : undefined
   const metric = c.req.query('metric')

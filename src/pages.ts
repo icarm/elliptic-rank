@@ -126,10 +126,13 @@ export interface ProgressCurve {
   discriminant: string
 }
 
-type ProgressMetric = 'conductor' | 'naive' | 'faltings' | 'discriminant'
+type ProgressMetric = 'conductor' | 'naive' | 'faltings' | 'disc'
 
+// 'disc' matches the landing page's ?metric= values and the table's sort key;
+// 'discriminant' is accepted as a legacy spelling from earlier /progress URLs.
 function progressMetricKey(metric: string | undefined): ProgressMetric {
-  return metric === 'naive' || metric === 'faltings' || metric === 'conductor' || metric === 'discriminant'
+  if (metric === 'discriminant') return 'disc'
+  return metric === 'naive' || metric === 'faltings' || metric === 'conductor' || metric === 'disc'
     ? metric
     : 'conductor'
 }
@@ -260,7 +263,7 @@ export function progressPage(
     conductor: 'log conductor',
     naive: 'naive height',
     faltings: 'Faltings height',
-    discriminant: 'log |discriminant|',
+    disc: 'log |discriminant|',
   }
   const referenceCurves = [
     {
@@ -296,7 +299,7 @@ export function progressPage(
       conductor: c.conductor == null ? null : logBigInt(c.conductor),
       naive: c.naive_height,
       faltings: c.faltings_height,
-      discriminant: logBigInt(c.discriminant),
+      disc: logBigInt(c.discriminant),
     }))
   const W = 900, H = 540, L = 68, R = 28, T = 22, B = 54
   const plotW = W - L - R, plotH = H - T - B
@@ -385,7 +388,7 @@ export function progressPage(
   const ids = JSON.stringify(pts.map((p) => p.id)).replace(/</g, '\\u003c')
   const progressData = JSON.stringify(pts).replace(/</g, '\\u003c')
   const referenceData = JSON.stringify(referenceCurves.map(({ key, c, label, equation }) => ({ key, c, label, equation }))).replace(/</g, '\\u003c')
-  const metricControls = (['conductor', 'naive', 'faltings', 'discriminant'] as const)
+  const metricControls = (['conductor', 'naive', 'faltings', 'disc'] as const)
     .map((key) => `<label><input type="radio" name="progress-metric" value="${key}"${key === selectedMetric ? ' checked' : ''} /><span>${metricLabels[key]}</span></label>`)
     .join('\n')
   const referenceControls = referenceCurves
@@ -453,7 +456,7 @@ export function progressPage(
           conductor: { label: 'log conductor', format: (v) => v.toFixed(0) },
           naive: { label: 'naive height', format: (v) => v.toFixed(0) },
           faltings: { label: 'Faltings height', format: (v) => v.toFixed(2) },
-          discriminant: { label: 'log |discriminant|', format: (v) => v.toFixed(0) },
+          disc: { label: 'log |discriminant|', format: (v) => v.toFixed(0) },
         };
         const T = ${T}, plotH = ${plotH}, L = ${L}, RANK_MAX = ${rankMax}, PLOT_W = ${plotW}, PLOT_RIGHT = ${W - R};
         const startSlider = document.getElementById('progress-start');
@@ -618,9 +621,6 @@ export function progressPage(
         function updateStartUrl() {
           const url = new URL(window.location.href);
           url.searchParams.set('start', startSlider.value);
-          url.searchParams.delete('startId');
-          url.searchParams.delete('starting');
-          url.searchParams.delete('startingId');
           window.history.replaceState(null, '', url);
         }
 
@@ -1297,9 +1297,10 @@ export function apiDocsPage(user: User | null = null): string {
       <h2>API</h2>
       <p>All numbers are exact integers or rationals (e.g. <code>"49/4"</code>), passed
       <strong>as strings</strong> to avoid precision loss. <code>ainvs</code> may be the short
-      <code>[a4, a6]</code> or full <code>[a1, a2, a3, a4, a6]</code> Weierstrass form. Every endpoint
-      requires an <code>Authorization: Bearer &lt;token&gt;</code> header &mdash; create a token on
-      your <a href="/profile">profile</a> page.</p>
+      <code>[a4, a6]</code> or full <code>[a1, a2, a3, a4, a6]</code> Weierstrass form. The
+      <code>POST</code> endpoints require an <code>Authorization: Bearer &lt;token&gt;</code> header
+      &mdash; create a token on your <a href="/profile">profile</a> page. The JSON downloads are
+      public.</p>
 
       <h3>POST <code>/api/submit</code></h3>
       <p>Submits a curve with a set of witness points. The points are checked to lie on the curve, and
