@@ -94,12 +94,31 @@ app.get('/curve/:file{[0-9]+\\.json}', async (c) => {
     .bind(id)
     .first<CurveJsonRow>()
   if (!row) return c.json({ error: 'no such curve' }, 404)
-  return c.body(JSON.stringify(curveJson(row), null, 2), 200, {
-    'content-type': 'application/json; charset=UTF-8',
-    'content-disposition': `attachment; filename="elliptic-rank-curve-${id}.json"`,
-    'cache-control': 'no-cache',
-  })
+  return jsonDownload(c.req.raw, JSON.stringify(curveJson(row), null, 2), `elliptic-rank-curve-${id}.json`)
 })
+
+// A JSON attachment response with a strong ETag over the exact body, so
+// clients can revalidate cheaply. no-cache = clients may store but must
+// revalidate every time; paired with the ETag, a fresh request returns 304
+// (no body) when nothing changed — the body only changes when a submission does.
+async function jsonDownload(req: Request, payload: string, filename: string): Promise<Response> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload))
+  const etag =
+    '"' +
+    [...new Uint8Array(digest)]
+      .slice(0, 16)
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('') +
+    '"'
+  const headers = {
+    'content-type': 'application/json; charset=UTF-8',
+    'content-disposition': `attachment; filename="${filename}"`,
+    'cache-control': 'no-cache',
+    etag,
+  }
+  if (req.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers })
+  return new Response(payload, { status: 200, headers })
+}
 
 // Load a curve with its submitter name and current commentary, or null if no
 // such curve. Shared by the detail page (GET) and the bad-primes form (POST).
@@ -270,26 +289,7 @@ app.get('/database.json', async (c) => {
   // Pretty-printed (2-space indent) so the download is readable line-by-line —
   // a single 60+ KB line is awkward for humans and tools alike.
   const payload = JSON.stringify({ count: curves.length, curves }, null, 2)
-  // Strong ETag over the exact body so clients can revalidate cheaply: the body
-  // changes only when a submission does, so unchanged downloads return a 304.
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload))
-  const etag =
-    '"' +
-    [...new Uint8Array(digest)]
-      .slice(0, 16)
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('') +
-    '"'
-  const headers = {
-    'content-type': 'application/json; charset=UTF-8',
-    'content-disposition': 'attachment; filename="elliptic-rank-database.json"',
-    // no-cache = clients may store but must revalidate every time; paired with
-    // the ETag, a fresh request returns 304 (no body) when nothing changed.
-    'cache-control': 'no-cache',
-    etag,
-  }
-  if (c.req.header('if-none-match') === etag) return c.body(null, 304, headers)
-  return c.body(payload, 200, headers)
+  return jsonDownload(c.req.raw, payload, 'elliptic-rank-database.json')
 })
 
 // JSON API: submit a curve + witness points. Requires a bearer token; the
