@@ -819,7 +819,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
           </select>
           <input id="rank-filter" type="number" min="1" step="1" placeholder="1" />
         </label>
-        <span class="muted">showing <span id="curve-count">${curves.length}</span> of ${curves.length} curves</span>
+        <span class="muted">showing <span id="curve-count">${curves.length}</span> of <a id="show-all" title="show all curves (clear the rank filter)">${curves.length} curves</a></span>
         <a href="/database.json" download>Download the database (JSON) &darr;</a>
       </div>
       <div class="table-scroll">
@@ -849,6 +849,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         var rankOp = document.getElementById('rank-op');
         var count = document.getElementById('curve-count');
         var heading = document.getElementById('table-title');
+        var showAll = document.getElementById('show-all');
         var buttons = document.querySelectorAll('button.sort');
         var sortKey = 'conductor';
         var sortDir = 1; // 1 = ascending, -1 = descending; default: smallest conductor first
@@ -900,6 +901,12 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
             q.set('sort', sortKey);
             if (sortDir === -1) q.set('dir', 'desc');
           }
+          // While a filter is active, "N curves" in the count line links back to
+          // the unfiltered view (href keeps the sort, for new tabs); unfiltered,
+          // the anchor has no href and renders as plain text.
+          var sortQs = q.toString();
+          if (restricted) showAll.setAttribute('href', '/curves' + (sortQs ? '?' + sortQs : ''));
+          else showAll.removeAttribute('href');
           // Persist the value whenever it filters: any value in "=" mode, or >1 in ">=" mode.
           if (restricted) q.set('minrank', String(n));
           if (eq) q.set('rankmode', 'eq');
@@ -920,6 +927,14 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         });
         rankInput.addEventListener('input', apply);
         rankOp.addEventListener('change', apply);
+        // Clear the rank filter in place (keeping the sort); modified clicks
+        // fall through to the href so the unfiltered view can open in a new tab.
+        showAll.addEventListener('click', function (e) {
+          if (!showAll.hasAttribute('href') || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          rankInput.value = '';
+          apply();
+        });
         // Clicking a row's "≥ N" restricts the view to exactly that lower bound,
         // in place (preserving the current sort). Modified clicks fall through to
         // the link's href so the filtered view can still open in a new tab.
