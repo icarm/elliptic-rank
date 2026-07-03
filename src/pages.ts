@@ -808,7 +808,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
     `<th class="${extraClass}"><button type="button" class="sort" data-key="${key}"${title ? ` title="${title}"` : ''}>${label}</button></th>`
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a></p>
-      <h2>All curves</h2>
+      <h2 id="table-title">All curves</h2>
       <p class="page-subtitle">Click a column header to sort; click again to reverse. Curves missing a
       value (no primes of bad reduction supplied yet) sort last.</p>
       <div class="table-controls">
@@ -848,6 +848,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         var rankInput = document.getElementById('rank-filter');
         var rankOp = document.getElementById('rank-op');
         var count = document.getElementById('curve-count');
+        var heading = document.getElementById('table-title');
         var buttons = document.querySelectorAll('button.sort');
         var sortKey = 'conductor';
         var sortDir = 1; // 1 = ascending, -1 = descending; default: smallest conductor first
@@ -885,13 +886,22 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
           buttons.forEach(function (b) {
             b.className = 'sort' + (b.dataset.key === sortKey ? (sortDir === 1 ? ' asc' : ' desc') : '');
           });
+          // The heading names the current view: "All curves" when unfiltered
+          // (including ">= 1", which every curve satisfies), the rank
+          // restriction otherwise — same condition as the query string below.
+          var restricted = hasFilter && (eq || n > 1);
+          var title = restricted
+            ? 'Curves with rank lower bound ' + (eq ? '= ' : '\\u2265 ') + n
+            : 'All curves';
+          heading.textContent = title;
+          document.title = title + ' \\u2014 Elliptic Curve Rank Leaderboard';
           var q = new URLSearchParams();
           if (sortKey !== 'conductor' || sortDir !== 1) {
             q.set('sort', sortKey);
             if (sortDir === -1) q.set('dir', 'desc');
           }
           // Persist the value whenever it filters: any value in "=" mode, or >1 in ">=" mode.
-          if (hasFilter && (eq || n > 1)) q.set('minrank', String(n));
+          if (restricted) q.set('minrank', String(n));
           if (eq) q.set('rankmode', 'eq');
           var qs = q.toString();
           history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
