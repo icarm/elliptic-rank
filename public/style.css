@@ -123,13 +123,6 @@ main a {
   color: var(--accent);
 }
 
-/* An anchor with no href is inert placeholder text (e.g. the "N curves"
-   count on /curves when no filter is active) — don't dress it as a link. */
-main a:not([href]) {
-  color: inherit;
-  text-decoration: none;
-}
-
 .muted {
   color: var(--muted);
 }
