@@ -12,8 +12,8 @@
 //      (https://johncremona.github.io/papers/filter.pdf, section 2; the method
 //      goes back to Brumer). See `GP_CERT` below for the algorithm and why it
 //      is a rigorous certificate. No floating-point arithmetic is involved in
-//      the accept/reject decision; the Neron-Tate regulator and Gram-matrix
-//      eigenvalues are still computed, but only as informational diagnostics.
+//      the accept/reject decision; the Neron-Tate regulator is still computed,
+//      but only as an informational (stored/displayed) diagnostic.
 //
 // Independence of r points modulo torsion proves rank E(Q) >= r without
 // computing the exact rank. We also compute the GLOBAL MINIMAL MODEL invariants (c4,c6), recovered
@@ -76,11 +76,11 @@ export interface IndependenceResult {
   // Exact certificate proving the bound; null when independence could not be
   // certified (rankLowerBound is then the certified partial bound).
   certificate: IndependenceCertificate | null
-  // Informational (approximate) diagnostics; not part of the proof.
+  // Informational: the Neron-Tate height-pairing determinant of the submitted
+  // points (approximate; not part of the proof) and the digits it was
+  // computed at.
   regulator: string
-  minEigenvalue: string
   precisionDigits: number
-  stable: boolean
   method: string
 }
 
@@ -291,11 +291,6 @@ function evalGp(gp: Gp, cmd: string): string {
     throw new Error(`PARI: ${out.slice(0, 160)}`)
   }
   return out
-}
-
-// Parse a PARI real ("1.5329 E-17", "3857298234011609", "-0.15") to a JS number.
-function pariFloat(s: string): number {
-  return Number(s.replace(/\s+/g, '').replace(/E/i, 'e'))
 }
 
 function parseGpVector(out: string, label: string): string[] {
@@ -672,24 +667,15 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     }
 
     // --- 4. Independence: exact 2-descent quadratic-character certificate ---
-    // (see GP_CERT above). The regulator / Gram-matrix eigenvalues are still
-    // computed first, but purely as informational diagnostics.
+    // (see GP_CERT above). The regulator is still computed first, but purely
+    // as an informational diagnostic (it is stored and displayed with the
+    // curve); it plays no role in the accept/reject decision.
     const n = pts.length
     const prec = Math.min(250, Math.max(38, 38 + 2 * n))
     const ptsGp = '[' + pts.map((p) => `[${p[0]},${p[1]}]`).join(',') + ']'
     evalGp(gp, `\\p ${prec}`)
     evalGp(gp, `pts = ${ptsGp}`)
-    evalGp(gp, 'M = ellheightmatrix(E, pts)')
-    const regulator = evalGp(gp, 'matdet(M)')
-    // Smallest eigenvalue of the (symmetric, positive-semidefinite) Gram matrix.
-    const minEig = evalGp(gp, 'vecmin(qfjacobi(M)[1])')
-
-    // Regulator stability across precisions — reported, not decisive.
-    evalGp(gp, `\\p ${prec + 25}`)
-    const regulator2 = evalGp(gp, 'matdet(ellheightmatrix(E, pts))')
-    const r1 = pariFloat(regulator)
-    const r2 = pariFloat(regulator2)
-    const stable = r1 > 0 && Math.abs(r1 - r2) <= 1e-6 * Math.abs(r1)
+    const regulator = evalGp(gp, 'matdet(ellheightmatrix(E, pts))')
 
     // The exact certificate runs on the short model F: y^2 = x^3 - 27c4 x - 54c6
     // of the (integral) global minimal model; the submitted points are
@@ -739,9 +725,7 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
         ? { primes: certPrimes, matrixRank, torsionRank, halvings, torsion }
         : null,
       regulator,
-      minEigenvalue: minEig,
       precisionDigits: prec,
-      stable,
       method: independent
         ? `exact 2-descent certificate (Cremona/Brumer): quadratic-character images at ` +
           `${certPrimes.length} good primes give an F_2 matrix of rank ${matrixRank} ` +

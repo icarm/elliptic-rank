@@ -1289,8 +1289,8 @@ export function apiDocsPage(user: User | null = null): string {
       "primes": ["7","11","17", ...], "matrixRank": 12, "torsionRank": 0,
       "halvings": 0, "torsion": "[]"
     },
-    "regulator": "...", "minEigenvalue": "...",   // informational diagnostics
-    "precisionDigits": 62, "stable": true, "method": "..."
+    "regulator": "...", "precisionDigits": 62,    // informational diagnostic
+    "method": "..."
   },
   "height": { "naiveLogHeight": "79.3286..." },
   "faltingsHeight": "...",
