@@ -6,12 +6,17 @@
 //
 //   1. the curve is nonsingular (a genuine elliptic curve);
 //   2. every submitted point lies on the curve (exact rational arithmetic);
-//   3. the points are linearly independent in E(Q) tensor R, witnessed by the
-//      Neron-Tate height-pairing Gram matrix being positive definite.
+//   3. the points are linearly independent modulo torsion, certified EXACTLY by
+//      the 2-descent quadratic-character method of Cremona's "On the
+//      computation of Mordell-Weil and 2-Selmer groups of elliptic curves"
+//      (https://johncremona.github.io/papers/filter.pdf, section 2; the method
+//      goes back to Brumer). See `GP_CERT` below for the algorithm and why it
+//      is a rigorous certificate. No floating-point arithmetic is involved in
+//      the accept/reject decision; the Neron-Tate regulator and Gram-matrix
+//      eigenvalues are still computed, but only as informational diagnostics.
 //
-// (2) automatically quotients out torsion (torsion has canonical height 0), so
-// independence of r points proves rank E(Q) >= r without computing the exact
-// rank. We also compute the GLOBAL MINIMAL MODEL invariants (c4,c6), recovered
+// Independence of r points modulo torsion proves rank E(Q) >= r without
+// computing the exact rank. We also compute the GLOBAL MINIMAL MODEL invariants (c4,c6), recovered
 // without knowing the primes of bad reduction — see `minimalC4C6`. These give both the
 // canonical Q-isomorphism key and the naive height
 // log max(|c4|^3,|c6|^2), matching the EW/LMFDB/Cremona convention.
@@ -49,9 +54,29 @@ export interface PointResult {
   onCurve: boolean
 }
 
+// The exact proof data behind an accepted rank bound: quadratic-character
+// images of the points (and torsion generators) at `primes` form an F_2 matrix
+// of rank `matrixRank` whose torsion rows have rank `torsionRank`;
+// matrixRank - torsionRank = #points certifies independence modulo torsion.
+export interface IndependenceCertificate {
+  primes: string[]
+  matrixRank: number
+  torsionRank: number
+  // Point replacements P -> R with 2R = P + torsion performed before the
+  // matrix reached full rank (0 for a typical submission). Halving preserves
+  // the rank of the span, so the certificate applies to the submitted points.
+  halvings: number
+  // Torsion subgroup structure of the curve, e.g. "[]" (trivial) or "[2, 2]".
+  torsion: string
+}
+
 export interface IndependenceResult {
   independent: boolean
   rankLowerBound: number
+  // Exact certificate proving the bound; null when independence could not be
+  // certified (rankLowerBound is then the certified partial bound).
+  certificate: IndependenceCertificate | null
+  // Informational (approximate) diagnostics; not part of the proof.
   regulator: string
   minEigenvalue: string
   precisionDigits: number
@@ -99,10 +124,149 @@ export interface VerifyResult {
 const NUM_RE = /^[+-]?\d+(?:\/\d+)?$/
 const MAX_NUMERIC_PART_DIGITS = 256
 const MAX_POINTS = 64
-// Eigenvalue threshold separating "independent" (height pairing positive
-// definite) from numerically-zero (dependent). Independent point sets give a
-// smallest eigenvalue far above this; dependent sets give ~10^-precision.
-const EIGEN_MARGIN = '1e-9'
+// Cap on point replacements (P -> R with 2R = P + torsion) while searching for
+// a certifiable working set. Each halving divides a canonical height by ~4;
+// legitimate submissions need 0, and even a point submitted as 2^40*G is
+// beyond the coordinate size limits, so hitting the cap means "reject".
+const MAX_HALVINGS = 40
+
+// --- Exact independence certificate ---------------------------------------
+//
+// GP implementation of the independence-proving algorithm of Cremona,
+// "On the computation of Mordell-Weil and 2-Selmer groups of elliptic curves"
+// (filter.pdf, section 2), attributed to Brumer; also Silverman's xedni paper,
+// appendix D. All arithmetic is exact (integers mod p and rational points).
+//
+// Setting: F is an integral short Weierstrass model y^2 = f(x) = x^3 + Ax + B
+// (we use [0,0,0,-27c4,-54c6] of the global minimal model). For a good prime
+// p (p not dividing 6*disc, so p > 3, good reduction, f separable mod p) where
+// f has k >= 1 roots mod p (k = 1 or 3), there are group homomorphisms
+//
+//   eps_p : E(Q)/2E(Q) -> (Z/2)^min(k,2)
+//
+// given per root theta of f mod p by writing x(P) = u/w^2 in lowest terms and
+// taking the quadratic character of (u - theta*w^2) mod p — or of f'(theta)
+// when p divides u - theta*w^2 (points reducing to the identity get character
+// 0 automatically: their class is psi(u) and the p-adic kernel of reduction is
+// 2-divisible for odd good p). Homomorphy is the only property we use.
+//
+// Certificate: stack the eps_p images of the n candidate points AND of the
+// even-order generators of the (exactly computed) torsion subgroup into a
+// matrix over F_2. If rank(all rows) - rank(torsion rows) = n, the points are
+// independent modulo torsion, hence rank E(Q) >= n. Proof: a relation
+// sum n_i P_i in torsion (n_i not all 0) can be halved until some n_i is odd
+// (twice a torsion point's preimage is torsion), and then reducing mod 2E(Q)
+// gives sum_{n_i odd} [P_i] = [S] with S torsion; every torsion class [S] lies
+// in the F_2-span of the even-order generators' classes (odd-order torsion is
+// 2-divisible within torsion), so applying eps makes the point rows dependent
+// on the torsion rows — contradicting the rank condition. Note the certificate
+// direction needs NO injectivity of eps and no minimum number of primes: more
+// primes only ever help. Including the torsion rows closes a gap in the
+// paper's simplified exposition (independence of eps-images alone does not
+// rule out all-even-coefficient relations such as 2P - 2(P+T) = 0 for
+// 2-torsion T).
+//
+// When the rank condition fails, a kernel vector of the matrix names a
+// candidate relation Q = sum_{c_i=1} P_i with eps(Q) in the torsion span:
+//   - if Q is torsion (or the identity), the points are PROVABLY dependent
+//     modulo torsion: reject with the relation;
+//   - if Q + tau = 2R for some torsion tau (exact division by 2 via
+//     ellisdivisible), replace one involved point by R and retry. This leaves
+//     the Q-span of the working set unchanged (2R = Q + tau gives R in the
+//     span tensor Q, and the replaced point is recovered from 2R minus the
+//     others), so both later verdicts transfer to the submitted points. The
+//     choice of replaced index affects only convergence, never soundness.
+//     Following the paper's height-descent argument, we replace the LARGEST
+//     point (by exact bit-size of the x-coordinate, a naive-height proxy that
+//     keeps this code float-free) among those in the relation NOT equivalent
+//     to R up to sign and torsion. Both criteria dodge oscillations: the
+//     relation P3 = P1 - P2 gives Q = 2P1 and R = P1, where replacing P1 by
+//     itself would loop forever, while P8 = 3P1 - P2 gives Q = 4P1 and
+//     R = 2P1, where replacing the small point P1 by 2P1 creates a zero row
+//     that immediately halves back. Replacing the largest non-equivalent
+//     point instead makes the set contain a repeated point up to sign/torsion
+//     within a few rounds, which the degeneracy check below converts into a
+//     proof of dependence. (If R matches every point in the relation, any
+//     choice makes the degeneracy check fire, which is also correct:
+//     work[j] = +-R + tau combined with 2R = Q + tau' is a genuine integer
+//     relation with an odd coefficient.)
+//   - otherwise the relation is spurious (eps just cannot see the difference
+//     yet) and more primes are guaranteed (Chebotarev) to kill it.
+// After each replacement, a pairwise check catches working sets that have
+// degenerated into an exact dependence (difference or sum of two points
+// torsion), which likewise proves the submitted points dependent.
+//
+// erk_cert returns [status, primes, rankAll, rankTors, halvings, relation]
+// with status 1 = certified independent, -1 = proven dependent (relation =
+// 1-based indices of an involved subset), 0 = inconclusive within budget
+// (never observed for honest input; a safe reject).
+const GP_CERT: string[] = [
+  'erk_psi(a, p) = (1 - kronecker(a, p)) / 2;',
+  'erk_eps(A, pts, p, rs) = {my(k = min(#rs, 2), m = matrix(#pts, k)); ' +
+    'for(i = 1, #pts, if(#pts[i] == 1, next); ' +
+    'my(u = numerator(pts[i][1]), w2 = denominator(pts[i][1])); ' +
+    'for(j = 1, k, my(th = rs[j], a = (u - th*w2) % p); ' +
+    'if(a == 0, a = (3*th^2 + A) % p); ' +
+    'm[i, j] = erk_psi(a, p))); m}',
+  'erk_cert(F, pts0, maxhalve) = {' +
+    'my(A = F.a4, B = F.a6, D = F.disc, n = #pts0, tor = elltors(F), ' +
+    '   tg = [], tors = [[0]], work = pts0, halved = 0, t); ' +
+    'for(i = 1, #tor[2], if(tor[2][i] % 2 == 0, tg = concat(tg, [tor[3][i]]))); ' +
+    'for(i = 1, #tor[2], my(g = tor[3][i], cur = List()); ' +
+    '  for(k = 0, tor[2][i] - 1, my(gk = ellmul(F, g, k)); ' +
+    '    for(j = 1, #tors, listput(cur, elladd(F, tors[j], gk)))); ' +
+    '  tors = Vec(cur)); ' +
+    't = #tg; ' +
+    'while(1, ' +
+    '  my(all = concat(work, tg), rows = vector(n + t, i, []), used = List(), ' +
+    '     p = 3, ncols = 0, target = n + t + 10, rall = 0, rt = 0, acted = 0); ' +
+    '  while(!acted, ' +
+    '    while(ncols < target && p < 10^6, ' +
+    '      p = nextprime(p + 1); ' +
+    '      if(D % p == 0, next); ' +
+    '      my(rs = lift(Vec(polrootsmod(\'x^3 + A*\'x + B, p)))); ' +
+    '      if(#rs == 0, next); ' +
+    '      my(blk = erk_eps(A, all, p, rs)); ' +
+    '      for(i = 1, n + t, rows[i] = concat(rows[i], blk[i, ])); ' +
+    '      listput(used, p); ' +
+    '      ncols += min(#rs, 2)); ' +
+    '    my(M = Mod(matrix(n + t, ncols, i, j, rows[i][j]), 2)); ' +
+    '    rall = matrank(M); ' +
+    '    rt = if(t, matrank(Mod(matrix(t, ncols, i, j, rows[n + i][j]), 2)), 0); ' +
+    '    if(rall - rt == n, return([1, Vec(used), rall, rt, halved, []])); ' +
+    '    my(K = lift(matker(M~))); ' +
+    '    for(j = 1, matsize(K)[2], ' +
+    '      my(v = K[, j], c = select(i -> v[i] == 1, [1..n])); ' +
+    '      if(#c == 0, next); ' +
+    '      my(Q = [0]); ' +
+    '      for(i = 1, #c, Q = elladd(F, Q, work[c[i]])); ' +
+    '      if(#Q == 1 || ellorder(F, Q), return([-1, Vec(used), rall, rt, halved, c])); ' +
+    '      my(R = 0, hit = 0); ' +
+    '      for(k = 1, #tors, if(ellisdivisible(F, elladd(F, Q, tors[k]), 2, &R), hit = 1; break)); ' +
+    '      if(hit, ' +
+    '        halved++; ' +
+    '        if(halved > maxhalve, return([0, Vec(used), rall, rt, halved, []])); ' +
+    '        my(ri = 0, rh = -1); ' +
+    '        for(i = 1, #c, ' +
+    '          my(s = ellsub(F, work[c[i]], R), a2 = elladd(F, work[c[i]], R)); ' +
+    '          if(#s == 1 || #a2 == 1 || ellorder(F, s) || ellorder(F, a2), next); ' +
+    '          my(h = exponent(max(1, abs(numerator(work[c[i]][1])))) + exponent(max(1, denominator(work[c[i]][1])))); ' +
+    '          if(h > rh, rh = h; ri = c[i])); ' +
+    '        if(!ri, ri = c[1]); ' +
+    '        work[ri] = R; ' +
+    '        for(i = 1, n, if(i != ri, ' +
+    '          my(s = ellsub(F, work[i], R), a2 = elladd(F, work[i], R)); ' +
+    '          if(#s == 1 || #a2 == 1 || ellorder(F, s) || ellorder(F, a2), ' +
+    '            return([-1, Vec(used), rall, rt, halved, vecsort([i, ri])])))); ' +
+    '        acted = 1; break)); ' +
+    '    if(!acted, ' +
+    '      if(p >= 10^6 || ncols >= 640, return([0, Vec(used), rall, rt, halved, []])); ' +
+    '      target += n + t + 10)));}',
+]
+
+function installCertHelpers(gp: Gp): void {
+  for (const def of GP_CERT) evalGp(gp, def)
+}
 
 class InputError extends Error {}
 
@@ -507,7 +671,9 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
       return result
     }
 
-    // --- 4. Independence via the Neron-Tate height-pairing regulator ---
+    // --- 4. Independence: exact 2-descent quadratic-character certificate ---
+    // (see GP_CERT above). The regulator / Gram-matrix eigenvalues are still
+    // computed first, but purely as informational diagnostics.
     const n = pts.length
     const prec = Math.min(250, Math.max(38, 38 + 2 * n))
     const ptsGp = '[' + pts.map((p) => `[${p[0]},${p[1]}]`).join(',') + ']'
@@ -517,33 +683,88 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     const regulator = evalGp(gp, 'matdet(M)')
     // Smallest eigenvalue of the (symmetric, positive-semidefinite) Gram matrix.
     const minEig = evalGp(gp, 'vecmin(qfjacobi(M)[1])')
-    // Numerical rank = number of eigenvalues clearly above the margin.
-    const numRank = Number(evalGp(gp, `#select(x -> (x > ${EIGEN_MARGIN}), qfjacobi(M)[1])`))
 
-    // Stability check: recompute the regulator at higher precision; a genuine
-    // (precision-independent) positive value should barely move.
+    // Regulator stability across precisions — reported, not decisive.
     evalGp(gp, `\\p ${prec + 25}`)
     const regulator2 = evalGp(gp, 'matdet(ellheightmatrix(E, pts))')
     const r1 = pariFloat(regulator)
     const r2 = pariFloat(regulator2)
     const stable = r1 > 0 && Math.abs(r1 - r2) <= 1e-6 * Math.abs(r1)
 
-    const independent = pariFloat(minEig) > pariFloat(EIGEN_MARGIN) && stable
+    // The exact certificate runs on the short model F: y^2 = x^3 - 27c4 x - 54c6
+    // of the (integral) global minimal model; the submitted points are
+    // transported through exact rational changes of variables and re-checked.
+    installCertHelpers(gp)
+    // [u,r,s,t] with u=1/6, r=-b2/12, s=-a1/2, t=-(a3+r*a1)/2 sends any model to
+    // y^2 = x^3 - 27c4 x - 54c6 (the classical X=36x+3b2, Y=108(2y+a1x+a3)).
+    evalGp(
+      gp,
+      'erkV = [1/6, -Emin.b2/12, -Emin.a1/2, -(Emin.a3 - Emin.b2*Emin.a1/12)/2];',
+    )
+    evalGp(gp, 'erkF = ellinit(ellchangecurve(Emin, erkV));')
+    // The certificate's character maps assume a short model y^2 = x^3 + Ax + B
+    // with integral A, B: assert it rather than trust the algebra above.
+    if (
+      evalGp(
+        gp,
+        'erkF.a1 == 0 && erkF.a2 == 0 && erkF.a3 == 0 && ' +
+          'type(erkF.a4) == "t_INT" && type(erkF.a6) == "t_INT"',
+      ) !== '1'
+    ) {
+      throw new Error('internal: transformation to a short Weierstrass model failed')
+    }
+    evalGp(
+      gp,
+      `erkPts = vector(${n}, i, ellchangepoint(ellchangepoint(pts[i], EminChange), erkV));`,
+    )
+    if (evalGp(gp, `sum(i = 1, ${n}, ellisoncurve(erkF, erkPts[i])) == ${n}`) !== '1') {
+      throw new Error('internal: points failed to transport to the short model')
+    }
+    evalGp(gp, `erkRes = erk_cert(erkF, erkPts, ${MAX_HALVINGS});`)
+    const status = evalGp(gp, 'erkRes[1]')
+    const certPrimes = parseGpVector(evalGp(gp, 'erkRes[2]'), 'certificate primes')
+    const matrixRank = Number(evalGp(gp, 'erkRes[3]'))
+    const torsionRank = Number(evalGp(gp, 'erkRes[4]'))
+    const halvings = Number(evalGp(gp, 'erkRes[5]'))
+    const torsion = evalGp(gp, 'elltors(erkF)[2]')
+
+    const independent = status === '1'
+    // Certified lower bound even on failure: point rows contribute
+    // matrixRank - torsionRank dimensions beyond the torsion span.
+    const exactLB = independent ? n : Math.max(0, matrixRank - torsionRank)
     result.independence = {
       independent,
-      rankLowerBound: independent ? n : numRank,
+      rankLowerBound: exactLB,
+      certificate: independent
+        ? { primes: certPrimes, matrixRank, torsionRank, halvings, torsion }
+        : null,
       regulator,
       minEigenvalue: minEig,
       precisionDigits: prec,
       stable,
-      method:
-        `positive-definite Neron-Tate height pairing: min eigenvalue ${minEig} > ${EIGEN_MARGIN}, ` +
-        `computed at ${prec} digits and stability-checked at ${prec + 25} digits`,
+      method: independent
+        ? `exact 2-descent certificate (Cremona/Brumer): quadratic-character images at ` +
+          `${certPrimes.length} good primes give an F_2 matrix of rank ${matrixRank} ` +
+          `(torsion rows: rank ${torsionRank}), proving the ${n} points independent modulo ` +
+          `torsion${halvings ? ` after ${halvings} halving step(s)` : ''}; ` +
+          `Neron-Tate regulator at ${prec} digits recorded as a diagnostic`
+        : `exact 2-descent certificate not attained: ${exactLB} of ${n} points certified ` +
+          `independent modulo torsion over ${certPrimes.length} good primes`,
     }
     if (!independent) {
-      result.errors.push(
-        `points are not certified independent (only ${numRank} of ${n} independent)`,
-      )
+      if (status === '-1') {
+        const rel = parseGpVector(evalGp(gp, 'erkRes[6]'), 'dependence relation').map(
+          (s) => Number(s) - 1,
+        )
+        result.errors.push(
+          `points are provably dependent modulo torsion (a dependence involves ` +
+            `point indices [${rel.join(', ')}]); only ${exactLB} of ${n} certified independent`,
+        )
+      } else {
+        result.errors.push(
+          `points are not certified independent (only ${exactLB} of ${n} certified independent)`,
+        )
+      }
       return result
     }
 

@@ -739,10 +739,12 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
       <section class="submit">
         <h2>Submit a curve</h2>
         <p class="submit-help">Give the Weierstrass coefficients and a set of independent rational points.
-        Each point is checked to lie on the curve, and their N&eacute;ron&ndash;Tate height-pairing matrix
-        is checked to be positive definite &mdash; so the points are independent in <span class="eqi">E(&#8474;)</span>,
-        proving rank &ge; the number of points. Supplying the primes of bad reduction additionally records its
-        conductor.</p>
+        Each point is checked to lie on the curve, and independence is certified by an exact 2-descent
+        computation (quadratic characters at good primes, after
+        <a href="https://johncremona.github.io/papers/filter.pdf">Cremona</a>/Brumer) &mdash; the points
+        are proven independent in <span class="eqi">E(&#8474;)</span> modulo torsion, so
+        rank &ge; the number of points, with no floating-point arithmetic in the decision. Supplying the
+        primes of bad reduction additionally records its conductor.</p>
         <div class="eq-line">
           <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
         </div>
@@ -1231,8 +1233,12 @@ export function submitResultPage(
         <h2>&#10003; Submitted: rank &ge; ${ind.rankLowerBound}</h2>
         <dl class="result-meta">
           <dt>points</dt><dd>${result.points.length}, all on the curve and independent</dd>
+          ${
+            ind.certificate
+              ? `<dt>certificate</dt><dd>quadratic characters at ${ind.certificate.primes.length} good primes (2-descent, exact)</dd>`
+              : ''
+          }
           <dt>regulator</dt><dd><code>${escapeHtml(clip(ind.regulator))}</code></dd>
-          <dt>min. eigenvalue</dt><dd><code>${escapeHtml(clip(ind.minEigenvalue))}</code></dd>
           <dt>naive height</dt><dd><code>${escapeHtml(clip(result.height!.naiveLogHeight))}</code></dd>
           ${result.faltingsHeight ? `<dt>Faltings height</dt><dd><code>${escapeHtml(clip(result.faltingsHeight))}</code></dd>` : ''}
           <dt>minimal discriminant</dt><dd><code>${escapeHtml(clip(c.discriminant, 80))}</code></dd>
@@ -1279,7 +1285,11 @@ export function apiDocsPage(user: User | null = null): string {
   "allPointsOnCurve": true,
   "independence": {
     "independent": true, "rankLowerBound": 12,
-    "regulator": "...", "minEigenvalue": "...",
+    "certificate": {            // the exact independence proof
+      "primes": ["7","11","17", ...], "matrixRank": 12, "torsionRank": 0,
+      "halvings": 0, "torsion": "[]"
+    },
+    "regulator": "...", "minEigenvalue": "...",   // informational diagnostics
     "precisionDigits": 62, "stable": true, "method": "..."
   },
   "height": { "naiveLogHeight": "79.3286..." },
@@ -1314,8 +1324,12 @@ export function apiDocsPage(user: User | null = null): string {
 
       <h3>POST <code>/api/submit</code></h3>
       <p>Submits a curve with a set of witness points. The points are checked to lie on the curve, and
-      their N&eacute;ron&ndash;Tate height-pairing matrix is checked to be positive definite (so they
-      are independent in <span class="eqi">E(&#8474;)</span>, proving <code>rank &ge; #points</code>). On success the
+      their independence is certified exactly by 2-descent quadratic characters at good primes
+      (Cremona/Brumer; torsion handled via exact torsion generators), proving
+      <code>rank &ge; #points</code> in <span class="eqi">E(&#8474;)</span> modulo torsion with no
+      floating-point arithmetic in the decision. The response's <code>independence.certificate</code>
+      lists the primes used and the F<sub>2</sub> matrix ranks; the N&eacute;ron&ndash;Tate regulator is
+      still reported as an informational diagnostic. On success the
       curve is <strong>recorded on the leaderboard</strong>, attributed to you. Accepted curves and
       witness points are stored in the curve's global minimal model. Body:
       <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>.</p>

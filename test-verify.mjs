@@ -191,6 +191,105 @@ if (
   console.log('bad primes canonicalized OK: [2, 5], conductor 800')
 }
 
+// --- Exact independence certificate cases ---
+
+// Accepted submissions carry an exact certificate.
+const rk12res = verify(gp, RK12)
+if (
+  !rk12res.independence?.certificate ||
+  rk12res.independence.certificate.matrixRank !== 12 ||
+  rk12res.independence.certificate.torsionRank !== 0 ||
+  rk12res.independence.certificate.primes.length === 0
+) {
+  console.error('FAIL: accepted submission missing exact certificate data')
+  process.exitCode = 1
+} else {
+  console.log(
+    `rank-12 certificate OK: ${rk12res.independence.certificate.primes.length} primes, ` +
+    `rank ${rk12res.independence.certificate.matrixRank}`,
+  )
+}
+
+// A doubled generator 2G (and 4G) is independent but lies in 2E(Q): the mod-2
+// images vanish, so certification must go through the halving fallback.
+const G5077 = { ainvs: ['0', '0', '1', '-7', '6'] }
+const twoG = verify(gp, { ...G5077, points: [['221/49', '-2967/343']] })
+const fourG = verify(gp, {
+  ...G5077,
+  points: [['3009638454/1531704769', '-47120764371948/59946329544353']],
+})
+if (!twoG.ok || twoG.independence.certificate.halvings < 1) {
+  console.error('FAIL: single point 2G should certify rank >= 1 via halving')
+  process.exitCode = 1
+} else if (!fourG.ok || fourG.independence.certificate.halvings < 2) {
+  console.error('FAIL: single point 4G should certify rank >= 1 via two halvings')
+  process.exitCode = 1
+} else {
+  console.log(
+    `halving fallback OK: 2G after ${twoG.independence.certificate.halvings}, ` +
+    `4G after ${fourG.independence.certificate.halvings} halvings`,
+  )
+}
+
+// Full rational 2-torsion, genuinely independent pair: y^2 = x^3 - 34^2 x
+// (congruent number 34, rank 2, torsion Z/2 x Z/2). The certificate must
+// reach rank n + 2 jointly with the two torsion generator rows.
+const e34 = verify(gp, {
+  ainvs: ['0', '0', '0', '-1156', '0'],
+  points: [['-16', '120'], ['-2', '48']],
+})
+if (
+  !e34.ok ||
+  e34.independence.rankLowerBound !== 2 ||
+  e34.independence.certificate.torsionRank !== 2 ||
+  e34.independence.certificate.torsion !== '[2, 2]'
+) {
+  console.error(`FAIL: 2-torsion curve independent pair: ${JSON.stringify(e34.independence)}`)
+  process.exitCode = 1
+} else {
+  console.log('independent pair on full 2-torsion curve OK: rank >= 2, torsion rows rank 2')
+}
+
+// The torsion loophole: P and P+T (T rational 2-torsion) satisfy
+// 2P - 2(P+T) = 0, so rank 2 must NOT be certified — this is exactly the case
+// where mod-2 images of the points alone can look independent. y^2 = x^3 - 25x,
+// P = (-4,6), T = (0,0), P+T = (25/4, 75/8).
+const loophole = verify(gp, {
+  ainvs: ['0', '0', '0', '-25', '0'],
+  points: [['-4', '6'], ['25/4', '75/8']],
+})
+if (loophole.ok || !loophole.errors.some((e) => e.includes('provably dependent'))) {
+  console.error(`FAIL: P, P+T must be proven dependent: ${JSON.stringify(loophole.errors)}`)
+  process.exitCode = 1
+} else if (loophole.independence.rankLowerBound !== 1) {
+  console.error('FAIL: P, P+T should still certify a partial bound of 1')
+  process.exitCode = 1
+} else {
+  console.log('2-torsion loophole OK: P, P+T proven dependent (partial bound 1)')
+}
+
+// A torsion point contributes nothing to rank: must be rejected with proof.
+const torOnly = verify(gp, { ainvs: ['0', '0', '0', '-25', '0'], points: [['0', '0']] })
+if (torOnly.ok || !torOnly.errors.some((e) => e.includes('provably dependent'))) {
+  console.error('FAIL: a torsion-only point must be proven dependent')
+  process.exitCode = 1
+} else {
+  console.log('torsion point rejected with proof OK')
+}
+
+// 2G + T (T 2-torsion): in 2E(Q) only after a torsion translate — exercises
+// the translate loop in the halving fallback.
+const twoGT = verify(gp, {
+  ainvs: ['0', '0', '0', '-25', '0'],
+  points: [['-3600/1681', '-455700/68921']],
+})
+if (!twoGT.ok || twoGT.independence.rankLowerBound !== 1) {
+  console.error('FAIL: 2G + T should certify rank >= 1 via a torsion translate halving')
+  process.exitCode = 1
+} else {
+  console.log(`2G+T torsion-translate halving OK (${twoGT.independence.certificate.halvings} halving)`)
+}
+
 // failure cases
 show('singular curve', { ainvs: ['0', '0'], points: [['0', '0']] })
 const offCurve = verify(gp, { ainvs: ['0', '0', '1', '-6349808647', '193146346911036'], points: [['1', '1']] })
