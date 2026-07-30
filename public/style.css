@@ -103,7 +103,7 @@ header nav .auth-nav a:hover {
 main {
   max-width: 900px;
   margin: 0 auto;
-  padding: 3rem 1.5rem;
+  padding: 2rem 1.5rem 3rem;
 }
 
 main h2 {
@@ -149,8 +149,8 @@ main p code, .result code, pre code, .submit-help code {
 
 /* Hero / question callout — theorem-block style: rules above and below */
 .hero {
-  margin: 0 0 2rem;
-  padding: 1.75rem 2rem;
+  margin: 0 0 1.5rem;
+  padding: 1.25rem 2rem;
   background: var(--accent-soft);
   border: 1px solid var(--border);
   border-top: 3px solid var(--accent);
@@ -377,7 +377,7 @@ pre code {
 }
 
 /* Rank-vs-height scatter plot */
-.board { margin: 2rem 0; }
+.board { margin: 1.5rem 0 2rem; }
 
 /* Plot switcher on the landing page: a tab bar that shows one .plot-panel at a
    time. The hidden radio drives selection; the active label gets an accent
