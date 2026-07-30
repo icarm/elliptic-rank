@@ -665,24 +665,8 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
       <section class="hero">
         <p class="lede">Can we find <em>small</em> elliptic curves of <em>high rank</em>?</p>
       </section>
-      <p>
-      Inspired by <a class="external" href="https://web.math.pmf.unizg.hr/~duje/tors/rankhist.html">Dujella's rank tables</a>,
-      this site tracks elliptic curves <span class="eqi">E/&#8474;</span> of high
-      <a class="external" href="https://en.wikipedia.org/wiki/Rank_of_an_elliptic_curve">Mordell&ndash;Weil rank</a>
-      relative to their size &mdash; measured by
-      <a class="external" href="https://en.wikipedia.org/wiki/Conductor_of_an_elliptic_curve">conductor</a>, height, or discriminant.</p>
-      <p class="browse-cta"><a href="/database.json" download>Download the database (JSON) &darr;</a> <span class="cta-sep">|</span> <a href="/curves">Browse all curves as a table &rarr;</a> <span class="cta-sep">|</span> <a href="/recent">See recent activity &rarr;</a> <span class="cta-sep">|</span> <a class="external" href="https://icarm.zulipchat.com/#narrow/channel/519875-general/topic/Elliptic.20Curve.20Rank.20Leaderboard/near/603443505">Discuss on Zulip</a></p>
       <section class="board">
-        <h2>Plots</h2>
-        <p class="muted board-caption">Each dot is a curve &mdash; click one for its witness, or click a rank on the axis to list the curves at that rank. The frontier is to the right and down: high rank, small size.</p>
-        <div class="plot-tabs" role="radiogroup" aria-label="plot measure">
-          <label><input type="radio" name="plot-metric" value="conductor"${sel === 'conductor' ? ' checked' : ''} /><span>log conductor</span></label>
-          <label><input type="radio" name="plot-metric" value="naive"${sel === 'naive' ? ' checked' : ''} /><span>naive height</span></label>
-          <label><input type="radio" name="plot-metric" value="faltings"${sel === 'faltings' ? ' checked' : ''} /><span>Faltings height</span></label>
-          <label><input type="radio" name="plot-metric" value="disc"${sel === 'disc' ? ' checked' : ''} /><span>log |&Delta;|</span></label>
-        </div>
         <div class="plot-panel" data-metric="conductor"${sel === 'conductor' ? '' : ' hidden'}>
-          <p class="muted board-caption">Natural log of the conductor <span class="eqi">N = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup></span>. Recorded when a submission supplies the primes of bad reduction.</p>
           ${scatterPlot(
             curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
             'log conductor',
@@ -691,7 +675,6 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
           )}
         </div>
         <div class="plot-panel" data-metric="naive"${sel === 'naive' ? '' : ' hidden'}>
-          <p class="muted board-caption">Naive height = <span class="eqi">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span> of the global minimal model. Recorded for every curve.</p>
           ${scatterPlot(
             curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
             'naive height',
@@ -700,7 +683,6 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
           )}
         </div>
         <div class="plot-panel" data-metric="faltings"${sel === 'faltings' ? '' : ' hidden'}>
-          <p class="muted board-caption">Stable Faltings height (LMFDB normalization). Recorded for every curve.</p>
           ${scatterPlot(
             curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
             'Faltings height',
@@ -709,7 +691,6 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
           )}
         </div>
         <div class="plot-panel" data-metric="disc"${sel === 'disc' ? '' : ' hidden'}>
-          <p class="muted board-caption">Natural log of the absolute discriminant <span class="eqi">|&Delta;|</span> of the global minimal model. Recorded for every curve.</p>
           ${scatterPlot(
             curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.discriminant) })),
             'log |Δ|',
@@ -717,11 +698,21 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
             'disc',
           )}
         </div>
-        <noscript><style>.plot-tabs { display: none; } .board .plot-panel[hidden] { display: block; }</style></noscript>
+        <div class="plot-tabs" role="radiogroup" aria-label="plot measure">
+          <label><input type="radio" name="plot-metric" value="conductor"${sel === 'conductor' ? ' checked' : ''} /><span>log conductor</span></label>
+          <label><input type="radio" name="plot-metric" value="naive"${sel === 'naive' ? ' checked' : ''} /><span>naive height</span></label>
+          <label><input type="radio" name="plot-metric" value="faltings"${sel === 'faltings' ? ' checked' : ''} /><span>Faltings height</span></label>
+          <label><input type="radio" name="plot-metric" value="disc"${sel === 'disc' ? ' checked' : ''} /><span>log |&Delta;|</span></label>
+        </div>
+        <p class="muted board-caption plot-caption" data-metric="conductor"${sel === 'conductor' ? '' : ' hidden'}>Natural log of the conductor <span class="eqi">N = &prod;<sub>p</sub> p<sup>f<sub>p</sub></sup></span>. Recorded when a submission supplies the primes of bad reduction.</p>
+        <p class="muted board-caption plot-caption" data-metric="naive"${sel === 'naive' ? '' : ' hidden'}>Naive height = <span class="eqi">log&#8201;max(|c<sub>4</sub>|<sup>3</sup>, |c<sub>6</sub>|<sup>2</sup>)</span> of the global minimal model. Recorded for every curve.</p>
+        <p class="muted board-caption plot-caption" data-metric="faltings"${sel === 'faltings' ? '' : ' hidden'}>Stable Faltings height (LMFDB normalization). Recorded for every curve.</p>
+        <p class="muted board-caption plot-caption" data-metric="disc"${sel === 'disc' ? '' : ' hidden'}>Natural log of the absolute discriminant <span class="eqi">|&Delta;|</span> of the global minimal model. Recorded for every curve.</p>
+        <noscript><style>.plot-tabs { display: none; } .board .plot-panel[hidden], .board .plot-caption[hidden] { display: block; }</style></noscript>
         <script>
         (function () {
           var tabs = Array.prototype.slice.call(document.querySelectorAll('input[name="plot-metric"]'));
-          var panels = Array.prototype.slice.call(document.querySelectorAll('.board .plot-panel'));
+          var panels = Array.prototype.slice.call(document.querySelectorAll('.board .plot-panel, .board .plot-caption'));
           // The server renders the selected panel already; we only handle switches.
           tabs.forEach(function (t) {
             t.addEventListener('change', function () {
@@ -735,6 +726,14 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
         })();
         </script>
       </section>
+
+      <p>
+      Inspired by <a class="external" href="https://web.math.pmf.unizg.hr/~duje/tors/rankhist.html">Dujella's rank tables</a>,
+      this site tracks elliptic curves <span class="eqi">E/&#8474;</span> of high
+      <a class="external" href="https://en.wikipedia.org/wiki/Rank_of_an_elliptic_curve">Mordell&ndash;Weil rank</a>
+      relative to their size &mdash; measured by
+      <a class="external" href="https://en.wikipedia.org/wiki/Conductor_of_an_elliptic_curve">conductor</a>, height, or discriminant.</p>
+      <p class="browse-cta"><a href="/database.json" download>Download the database (JSON) &darr;</a> <span class="cta-sep">|</span> <a href="/curves">Browse all curves as a table &rarr;</a> <span class="cta-sep">|</span> <a href="/recent">See recent activity &rarr;</a> <span class="cta-sep">|</span> <a class="external" href="https://icarm.zulipchat.com/#narrow/channel/519875-general/topic/Elliptic.20Curve.20Rank.20Leaderboard/near/603443505">Discuss on Zulip</a></p>
 
       <section class="submit">
         <h2>Submit a curve</h2>
