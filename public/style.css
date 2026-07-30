@@ -189,6 +189,7 @@ main p code, .result code, pre code, .submit-help code {
   color: var(--accent);
   text-decoration: none;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .browse-cta a:hover {
