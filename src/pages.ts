@@ -236,7 +236,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
       <line class="axis" x1="${L}" y1="${T}" x2="${L}" y2="${T + plotH}"/>
       <line class="axis" x1="${L}" y1="${T + plotH}" x2="${W - R}" y2="${T + plotH}"/>
       <text class="axis-title" x="${L + plotW / 2}" y="${H - 6}" text-anchor="middle">rank (lower bound) &rarr;</text>
-      <text class="axis-title" transform="rotate(-90)" x="${-(T + plotH / 2)}" y="15" text-anchor="middle">${qLabel} &rarr;</text>
+      <text class="axis-title" transform="rotate(-90)" x="${-(T + plotH / 2)}" y="15" text-anchor="middle">size (${qLabel}) &rarr;</text>
       ${dots}
       ${records}
     </svg>`
