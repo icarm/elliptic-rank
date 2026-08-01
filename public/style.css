@@ -978,8 +978,8 @@ a.record-badge:hover {
   font-weight: 600;
 }
 
-.curves-table td.record::after {
-  content: " \2605";
+.curves-table td.record::before {
+  content: "\2605 ";
   font-size: 0.75em;
   opacity: 0.7;
 }
