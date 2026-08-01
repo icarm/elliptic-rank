@@ -979,9 +979,10 @@ a.record-badge:hover {
 }
 
 .curves-table td.record::before {
-  content: "\2605 ";
+  content: "\2605";
   font-size: 0.75em;
   opacity: 0.7;
+  margin-right: 0.5em;
 }
 
 .curves-table a.sort {
@@ -1151,6 +1152,8 @@ a.external::after {
   .curves-table { font-size: 0.85rem; }
   .curves-table th, .curves-table td { padding: 0.35rem 0.4rem; }
   .curves-table th.num { white-space: normal; } /* let "Faltings height" wrap */
+  /* No room for the ★ on narrow screens — the highlight alone marks records. */
+  .curves-table td.record::before { content: none; }
   .eq { font-size: 1rem; word-break: break-word; }
   .result-meta { grid-template-columns: 1fr; gap: 0.1rem; }
   .result-meta dt { margin-top: 0.5rem; }
