@@ -222,10 +222,14 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
     if (rankMin < bestAtHigherRank) bestAtHigherRank = rankMin
   }
   const isRecord = (p: PlotPoint): boolean => p.x <= frontierValueByRank.get(p.rank)!
+  // Best in its rank column (ties included) — unlike isRecord, every rank that
+  // has any point has a best, even when a higher rank beats its minimum. The
+  // default plot view shows only these.
+  const isBest = (p: PlotPoint): boolean => p.x <= minByRank.get(p.rank)!
   const dot = (p: PlotPoint): string => {
     const x = X(p.rank).toFixed(1)
     const y = Y(p.x).toFixed(1)
-    return `<a href="/curve/${p.id}"><circle class="dot${isRecord(p) ? ' record' : ''}" cx="${x}" cy="${y}" r="4"><title>curve #${p.id}: rank &ge; ${p.rank}, ${qLabel} ${qFmt(p.x)}</title></circle></a>`
+    return `<a href="/curve/${p.id}"><circle class="dot${isBest(p) ? ' best' : ''}" cx="${x}" cy="${y}" r="4"><title>curve #${p.id}: rank &ge; ${p.rank}, ${qLabel} ${qFmt(p.x)}</title></circle></a>`
   }
   // Non-records first, records last so they paint on top of any overlapping dot
   // and are therefore the easiest to click.
@@ -668,7 +672,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
       <section class="hero">
         <p class="lede">Can we find <em>small</em> elliptic curves of <em>high rank</em>?</p>
       </section>
-      <section class="board${showAll ? '' : ' records-only'}">
+      <section class="board${showAll ? '' : ' best-only'}">
         <div class="plot-tabs">
           <span class="plot-metrics" role="radiogroup" aria-label="plot measure">
             <label title="Natural log of the conductor. Recorded when a submission supplies the primes of bad reduction."><input type="radio" name="plot-metric" value="conductor"${sel === 'conductor' ? ' checked' : ''} /><span>log conductor</span></label>
@@ -728,7 +732,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
           var showAll = document.getElementById('plot-show-all');
           var board = document.querySelector('.board');
           showAll.addEventListener('change', function () {
-            board.classList.toggle('records-only', !showAll.checked);
+            board.classList.toggle('best-only', !showAll.checked);
             var q = new URLSearchParams(location.search);
             if (showAll.checked) q.set('show', 'all'); else q.delete('show');
             var qs = q.toString();
