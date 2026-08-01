@@ -225,7 +225,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   const dot = (p: PlotPoint): string => {
     const x = X(p.rank).toFixed(1)
     const y = Y(p.x).toFixed(1)
-    return `<a href="/curve/${p.id}"><circle class="dot" cx="${x}" cy="${y}" r="4"><title>curve #${p.id}: rank &ge; ${p.rank}, ${qLabel} ${qFmt(p.x)}</title></circle></a>`
+    return `<a href="/curve/${p.id}"><circle class="dot${isRecord(p) ? ' record' : ''}" cx="${x}" cy="${y}" r="4"><title>curve #${p.id}: rank &ge; ${p.rank}, ${qLabel} ${qFmt(p.x)}</title></circle></a>`
   }
   // Non-records first, records last so they paint on top of any overlapping dot
   // and are therefore the easiest to click.
@@ -656,21 +656,27 @@ export function progressPage(
   return layout('Progress — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
-export function landingPage(user: User | null = null, curves: PlotCurve[] = [], metric?: string): string {
+export function landingPage(user: User | null = null, curves: PlotCurve[] = [], metric?: string, show?: string): string {
   // Which plot the switcher shows first; honored from ?metric= so the view is
   // shareable and renders without a flash. Defaults to the conductor plot.
   const sel: 'conductor' | 'naive' | 'faltings' | 'disc' =
     metric === 'naive' || metric === 'faltings' || metric === 'disc' ? metric : 'conductor'
+  // ?show=all plots every curve; the default shows only the best (lowest)
+  // curve at each rank bound — the frontier.
+  const showAll = show === 'all'
   const inner = `
       <section class="hero">
         <p class="lede">Can we find <em>small</em> elliptic curves of <em>high rank</em>?</p>
       </section>
-      <section class="board">
-        <div class="plot-tabs" role="radiogroup" aria-label="plot measure">
-          <label title="Natural log of the conductor. Recorded when a submission supplies the primes of bad reduction."><input type="radio" name="plot-metric" value="conductor"${sel === 'conductor' ? ' checked' : ''} /><span>log conductor</span></label>
-          <label title="log max(|c4|^3, |c6|^2) of the global minimal model. Recorded for every curve."><input type="radio" name="plot-metric" value="naive"${sel === 'naive' ? ' checked' : ''} /><span>naive height</span></label>
-          <label title="Stable Faltings height (LMFDB normalization). Recorded for every curve."><input type="radio" name="plot-metric" value="faltings"${sel === 'faltings' ? ' checked' : ''} /><span>Faltings height</span></label>
-          <label title="Natural log of the absolute discriminant of the global minimal model. Recorded for every curve."><input type="radio" name="plot-metric" value="disc"${sel === 'disc' ? ' checked' : ''} /><span>log |&Delta;|</span></label>
+      <section class="board${showAll ? '' : ' records-only'}">
+        <div class="plot-tabs">
+          <span class="plot-metrics" role="radiogroup" aria-label="plot measure">
+            <label title="Natural log of the conductor. Recorded when a submission supplies the primes of bad reduction."><input type="radio" name="plot-metric" value="conductor"${sel === 'conductor' ? ' checked' : ''} /><span>log conductor</span></label>
+            <label title="log max(|c4|^3, |c6|^2) of the global minimal model. Recorded for every curve."><input type="radio" name="plot-metric" value="naive"${sel === 'naive' ? ' checked' : ''} /><span>naive height</span></label>
+            <label title="Stable Faltings height (LMFDB normalization). Recorded for every curve."><input type="radio" name="plot-metric" value="faltings"${sel === 'faltings' ? ' checked' : ''} /><span>Faltings height</span></label>
+            <label title="Natural log of the absolute discriminant of the global minimal model. Recorded for every curve."><input type="radio" name="plot-metric" value="disc"${sel === 'disc' ? ' checked' : ''} /><span>log |&Delta;|</span></label>
+          </span>
+          <label class="plot-filter" title="Plot every submitted curve, not just the best (lowest) curve at each rank bound."><input type="checkbox" id="plot-show-all"${showAll ? ' checked' : ''} /><span>show all curves</span></label>
         </div>
         <div class="plot-panel" data-metric="conductor"${sel === 'conductor' ? '' : ' hidden'}>
           ${scatterPlot(
@@ -718,6 +724,15 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
               q.set('metric', t.value);
               history.replaceState(null, '', location.pathname + '?' + q.toString());
             });
+          });
+          var showAll = document.getElementById('plot-show-all');
+          var board = document.querySelector('.board');
+          showAll.addEventListener('change', function () {
+            board.classList.toggle('records-only', !showAll.checked);
+            var q = new URLSearchParams(location.search);
+            if (showAll.checked) q.set('show', 'all'); else q.delete('show');
+            var qs = q.toString();
+            history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
           });
         })();
         </script>
