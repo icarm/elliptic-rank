@@ -3,7 +3,7 @@
 // so GitHub login / profiles can slot in later without reworking the chrome.
 
 import type { VerifyResult } from './verify'
-import { COMMENT_MAX, type CommentView, type ActivityItem } from './store'
+import { COMMENT_MAX, lessDecimal, lessAbsDecimal, type CommentView, type ActivityItem } from './store'
 
 export interface User {
   id: number
@@ -792,7 +792,9 @@ export interface TableCurve extends PlotCurve {
 // One leaderboard table row. Carries the numeric sort keys in data attributes so
 // the curve-table page's inline sorter can use them; the (static) profile list
 // shares the same markup and simply ignores them.
-function curveTableRow(c: TableCurve, hidden = false): string {
+type MetricRecords = Partial<Record<'conductor' | 'naive' | 'faltings' | 'disc', boolean>>
+
+function curveTableRow(c: TableCurve, hidden = false, records: MetricRecords = {}): string {
   const unknown = '<span class="muted">?</span>'
   let ainvs: string[] = []
   try {
@@ -802,14 +804,18 @@ function curveTableRow(c: TableCurve, hidden = false): string {
   }
   const logCond = c.conductor != null ? logBigInt(c.conductor) : null
   const logDisc = logBigInt(c.discriminant)
+  // A record cell (smallest value among curves of equal or higher rank — the
+  // same rule as the curve page's ★ badge) gets a highlight class.
+  const metricTd = (isRecord: boolean | undefined, content: string): string =>
+    `<td class="num${isRecord ? ' record' : ''}"${isRecord ? ` title="record: smallest among curves of rank &ge; ${c.rank_lower_bound}"` : ''}>${content}</td>`
   return `<tr${hidden ? ' hidden' : ''} data-id="${c.id}" data-rank="${c.rank_lower_bound}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}" data-disc="${logDisc}">
             <td><a href="/curve/${c.id}">#${c.id}</a></td>
             <td><code>[${ainvs.map((a) => escapeHtml(clip(a, 14))).join(', ')}]</code></td>
             <td class="num"><a class="rank-link" href="/curves?minrank=${c.rank_lower_bound}&amp;rankmode=eq" title="show only curves with rank lower bound = ${c.rank_lower_bound}">&ge; ${c.rank_lower_bound}</a></td>
-            <td class="num">${logCond != null ? logCond.toFixed(2) : unknown}</td>
-            <td class="num">${c.naive_height.toFixed(2)}</td>
-            <td class="num">${c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown}</td>
-            <td class="num">${logDisc.toFixed(2)}</td>
+            ${metricTd(records.conductor, logCond != null ? logCond.toFixed(2) : unknown)}
+            ${metricTd(records.naive, c.naive_height.toFixed(2))}
+            ${metricTd(records.faltings, c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown)}
+            ${metricTd(records.disc, logDisc.toFixed(2))}
           </tr>`
 }
 
@@ -854,7 +860,44 @@ export function curveTablePage(
   const restricted = hasFilter && (eq || n > 1)
   const heading = restricted ? `Curves with rank lower bound ${eq ? '=' : '&ge;'} ${n}` : 'All curves'
   const pageTitle = restricted ? `Curves with rank lower bound ${eq ? '=' : '≥'} ${n}` : 'All curves'
-  const rows = sorted.map((c) => curveTableRow(c, rowHidden(c))).join('\n')
+  // Record cells: for each metric, a curve is a record when no curve of equal
+  // or higher rank has a strictly smaller value (ties share it) — the same
+  // Pareto rule as store.recordFlags and the curve page's ★ badge, computed
+  // for all rows in one rank-descending sweep with exact decimal comparisons.
+  const byRankDesc = [...curves].sort((a, b) => b.rank_lower_bound - a.rank_lower_bound)
+  const recordIds = <T,>(get: (c: TableCurve) => T | null, less: (a: T, b: T) => boolean): Set<number> => {
+    const recs = new Set<number>()
+    let frontier: T | null = null // smallest value at any rank ≥ the current group's
+    for (let i = 0; i < byRankDesc.length; ) {
+      let j = i
+      for (; j < byRankDesc.length && byRankDesc[j].rank_lower_bound === byRankDesc[i].rank_lower_bound; j++) {
+        const v = get(byRankDesc[j])
+        if (v != null && (frontier == null || less(v, frontier))) frontier = v
+      }
+      for (let k = i; k < j; k++) {
+        const v = get(byRankDesc[k])
+        if (v != null && frontier != null && !less(frontier, v)) recs.add(byRankDesc[k].id)
+      }
+      i = j
+    }
+    return recs
+  }
+  const records = {
+    conductor: recordIds((c) => c.conductor, lessDecimal),
+    naive: recordIds((c): number | null => c.naive_height, (a, b) => a < b),
+    faltings: recordIds((c) => c.faltings_height, (a, b) => a < b),
+    disc: recordIds((c): string | null => c.discriminant, lessAbsDecimal),
+  }
+  const rows = sorted
+    .map((c) =>
+      curveTableRow(c, rowHidden(c), {
+        conductor: records.conductor.has(c.id),
+        naive: records.naive.has(c.id),
+        faltings: records.faltings.has(c.id),
+        disc: records.disc.has(c.id),
+      }),
+    )
+    .join('\n')
   // Query string for the state where `key` is the sort column — clicking the
   // active column reverses it, a new column gets its default direction; the
   // rank filter is carried along. Mirrors the inline script's apply().

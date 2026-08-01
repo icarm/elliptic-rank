@@ -970,6 +970,20 @@ a.record-badge:hover {
   text-decoration: underline;
 }
 
+/* Record values: smallest among curves of equal or higher rank — same rule as
+   the curve page's ★ badge. */
+.curves-table td.record {
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+
+.curves-table td.record::after {
+  content: " \2605";
+  font-size: 0.75em;
+  opacity: 0.7;
+}
+
 .curves-table a.sort {
   font: inherit;
   font-weight: 600;
