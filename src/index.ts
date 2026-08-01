@@ -66,7 +66,12 @@ app.get('/curves', async (c) => {
        -- decimal string, so numeric order = (length, then lexicographic).
        ORDER BY conductor IS NULL, LENGTH(conductor), conductor, naive_height ASC`,
   ).all<TableCurve>()
-  return c.html(curveTablePage(results, c.get('user')))
+  return c.html(curveTablePage(results, c.get('user'), {
+    sort: c.req.query('sort'),
+    dir: c.req.query('dir'),
+    minrank: c.req.query('minrank'),
+    rankmode: c.req.query('rankmode'),
+  }))
 })
 
 app.get('/recent', async (c) => {

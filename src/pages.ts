@@ -792,7 +792,7 @@ export interface TableCurve extends PlotCurve {
 // One leaderboard table row. Carries the numeric sort keys in data attributes so
 // the curve-table page's inline sorter can use them; the (static) profile list
 // shares the same markup and simply ignores them.
-function curveTableRow(c: TableCurve): string {
+function curveTableRow(c: TableCurve, hidden = false): string {
   const unknown = '<span class="muted">?</span>'
   let ainvs: string[] = []
   try {
@@ -802,7 +802,7 @@ function curveTableRow(c: TableCurve): string {
   }
   const logCond = c.conductor != null ? logBigInt(c.conductor) : null
   const logDisc = logBigInt(c.discriminant)
-  return `<tr data-id="${c.id}" data-rank="${c.rank_lower_bound}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}" data-disc="${logDisc}">
+  return `<tr${hidden ? ' hidden' : ''} data-id="${c.id}" data-rank="${c.rank_lower_bound}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}" data-disc="${logDisc}">
             <td><a href="/curve/${c.id}">#${c.id}</a></td>
             <td><code>[${ainvs.map((a) => escapeHtml(clip(a, 14))).join(', ')}]</code></td>
             <td class="num"><a class="rank-link" href="/curves?minrank=${c.rank_lower_bound}&amp;rankmode=eq" title="show only curves with rank lower bound = ${c.rank_lower_bound}">&ge; ${c.rank_lower_bound}</a></td>
@@ -813,31 +813,87 @@ function curveTableRow(c: TableCurve): string {
           </tr>`
 }
 
-// Sortable/filterable table of all curves. The rows are server-rendered (with
-// the numeric sort keys in data attributes); a small inline script re-sorts on
-// header click and filters by minimum rank, mirroring the state into the query
-// string so views are shareable. Works without JS as a static table ordered by
-// increasing conductor (curves with no recorded conductor last).
-export function curveTablePage(curves: TableCurve[], user: User | null = null): string {
-  const rows = curves.map(curveTableRow).join('\n')
+// Sortable/filterable table of all curves. The server renders the rows already
+// sorted and filtered per the query string, so views are shareable and work
+// without JS: the controls are a real GET form (with an "apply" button shown
+// only when JS is off) and the column headers are links. The inline script
+// takes over both — re-sorting/filtering in place and mirroring the state back
+// into the query string — so with JS nothing round-trips to the server.
+export function curveTablePage(
+  curves: TableCurve[],
+  user: User | null = null,
+  query: { sort?: string; dir?: string; minrank?: string; rankmode?: string } = {},
+): string {
+  const KEYS = ['id', 'rank', 'naive', 'faltings', 'conductor', 'disc'] as const
+  type SortKey = (typeof KEYS)[number]
+  const sortKey: SortKey = (KEYS as readonly string[]).includes(query.sort ?? '') ? (query.sort as SortKey) : 'conductor'
+  const sortDir = query.dir === 'desc' ? -1 : 1
+  // Numeric sort values, matching the rows' data attributes that the inline
+  // script sorts by; null = missing, sorts last in either direction.
+  const sortVal = (c: TableCurve): number | null => {
+    switch (sortKey) {
+      case 'id': return c.id
+      case 'rank': return c.rank_lower_bound
+      case 'naive': return c.naive_height
+      case 'faltings': return c.faltings_height
+      case 'conductor': return c.conductor != null ? logBigInt(c.conductor) : null
+      case 'disc': return logBigInt(c.discriminant)
+    }
+  }
+  const sorted = [...curves].sort((a, b) => {
+    const av = sortVal(a), bv = sortVal(b)
+    if (av == null) return bv == null ? 0 : 1
+    if (bv == null) return -1
+    return (av - bv) * sortDir
+  })
+  const hasFilter = /^[0-9]+$/.test(query.minrank ?? '')
+  const n = Number(query.minrank)
+  const eq = query.rankmode === 'eq'
+  const rowHidden = (c: TableCurve): boolean => hasFilter && (eq ? c.rank_lower_bound !== n : c.rank_lower_bound < n)
+  const shown = sorted.filter((c) => !rowHidden(c)).length
+  const restricted = hasFilter && (eq || n > 1)
+  const heading = restricted ? `Curves with rank lower bound ${eq ? '=' : '&ge;'} ${n}` : 'All curves'
+  const pageTitle = restricted ? `Curves with rank lower bound ${eq ? '=' : '≥'} ${n}` : 'All curves'
+  const rows = sorted.map((c) => curveTableRow(c, rowHidden(c))).join('\n')
+  // Query string for the state where `key` is the sort column — clicking the
+  // active column reverses it, a new column gets its default direction; the
+  // rank filter is carried along. Mirrors the inline script's apply().
+  const headerHref = (key: string): string => {
+    const dir = key === sortKey ? -sortDir : key === 'rank' ? -1 : 1
+    const q = new URLSearchParams()
+    if (key !== 'conductor' || dir !== 1) {
+      q.set('sort', key)
+      if (dir === -1) q.set('dir', 'desc')
+    }
+    if (restricted) q.set('minrank', String(n))
+    if (eq) q.set('rankmode', 'eq')
+    const qs = q.toString()
+    return '/curves' + (qs ? '?' + qs.replace(/&/g, '&amp;') : '')
+  }
   const sortHeader = (key: string, label: string, extraClass = 'num', title = ''): string =>
-    `<th class="${extraClass}"><button type="button" class="sort" data-key="${key}"${title ? ` title="${title}"` : ''}>${label}</button></th>`
+    `<th class="${extraClass}"><a class="sort${key === sortKey ? (sortDir === 1 ? ' asc' : ' desc') : ''}" data-key="${key}" href="${headerHref(key)}"${title ? ` title="${title}"` : ''}>${label}</a></th>`
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a></p>
-      <h2 id="table-title">All curves</h2>
+      <h2 id="table-title">${heading}</h2>
       <p class="page-subtitle">Click a column header to sort; click again to reverse. Curves missing a
       value (no primes of bad reduction supplied yet) sort last.</p>
-      <div class="table-controls">
+      <form class="table-controls" method="get" action="/curves">
         <label class="rank-filter">rank lower bound
-          <select id="rank-op" aria-label="rank lower bound comparison">
+          <select id="rank-op" name="rankmode" aria-label="rank lower bound comparison">
             <option value="gte">&ge;</option>
-            <option value="eq">=</option>
+            <option value="eq"${eq ? ' selected' : ''}>=</option>
           </select>
-          <input id="rank-filter" type="number" min="1" step="1" placeholder="1" />
-        </label>
-        <span class="muted">showing <span id="curve-count">${curves.length}</span> of ${curves.length} curves</span>
+          <input id="rank-filter" name="minrank" type="number" min="1" step="1" placeholder="${eq ? 'any' : '1'}" value="${hasFilter ? n : ''}" />
+        </label>${
+          sortKey !== 'conductor' || sortDir !== 1
+            ? `
+        <input type="hidden" name="sort" value="${sortKey}" />${sortDir === -1 ? '\n        <input type="hidden" name="dir" value="desc" />' : ''}`
+            : ''
+        }
+        <noscript><button type="submit">apply</button></noscript>
+        <span class="muted">showing <span id="curve-count">${shown}</span> of ${curves.length} curves</span>
         <a href="/database.json" download>Download the database (JSON) &darr;</a>
-      </div>
+      </form>
       <div class="table-scroll">
       <table class="curves-table" id="curves-table">
         <thead>
@@ -865,7 +921,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         var rankOp = document.getElementById('rank-op');
         var count = document.getElementById('curve-count');
         var heading = document.getElementById('table-title');
-        var buttons = document.querySelectorAll('button.sort');
+        var buttons = document.querySelectorAll('a.sort');
         var sortKey = 'conductor';
         var sortDir = 1; // 1 = ascending, -1 = descending; default: smallest conductor first
 
@@ -924,7 +980,11 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         }
 
         buttons.forEach(function (b) {
-          b.addEventListener('click', function () {
+          b.addEventListener('click', function (e) {
+            // Modified clicks fall through to the href (open sorted view in a
+            // new tab); the href is also the no-JS fallback.
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            e.preventDefault();
             if (sortKey === b.dataset.key) {
               sortDir = -sortDir;
             } else {
@@ -936,6 +996,11 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         });
         rankInput.addEventListener('input', apply);
         rankOp.addEventListener('change', apply);
+        // The controls form is the no-JS fallback; here everything is already
+        // applied live, so Enter in the rank box must not reload the page.
+        document.querySelector('form.table-controls').addEventListener('submit', function (e) {
+          e.preventDefault();
+        });
         // Clicking a row's "≥ N" restricts the view to exactly that lower bound,
         // in place (preserving the current sort). Modified clicks fall through to
         // the link's href so the filtered view can still open in a new tab.
@@ -950,7 +1015,7 @@ export function curveTablePage(curves: TableCurve[], user: User | null = null): 
         apply();
       })();
       </script>`
-  return layout('All curves — Elliptic Curve Rank Leaderboard', inner, user)
+  return layout(`${pageTitle} — Elliptic Curve Rank Leaderboard`, inner, user)
 }
 
 export interface CurveRow {
@@ -1418,7 +1483,7 @@ function submittedCurvesSection(curves: TableCurve[]): string {
         <p class="muted">You haven&rsquo;t submitted any curves yet. <a href="/">Submit one &rarr;</a></p>
       </section>`
   }
-  const rows = curves.map(curveTableRow).join('\n')
+  const rows = curves.map((c) => curveTableRow(c)).join('\n')
   return `<section class="my-curves">
         ${heading}
         <p class="muted">Curves currently attributed to you (you proved their best-known rank), highest rank first. Click one for its witness.</p>
