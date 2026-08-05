@@ -215,7 +215,12 @@ app.post('/curve/:id/commentary', async (c) => {
   const exists = await c.env.DB.prepare('SELECT id FROM curves WHERE id = ?').bind(id).first()
   if (!exists) return c.html(notFoundPage(user), 404)
   const form = await c.req.parseBody()
-  const content = (typeof form.content === 'string' ? form.content : '').slice(0, COMMENT_MAX)
+  // An explicit empty string is a deliberate "clear"; a missing field is a
+  // malformed request and must not clear anything.
+  if (typeof form.content !== 'string') {
+    return c.text('missing or invalid form field: content', 400)
+  }
+  const content = form.content.slice(0, COMMENT_MAX)
   await postComment(c.env, id, user.id, content)
   return c.redirect(`/curve/${id}`, 302)
 })
