@@ -1225,6 +1225,7 @@ export function curveDetailPage(
         ${badPrimes.length ? `<dt>primes of bad reduction</dt><dd><code class="break">${badPrimes.map(escapeHtml).join(', ')}</code></dd>` : ''}
         <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
         <dt>submitted by</dt><dd>${submitter}</dd>
+        <dt>submitted at</dt><dd>${escapeHtml(curve.created_at)}</dd>
         <dt>last updated</dt><dd>${escapeHtml(curve.updated_at)}</dd>
       </dl>
       <section class="witness">
