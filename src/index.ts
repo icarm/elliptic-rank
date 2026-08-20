@@ -27,6 +27,7 @@ import {
 } from './pages'
 import { recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordFlags, COMMENT_MAX, type CommentView } from './store'
 import { notifyRecord, notifyBackfillRecord } from './zulip'
+import { parsePoints } from './input'
 import {
   type AppEnv,
   type Bindings,
@@ -426,11 +427,17 @@ app.post('/submit-form', async (c) => {
       429,
     )
   }
-  const form = await c.req.parseBody()
-  const input: VerifyInput = {
-    ainvs: parseTokens(String(form.ainvs ?? '')),
-    points: parsePoints(String(form.points ?? '')),
-    primes: parseTokens(String(form.primes ?? '')),
+  let input: VerifyInput
+  try {
+    const form = await c.req.parseBody()
+    input = {
+      ainvs: parseTokens(String(form.ainvs ?? '')),
+      points: parsePoints(String(form.points ?? '')),
+      primes: parseTokens(String(form.primes ?? '')),
+    }
+  } catch (e) {
+    const result = rejectedVerification(e instanceof Error ? e.message : String(e))
+    return c.html(submitResultPage(result, user, null), 422)
   }
   const gp = await getGp()
   const result = verify(gp, input)
@@ -521,18 +528,6 @@ function listUserCurves(env: Bindings, userId: number): Promise<TableCurve[]> {
 // Split free-form text into integer/rational tokens (commas or whitespace).
 function parseTokens(s: string): string[] {
   return s.trim().split(/[\s,]+/).filter(Boolean)
-}
-
-// One point per line; each line "x, y" or "x y".
-function parsePoints(s: string): [string, string][] {
-  return s
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const parts = line.split(/[\s,]+/).filter(Boolean)
-      return [parts[0] ?? '', parts[1] ?? ''] as [string, string]
-    })
 }
 
 function submissionBodyTooLarge(req: Request): boolean {
