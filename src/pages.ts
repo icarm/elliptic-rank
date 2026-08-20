@@ -32,6 +32,12 @@ export function escapeHtml(s: unknown): string {
     .replace(/'/g, '&#39;')
 }
 
+// Timestamps come from SQLite's CURRENT_TIMESTAMP, which is UTC; say so
+// wherever one is displayed.
+function utcTime(ts: string): string {
+  return `${escapeHtml(ts)} UTC`
+}
+
 function authNav(user: User | null): string {
   if (user) {
     const name = escapeHtml(user.display_name || user.email || 'user')
@@ -1132,7 +1138,7 @@ function commentSection(curveId: number, comment: CommentView | null, user: User
     ? `<div class="comment-body">${renderCommentContent(comment!.content)}</div>`
     : `<p class="muted">No commentary yet.</p>`
   const meta = comment
-    ? `<p class="comment-meta">last edited ${comment.author ? `by ${escapeHtml(comment.author)} ` : ''}at ${escapeHtml(comment.created_at)} &middot; <a href="/curve/${curveId}/commentary-history">history</a></p>`
+    ? `<p class="comment-meta">last edited ${comment.author ? `by ${escapeHtml(comment.author)} ` : ''}at ${utcTime(comment.created_at)} &middot; <a href="/curve/${curveId}/commentary-history">history</a></p>`
     : ''
   const editor = user
     ? `<details class="comment-edit">
@@ -1225,8 +1231,8 @@ export function curveDetailPage(
         ${badPrimes.length ? `<dt>primes of bad reduction</dt><dd><code class="break">${badPrimes.map(escapeHtml).join(', ')}</code></dd>` : ''}
         <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
         <dt>submitted by</dt><dd>${submitter}</dd>
-        <dt>submitted at</dt><dd>${escapeHtml(curve.created_at)}</dd>
-        <dt>last updated</dt><dd>${escapeHtml(curve.updated_at)}</dd>
+        <dt>submitted at</dt><dd>${utcTime(curve.created_at)}</dd>
+        <dt>last updated</dt><dd>${utcTime(curve.updated_at)}</dd>
       </dl>
       <section class="witness">
         <h3>Witness: ${points.length} independent points</h3>
@@ -1248,7 +1254,7 @@ export function commentHistoryPage(
     ? entries
         .map(
           (e) => `<li>
-          <p class="comment-meta">${e.author ? escapeHtml(e.author) : '<span class="muted">(deleted user)</span>'} &middot; ${escapeHtml(e.created_at)}</p>
+          <p class="comment-meta">${e.author ? escapeHtml(e.author) : '<span class="muted">(deleted user)</span>'} &middot; ${utcTime(e.created_at)}</p>
           ${e.content.length > 0 ? `<div class="comment-body">${renderCommentContent(e.content)}</div>` : `<p class="muted">(cleared)</p>`}
         </li>`,
         )
@@ -1272,7 +1278,7 @@ export function activityPage(
   const who = (u: string | null) => (u ? escapeHtml(u) : '<span class="muted">anonymous</span>')
   const entry = (a: ActivityItem): string => {
     const link = `<a href="/curve/${a.curve_id}">curve #${a.curve_id}</a>`
-    const meta = `<p class="activity-meta">${escapeHtml(a.ts)} &middot; ${who(a.user)}</p>`
+    const meta = `<p class="activity-meta">${utcTime(a.ts)} &middot; ${who(a.user)}</p>`
     if (a.kind === 'submission') {
       return `<li>
           ${meta}
@@ -1573,7 +1579,7 @@ export function profilePage(
         .map((t) => {
           const label = t.name ? escapeHtml(t.name) : '<span class="muted">(unnamed)</span>'
           const status = t.revoked_at
-            ? `<span class="muted">revoked ${escapeHtml(t.revoked_at)}</span>`
+            ? `<span class="muted">revoked ${utcTime(t.revoked_at)}</span>`
             : `<form method="post" action="/profile/tokens/${t.id}/revoke" class="inline-form"><button type="submit" class="link-button">revoke</button></form>`
           const lastUsed = t.last_used_at
             ? escapeHtml(t.last_used_at)
@@ -1604,7 +1610,7 @@ export function profilePage(
         <h3>API tokens</h3>
         <p>Send a token in the <code>Authorization: Bearer &hellip;</code> header to call the <a href="/api">API</a> as yourself.</p>
         <table class="tokens-table">
-          <thead><tr><th>Prefix</th><th>Name</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+          <thead><tr><th>Prefix</th><th>Name</th><th>Created (UTC)</th><th>Last used (UTC)</th><th></th></tr></thead>
           <tbody>${tokenRows}</tbody>
         </table>
         <form method="post" action="/profile/tokens" class="new-token-form">
