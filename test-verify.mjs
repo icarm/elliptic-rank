@@ -312,6 +312,24 @@ if (!tooLargeToken.errors.some((e) => e.includes('too many digits'))) {
   console.log('oversized numeric token rejected OK')
 }
 
+// A JSON number beyond 2^53 was already rounded by JSON.parse, so accepting it
+// would silently verify different digits than the client wrote. Safe-integer
+// numbers remain accepted.
+const unsafeNumber = verify(gp, {
+  ainvs: RK12.ainvs,
+  points: [[12345678901234567890, '1']],
+})
+const safeNumber = verify(gp, { ainvs: RK12.ainvs, points: [[-3659, 14708205]] })
+if (!unsafeNumber.errors.some((e) => e.includes('not a safe integer'))) {
+  console.error('FAIL: unsafe (rounded) JSON number was not rejected')
+  process.exitCode = 1
+} else if (!safeNumber.ok) {
+  console.error(`FAIL: safe-integer JSON number should still verify: ${JSON.stringify(safeNumber.errors)}`)
+  process.exitCode = 1
+} else {
+  console.log('unsafe JSON number rejected OK (safe integers still accepted)')
+}
+
 const manyPrimes = verify(gp, {
   ainvs: ['0', '0'],
   points: [['0', '0']],

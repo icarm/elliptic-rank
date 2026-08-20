@@ -272,6 +272,13 @@ class InputError extends Error {}
 
 // Validate a single integer/rational token and return its canonical string.
 function token(raw: string | number, label: string): string {
+  // JSON numbers beyond 2^53 were already rounded by JSON.parse, so the digits
+  // here would silently differ from what the client wrote.
+  if (typeof raw === 'number' && !Number.isSafeInteger(raw)) {
+    throw new InputError(
+      `${label}: number is not a safe integer; pass integers beyond 2^53 (and all rationals) as strings`,
+    )
+  }
   const s = String(raw).trim().replace(/\u2212/g, '-')
   if (s.length === 0) throw new InputError(`${label}: bad length`)
   if (!NUM_RE.test(s)) throw new InputError(`${label}: not an integer/rational: ${s.slice(0, 40)}`)
