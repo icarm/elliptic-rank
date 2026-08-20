@@ -783,7 +783,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
             <input type="text" name="primes" ${user ? '' : 'disabled'} />
           </label>
           <label class="field">
-            <span>commentary <span class="muted">&mdash; optional; how the curve was found, references, etc. Recorded only if the curve has no commentary yet.</span></span>
+            <span>commentary <span class="muted">&mdash; optional; how the curve was found, references, etc.</span></span>
             <textarea name="commentary" rows="3" ${user ? '' : 'disabled'}></textarea>
           </label>
           <div class="submit-row">${
