@@ -1452,7 +1452,9 @@ export function apiDocsPage(user: User | null = null): string {
       floating-point arithmetic in the decision. The response's <code>independence.certificate</code>
       lists the primes used and the F<sub>2</sub> matrix ranks; the N&eacute;ron&ndash;Tate regulator is
       still reported as an informational diagnostic. On success the
-      curve is <strong>recorded on the leaderboard</strong>, attributed to you. Accepted curves and
+      curve is <strong>recorded on the leaderboard</strong>; a new curve is attributed to you, while
+      improving an already-recorded curve's rank bound updates its witness points but leaves the
+      original submitter's credit in place. Accepted curves and
       witness points are stored in the curve's global minimal model. Body:
       <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>.</p>
       <p>The <strong>discriminant</strong> and <strong>Faltings height</strong> are recorded for every

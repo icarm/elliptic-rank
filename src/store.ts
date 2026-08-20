@@ -304,15 +304,17 @@ export async function recordCurve(
   const setConductor = conductor != null && existing.conductor == null
   const setBadPrimes = badPrimes != null && existing.bad_primes == null
 
+  // An improved rank bound updates the witness data but NOT submitter_user_id:
+  // "submitted by" credits whoever first put the curve on the board.
   if (rank > existing.rank_lower_bound) {
     await env.DB.prepare(
       `UPDATE curves SET rank_lower_bound = ?, regulator = ?, points = ?, ainvs = ?,
-         submitter_user_id = ?, conductor = COALESCE(conductor, ?),
+         conductor = COALESCE(conductor, ?),
          bad_primes = COALESCE(bad_primes, ?),
          faltings_height = COALESCE(faltings_height, ?), updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
     )
-      .bind(rank, regulator, points, ainvs, userId, conductor, badPrimes, faltings, existing.id)
+      .bind(rank, regulator, points, ainvs, conductor, badPrimes, faltings, existing.id)
       .run()
     return { id: existing.id, status: 'improved', rank, previousRank: existing.rank_lower_bound, conductorRecorded: setConductor }
   }
