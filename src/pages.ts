@@ -83,6 +83,7 @@ export function layout(title: string, bodyInner: string, user: User | null = nul
         <a href="/recent">recent activity</a> &nbsp;&middot;&nbsp;
         <a href="/api">API</a> &nbsp;&middot;&nbsp;
         <a class="external" href="https://github.com/icarm/elliptic-rank">source</a> &nbsp;&middot;&nbsp;
+        <a class="external" href="https://icarm.zulipchat.com/#narrow/channel/519875-general/topic/Elliptic.20Curve.20Rank.20Leaderboard/near/603443505">zulip</a> &nbsp;&middot;&nbsp;
         <a class="external" href="https://icarm.io">icarm.io</a>
       </nav>
       <p class="acknowledgment">This website is maintained by the NSF Institute for Computer-Aided
