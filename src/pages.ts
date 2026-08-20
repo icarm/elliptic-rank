@@ -782,6 +782,10 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
             <span>primes of bad reduction <span class="muted">&mdash; optional; equivalently, primes dividing the minimal discriminant. If given, the conductor is recorded.</span></span>
             <input type="text" name="primes" ${user ? '' : 'disabled'} />
           </label>
+          <label class="field">
+            <span>commentary <span class="muted">&mdash; optional; how the curve was found, references, etc. Recorded only if the curve has no commentary yet.</span></span>
+            <textarea name="commentary" rows="3" ${user ? '' : 'disabled'}></textarea>
+          </label>
           <div class="submit-row">${
             user
               ? '<button type="submit">Submit</button>'

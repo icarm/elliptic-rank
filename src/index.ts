@@ -428,6 +428,8 @@ app.post('/submit-form', async (c) => {
     )
   }
   let input: VerifyInput
+  // Optional commentary, as in /api/submit: recorded only for curves with none yet.
+  let commentary: string | undefined
   try {
     const form = await c.req.parseBody()
     input = {
@@ -435,13 +437,14 @@ app.post('/submit-form', async (c) => {
       points: parsePoints(String(form.points ?? '')),
       primes: parseTokens(String(form.primes ?? '')),
     }
+    commentary = typeof form.commentary === 'string' ? form.commentary.slice(0, COMMENT_MAX) : undefined
   } catch (e) {
     const result = rejectedVerification(e instanceof Error ? e.message : String(e))
     return c.html(submitResultPage(result, user, null), 422)
   }
   const gp = await getGp()
   const result = verify(gp, input)
-  const submit: SubmitInfo | null = result.ok ? await recordCurve(c.env, user.id, result) : null
+  const submit: SubmitInfo | null = result.ok ? await recordCurve(c.env, user.id, result, commentary) : null
   if (submit) {
     c.executionCtx.waitUntil(
       notifyRecord(c.env, submit, user.display_name ?? null, new URL(c.req.url).origin),
