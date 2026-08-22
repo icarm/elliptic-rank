@@ -483,12 +483,8 @@ app.get('/user/:id', async (c) => {
 app.get('/profile', async (c) => {
   const user = c.get('user')
   if (!user) return c.redirect('/auth/github?return_to=/profile', 302)
-  const [tokens, curves, about] = await Promise.all([
-    listTokens(c.env, user.id),
-    listUserCurves(c.env, user.id),
-    getAbout(c.env, user.id),
-  ])
-  return c.html(profilePage(user, tokens, null, curves, about))
+  const [tokens, about] = await Promise.all([listTokens(c.env, user.id), getAbout(c.env, user.id)])
+  return c.html(profilePage(user, tokens, null, about))
 })
 
 app.post('/profile/tokens', async (c) => {
@@ -497,12 +493,8 @@ app.post('/profile/tokens', async (c) => {
   const form = await c.req.parseBody()
   const name = String(form.name ?? '').trim().slice(0, 100) || null
   const newToken = await generateApiToken(c.env, user.id, name)
-  const [tokens, curves, about] = await Promise.all([
-    listTokens(c.env, user.id),
-    listUserCurves(c.env, user.id),
-    getAbout(c.env, user.id),
-  ])
-  return c.html(profilePage(user, tokens, newToken, curves, about))
+  const [tokens, about] = await Promise.all([listTokens(c.env, user.id), getAbout(c.env, user.id)])
+  return c.html(profilePage(user, tokens, newToken, about))
 })
 
 app.post('/profile/tokens/:id/revoke', async (c) => {

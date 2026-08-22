@@ -1538,18 +1538,18 @@ export function apiDocsPage(user: User | null = null): string {
 // The curves currently attributed to the signed-in user (they were the latest
 // to prove the curve's best-known rank). Best rank first, so a contributor's
 // strongest results lead. A static table — no client-side sorting needed here.
-function submittedCurvesSection(curves: TableCurve[], own = true): string {
-  const heading = `<h3>${own ? 'Your curves' : 'Curves'} <span class="muted">(${curves.length})</span></h3>`
+function submittedCurvesSection(curves: TableCurve[]): string {
+  const heading = `<h3>Curves <span class="muted">(${curves.length})</span></h3>`
   if (curves.length === 0) {
     return `<section class="my-curves">
         ${heading}
-        <p class="muted">${own ? 'You haven&rsquo;t submitted any curves yet. <a href="/">Submit one &rarr;</a>' : 'No curves currently attributed to this user.'}</p>
+        <p class="muted">No curves currently attributed to this user.</p>
       </section>`
   }
   const rows = curves.map((c) => curveTableRow(c)).join('\n')
   return `<section class="my-curves">
         ${heading}
-        <p class="muted">Curves currently attributed to ${own ? 'you (you' : 'this user (they'} proved their best-known rank), highest rank first. Click one for its witness.</p>
+        <p class="muted">Curves currently attributed to this user (they proved their best-known rank), highest rank first. Click one for its witness.</p>
         <div class="table-scroll">
         <table class="curves-table">
           <thead>
@@ -1575,7 +1575,6 @@ export function profilePage(
   user: User,
   tokens: TokenRow[],
   newToken: { token: string; prefix: string } | null,
-  curves: TableCurve[] = [],
   about: string | null = null,
 ): string {
   const newTokenBlock = newToken
@@ -1635,8 +1634,7 @@ export function profilePage(
           <label>Name (optional) <input type="text" name="name" maxlength="100" placeholder="e.g. laptop CLI" /></label>
           <button type="submit">Generate new token</button>
         </form>
-      </section>
-      ${submittedCurvesSection(curves)}`
+      </section>`
   return layout('Profile — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
@@ -1672,7 +1670,7 @@ export function userPage(profile: PublicUser, curves: TableCurve[], viewer: User
         </div>
       </div>
       ${about}
-      ${submittedCurvesSection(curves, false)}`
+      ${submittedCurvesSection(curves)}`
   return layout(`${profile.display_name || `user #${profile.id}`} — Elliptic Curve Rank Leaderboard`, inner, viewer)
 }
 
