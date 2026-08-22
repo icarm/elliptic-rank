@@ -253,17 +253,10 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   // Non-records first, records last so they paint on top of any overlapping dot
   // and are therefore the easiest to click.
   const visible = pts.filter((p) => p.x <= qmax)
-  const offscale = pts.length - visible.length
   const dots = visible.filter((p) => !isRecord(p)).map(dot).join('')
   const records = visible.filter(isRecord).map(dot).join('')
-  // Off-scale dots are never per-rank bests, so the note only matters in the
-  // "show all curves" view; CSS hides it in the default best-only view.
-  const offscaleNote = offscale
-    ? `<text class="tick offscale-note" x="${W - R}" y="${T + 12}" text-anchor="end">${offscale} curve${offscale === 1 ? '' : 's'} above the scale not shown</text>`
-    : ''
   return `<svg class="rank-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${qLabel} versus rank scatter plot">
       ${grid}
-      ${offscaleNote}
       <line class="axis" x1="${L}" y1="${T}" x2="${L}" y2="${T + plotH}"/>
       <line class="axis" x1="${L}" y1="${T + plotH}" x2="${W - R}" y2="${T + plotH}"/>
       <text class="axis-title" x="${L + plotW / 2}" y="${H - 6}" text-anchor="middle">rank (lower bound) &rarr;</text>

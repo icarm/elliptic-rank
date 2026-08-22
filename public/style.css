@@ -418,10 +418,6 @@ pre code {
   color: var(--accent);
 }
 
-.board.best-only .rank-plot .offscale-note {
-  display: none;
-}
-
 .board.best-only .rank-plot .dot:not(.best) {
   display: none;
 }
