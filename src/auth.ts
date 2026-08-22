@@ -51,38 +51,18 @@ const PROVIDERS: Record<string, Provider> = {
     authorize: 'https://github.com/login/oauth/authorize',
     token: 'https://github.com/login/oauth/access_token',
     userInfo: 'https://api.github.com/user',
-    scope: 'read:user user:email',
+    scope: 'read:user',
     clientIdEnv: 'GITHUB_CLIENT_ID',
     clientSecretEnv: 'GITHUB_CLIENT_SECRET',
-    mapUser: async (info, accessToken) => ({
+    mapUser: async (info) => ({
       provider_user_id: String(info.id),
-      email: info.email || (await githubPrimaryEmail(accessToken)),
+      // Only the address the user has made public on their profile; we do not
+      // request the user:email scope.
+      email: info.email || null,
       display_name: info.name || info.login || null,
       avatar_url: info.avatar_url || null,
     }),
   },
-}
-
-// /user only returns `email` when public; otherwise fetch the primary verified
-// address (granted by the user:email scope).
-async function githubPrimaryEmail(accessToken: string): Promise<string | null> {
-  try {
-    const r = await fetch('https://api.github.com/user/emails', {
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-        'user-agent': 'elliptic-rank',
-        accept: 'application/json',
-      },
-    })
-    if (!r.ok) return null
-    const emails = await r.json()
-    if (!Array.isArray(emails)) return null
-    const primary =
-      emails.find((e) => e.primary && e.verified) || emails.find((e) => e.verified) || null
-    return primary ? primary.email : null
-  } catch {
-    return null
-  }
 }
 
 async function sha256Hex(s: string): Promise<string> {
