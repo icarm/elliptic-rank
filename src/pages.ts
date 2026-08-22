@@ -1161,7 +1161,7 @@ function commentSection(curveId: number, comment: CommentView | null, user: User
             <div><button type="submit">save</button> <span class="muted">submit empty to clear</span></div>
           </form>
         </details>`
-    : `<p class="muted"><a href="/auth/github">Log in</a> to add commentary.</p>`
+    : `<p class="muted"><a href="/auth/github">Log in</a> to ${hasContent ? 'edit' : 'add'} commentary.</p>`
   return `<section class="comment-section">
         <h3>Commentary</h3>
         ${body}
