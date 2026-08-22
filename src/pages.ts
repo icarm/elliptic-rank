@@ -178,8 +178,32 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   }
   const W = 720, H = 440, L = 60, R = 18, T = 18, B = 46
   const plotW = W - L - R, plotH = H - T - B
-  const qs = pts.map((p) => p.x)
-  let qmin = Math.min(...qs), qmax = Math.max(...qs)
+  // A point is on the frontier (a record) when no curve of equal or higher rank
+  // has a smaller value — the same rule that earns the star badge on curve pages.
+  const minByRank = new Map<number, number>()
+  for (const p of pts) {
+    const prev = minByRank.get(p.rank)
+    if (prev == null || p.x < prev) minByRank.set(p.rank, p.x)
+  }
+  const frontierValueByRank = new Map<number, number>()
+  let bestAtHigherRank = Infinity
+  const ranks = [...minByRank.keys()].sort((a, b) => b - a)
+  for (const rank of ranks) {
+    const rankMin = minByRank.get(rank)!
+    frontierValueByRank.set(rank, Math.min(rankMin, bestAtHigherRank))
+    if (rankMin < bestAtHigherRank) bestAtHigherRank = rankMin
+  }
+  const isRecord = (p: PlotPoint): boolean => p.x <= frontierValueByRank.get(p.rank)!
+  // Best in its rank column (ties included) — unlike isRecord, every rank that
+  // has any point has a best, even when a higher rank beats its minimum. The
+  // default plot view shows only these.
+  const isBest = (p: PlotPoint): boolean => p.x <= minByRank.get(p.rank)!
+  // Scale to the best curve per rank — the dots the default view shows — so a
+  // deliberately huge low-rank submission cannot stretch the axis for everyone.
+  // (The global minimum is always a per-rank best, so nothing falls below the
+  // scale; dots above it are skipped when drawing, with a note.)
+  const scaleQs = pts.filter(isBest).map((p) => p.x)
+  let qmin = Math.min(...scaleQs), qmax = Math.max(...scaleQs)
   if (qmin === qmax) { qmin -= 1; qmax += 1 }
   const qpad = (qmax - qmin) * 0.05
   qmin -= qpad
@@ -221,26 +245,6 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
     const y = Y(q).toFixed(1)
     grid += `<line class="grid" x1="${L}" y1="${y}" x2="${W - R}" y2="${y}"/><text class="tick" x="${L - 8}" y="${(Y(q) + 4).toFixed(1)}" text-anchor="end">${qFmt(q)}</text>`
   }
-  // A point is on the frontier (a record) when no curve of equal or higher rank
-  // has a smaller value — the same rule that earns the star badge on curve pages.
-  const minByRank = new Map<number, number>()
-  for (const p of pts) {
-    const prev = minByRank.get(p.rank)
-    if (prev == null || p.x < prev) minByRank.set(p.rank, p.x)
-  }
-  const frontierValueByRank = new Map<number, number>()
-  let bestAtHigherRank = Infinity
-  const ranks = [...minByRank.keys()].sort((a, b) => b - a)
-  for (const rank of ranks) {
-    const rankMin = minByRank.get(rank)!
-    frontierValueByRank.set(rank, Math.min(rankMin, bestAtHigherRank))
-    if (rankMin < bestAtHigherRank) bestAtHigherRank = rankMin
-  }
-  const isRecord = (p: PlotPoint): boolean => p.x <= frontierValueByRank.get(p.rank)!
-  // Best in its rank column (ties included) — unlike isRecord, every rank that
-  // has any point has a best, even when a higher rank beats its minimum. The
-  // default plot view shows only these.
-  const isBest = (p: PlotPoint): boolean => p.x <= minByRank.get(p.rank)!
   const dot = (p: PlotPoint): string => {
     const x = X(p.rank).toFixed(1)
     const y = Y(p.x).toFixed(1)
@@ -248,10 +252,18 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   }
   // Non-records first, records last so they paint on top of any overlapping dot
   // and are therefore the easiest to click.
-  const dots = pts.filter((p) => !isRecord(p)).map(dot).join('')
-  const records = pts.filter(isRecord).map(dot).join('')
+  const visible = pts.filter((p) => p.x <= qmax)
+  const offscale = pts.length - visible.length
+  const dots = visible.filter((p) => !isRecord(p)).map(dot).join('')
+  const records = visible.filter(isRecord).map(dot).join('')
+  // Off-scale dots are never per-rank bests, so the note only matters in the
+  // "show all curves" view; CSS hides it in the default best-only view.
+  const offscaleNote = offscale
+    ? `<text class="tick offscale-note" x="${W - R}" y="${T + 12}" text-anchor="end">${offscale} curve${offscale === 1 ? '' : 's'} above the scale not shown</text>`
+    : ''
   return `<svg class="rank-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${qLabel} versus rank scatter plot">
       ${grid}
+      ${offscaleNote}
       <line class="axis" x1="${L}" y1="${T}" x2="${L}" y2="${T + plotH}"/>
       <line class="axis" x1="${L}" y1="${T + plotH}" x2="${W - R}" y2="${T + plotH}"/>
       <text class="axis-title" x="${L + plotW / 2}" y="${H - 6}" text-anchor="middle">rank (lower bound) &rarr;</text>
