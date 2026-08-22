@@ -15,6 +15,7 @@ export interface CommentView {
   content: string
   created_at: string
   author: string | null
+  author_id: number | null
 }
 
 // Record an edit to a curve's commentary and point the curve at it.
@@ -37,7 +38,7 @@ export async function postComment(
 // Full edit history for a curve, newest first.
 export function commentHistory(env: Bindings, curveId: number): Promise<CommentView[]> {
   return env.DB.prepare(
-    `SELECT cl.id, cl.content, cl.created_at, u.display_name AS author
+    `SELECT cl.id, cl.content, cl.created_at, u.display_name AS author, u.id AS author_id
        FROM comments_log cl LEFT JOIN users u ON u.id = cl.user_id
        WHERE cl.curve_id = ? ORDER BY cl.id DESC`,
   )
@@ -55,6 +56,7 @@ export interface ActivityItem {
   rank: number
   height: number
   user: string | null
+  user_id: number | null
   content: string | null
 }
 
@@ -69,15 +71,15 @@ export async function recentActivity(
 ): Promise<{ items: ActivityItem[]; page: number; hasOlder: boolean }> {
   const size = ACTIVITY_PAGE_SIZE
   const { results } = await env.DB.prepare(
-    `SELECT kind, ts, curve_id, rank, height, user, content FROM (
+    `SELECT kind, ts, curve_id, rank, height, user, user_id, content FROM (
          SELECT 'submission' AS kind, c.created_at AS ts, c.id AS curve_id,
                 c.rank_lower_bound AS rank, c.naive_height AS height,
-                u.display_name AS user, NULL AS content
+                u.display_name AS user, u.id AS user_id, NULL AS content
            FROM curves c LEFT JOIN users u ON u.id = c.submitter_user_id
          UNION ALL
          SELECT 'comment' AS kind, cl.created_at AS ts, cl.curve_id AS curve_id,
                 cv.rank_lower_bound AS rank, cv.naive_height AS height,
-                cu.display_name AS user, cl.content AS content
+                cu.display_name AS user, cu.id AS user_id, cl.content AS content
            FROM comments_log cl
            LEFT JOIN users cu ON cu.id = cl.user_id
            JOIN curves cv ON cv.id = cl.curve_id

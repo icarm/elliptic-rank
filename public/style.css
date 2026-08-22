@@ -1073,7 +1073,8 @@ a.record-badge:hover {
 }
 
 .new-token-form button,
-.profile-name-form button {
+.profile-name-form button,
+.profile-about-form button {
   padding: 0.4rem 1.1rem;
   background: var(--accent);
   color: #fff;
@@ -1084,8 +1085,41 @@ a.record-badge:hover {
 }
 
 .new-token-form button:hover,
-.profile-name-form button:hover {
+.profile-name-form button:hover,
+.profile-about-form button:hover {
   background: var(--accent-dark);
+}
+
+.user-header {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.user-header h2 {
+  margin-bottom: 0.25rem;
+}
+
+.user-avatar {
+  border-radius: 50%;
+  border: 1px solid var(--border);
+}
+
+.profile-about-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+  max-width: 640px;
+}
+
+.profile-about-form textarea {
+  width: 100%;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font: inherit;
+  resize: vertical;
 }
 
 .profile-name-form {

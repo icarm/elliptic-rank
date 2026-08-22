@@ -5,6 +5,8 @@
 import type { VerifyResult } from './verify'
 import { COMMENT_MAX, lessDecimal, lessAbsDecimal, type CommentView, type ActivityItem } from './store'
 
+export const ABOUT_MAX = 1000
+
 export interface User {
   id: number
   provider: string
@@ -36,6 +38,12 @@ export function escapeHtml(s: unknown): string {
 // wherever one is displayed.
 function utcTime(ts: string): string {
   return `${escapeHtml(ts)} UTC`
+}
+
+// A user's name, linked to their public page when we know who they are.
+function userLink(id: number | null | undefined, name: string | null | undefined): string {
+  if (id == null) return '<span class="muted">anonymous</span>'
+  return `<a href="/user/${id}">${escapeHtml(name || `user #${id}`)}</a>`
 }
 
 function authNav(user: User | null): string {
@@ -1086,6 +1094,7 @@ export interface CurveRow {
   conductor: string | null
   bad_primes: string | null // JSON array of decimal strings
   faltings_height: number | null
+  submitter_user_id: number | null
   submitter_name: string | null
   created_at: string
   updated_at: string
@@ -1142,7 +1151,7 @@ function commentSection(curveId: number, comment: CommentView | null, user: User
     ? `<div class="comment-body">${renderCommentContent(comment!.content)}</div>`
     : `<p class="muted">No commentary yet.</p>`
   const meta = comment
-    ? `<p class="comment-meta">last edited ${comment.author ? `by ${escapeHtml(comment.author)} ` : ''}at ${utcTime(comment.created_at)} &middot; <a href="/curve/${curveId}/commentary-history">history</a></p>`
+    ? `<p class="comment-meta">last edited ${comment.author_id != null ? `by ${userLink(comment.author_id, comment.author)} ` : ''}at ${utcTime(comment.created_at)} &middot; <a href="/curve/${curveId}/commentary-history">history</a></p>`
     : ''
   const editor = user
     ? `<details class="comment-edit">
@@ -1218,9 +1227,7 @@ export function curveDetailPage(
   const pointList = points
     .map(([x, y]) => `<li><code>(${escapeHtml(x)}, ${escapeHtml(y)})</code></li>`)
     .join('\n          ')
-  const submitter = curve.submitter_name
-    ? escapeHtml(curve.submitter_name)
-    : '<span class="muted">anonymous</span>'
+  const submitter = userLink(curve.submitter_user_id, curve.submitter_name)
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a> &nbsp;&middot;&nbsp; <a href="/curves">all curves</a> &nbsp;&middot;&nbsp; <a href="/curve/${curve.id}.json" download>JSON &darr;</a></p>
       <h2>curve #${curve.id}</h2>
@@ -1258,7 +1265,7 @@ export function commentHistoryPage(
     ? entries
         .map(
           (e) => `<li>
-          <p class="comment-meta">${e.author ? escapeHtml(e.author) : '<span class="muted">(deleted user)</span>'} &middot; ${utcTime(e.created_at)}</p>
+          <p class="comment-meta">${e.author_id != null ? userLink(e.author_id, e.author) : '<span class="muted">(deleted user)</span>'} &middot; ${utcTime(e.created_at)}</p>
           ${e.content.length > 0 ? `<div class="comment-body">${renderCommentContent(e.content)}</div>` : `<p class="muted">(cleared)</p>`}
         </li>`,
         )
@@ -1279,10 +1286,9 @@ export function activityPage(
   hasOlder: boolean,
   user: User | null = null,
 ): string {
-  const who = (u: string | null) => (u ? escapeHtml(u) : '<span class="muted">anonymous</span>')
   const entry = (a: ActivityItem): string => {
     const link = `<a href="/curve/${a.curve_id}">curve #${a.curve_id}</a>`
-    const meta = `<p class="activity-meta">${utcTime(a.ts)} &middot; ${who(a.user)}</p>`
+    const meta = `<p class="activity-meta">${utcTime(a.ts)} &middot; ${userLink(a.user_id, a.user)}</p>`
     if (a.kind === 'submission') {
       return `<li>
           ${meta}
@@ -1532,18 +1538,18 @@ export function apiDocsPage(user: User | null = null): string {
 // The curves currently attributed to the signed-in user (they were the latest
 // to prove the curve's best-known rank). Best rank first, so a contributor's
 // strongest results lead. A static table — no client-side sorting needed here.
-function submittedCurvesSection(curves: TableCurve[]): string {
-  const heading = `<h3>Your curves <span class="muted">(${curves.length})</span></h3>`
+function submittedCurvesSection(curves: TableCurve[], own = true): string {
+  const heading = `<h3>${own ? 'Your curves' : 'Curves'} <span class="muted">(${curves.length})</span></h3>`
   if (curves.length === 0) {
     return `<section class="my-curves">
         ${heading}
-        <p class="muted">You haven&rsquo;t submitted any curves yet. <a href="/">Submit one &rarr;</a></p>
+        <p class="muted">${own ? 'You haven&rsquo;t submitted any curves yet. <a href="/">Submit one &rarr;</a>' : 'No curves currently attributed to this user.'}</p>
       </section>`
   }
   const rows = curves.map((c) => curveTableRow(c)).join('\n')
   return `<section class="my-curves">
         ${heading}
-        <p class="muted">Curves currently attributed to you (you proved their best-known rank), highest rank first. Click one for its witness.</p>
+        <p class="muted">Curves currently attributed to ${own ? 'you (you' : 'this user (they'} proved their best-known rank), highest rank first. Click one for its witness.</p>
         <div class="table-scroll">
         <table class="curves-table">
           <thead>
@@ -1570,6 +1576,7 @@ export function profilePage(
   tokens: TokenRow[],
   newToken: { token: string; prefix: string } | null,
   curves: TableCurve[] = [],
+  about: string | null = null,
 ): string {
   const newTokenBlock = newToken
     ? `<div class="new-token">
@@ -1601,12 +1608,19 @@ export function profilePage(
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>Profile</h2>
-      <p class="page-subtitle">Signed in as ${escapeHtml(user.display_name || user.email || 'user')} (via ${escapeHtml(user.provider)}).</p>
+      <p class="page-subtitle">Signed in as ${escapeHtml(user.display_name || user.email || 'user')} (via ${escapeHtml(user.provider)}). &nbsp;&middot;&nbsp; <a href="/user/${user.id}">view your public page</a></p>
       ${newTokenBlock}
       <section class="profile-name">
         <h3>Display name</h3>
         <form method="post" action="/profile/name" class="profile-name-form">
           <input type="text" name="name" value="${escapeHtml(user.display_name || '')}" maxlength="100" required />
+          <button type="submit">save</button>
+        </form>
+      </section>
+      <section class="profile-about">
+        <h3>About</h3>
+        <form method="post" action="/profile/about" class="profile-about-form">
+          <textarea name="about" rows="4" maxlength="${ABOUT_MAX}" placeholder="A sentence or two about yourself.">${escapeHtml(about ?? '')}</textarea>
           <button type="submit">save</button>
         </form>
       </section>
@@ -1624,6 +1638,42 @@ export function profilePage(
       </section>
       ${submittedCurvesSection(curves)}`
   return layout('Profile — Elliptic Curve Rank Leaderboard', inner, user)
+}
+
+// The public profile shown at /user/:id. Deliberately excludes email and
+// anything else not already visible elsewhere on the site.
+export interface PublicUser {
+  id: number
+  display_name: string | null
+  avatar_url: string | null
+  about: string | null
+  created_at: string
+}
+
+export function userPage(profile: PublicUser, curves: TableCurve[], viewer: User | null = null): string {
+  const name = escapeHtml(profile.display_name || `user #${profile.id}`)
+  const avatar = profile.avatar_url
+    ? `<img class="user-avatar" src="${escapeHtml(profile.avatar_url)}" alt="" width="64" height="64" />`
+    : ''
+  const about = profile.about
+    ? `<section class="user-about"><h3>About</h3><div class="comment-body">${renderCommentContent(profile.about)}</div></section>`
+    : ''
+  const editHint =
+    viewer && viewer.id === profile.id
+      ? ` &nbsp;&middot;&nbsp; <a href="/profile">edit your profile</a>`
+      : ''
+  const inner = `
+      <p class="page-nav"><a href="/">&larr; home</a></p>
+      <div class="user-header">
+        ${avatar}
+        <div>
+          <h2>${name}</h2>
+          <p class="page-subtitle">Member since ${utcTime(profile.created_at)}.${editHint}</p>
+        </div>
+      </div>
+      ${about}
+      ${submittedCurvesSection(curves, false)}`
+  return layout(`${profile.display_name || `user #${profile.id}`} — Elliptic Curve Rank Leaderboard`, inner, viewer)
 }
 
 export function notFoundPage(user: User | null = null): string {

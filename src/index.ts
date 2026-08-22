@@ -18,6 +18,9 @@ import {
   curveTablePage,
   acknowledgePage,
   progressPage,
+  userPage,
+  ABOUT_MAX,
+  type PublicUser,
   type TokenRow,
   type SubmitInfo,
   type PlotCurve,
@@ -135,7 +138,8 @@ async function loadCurveWithComment(
   const row = await env.DB.prepare(
     `SELECT c.*, u.display_name AS submitter_name,
             cl.id AS comment_id, cl.content AS comment_content,
-            cl.created_at AS comment_at, cu.display_name AS comment_author
+            cl.created_at AS comment_at, cu.display_name AS comment_author,
+            cu.id AS comment_author_id
        FROM curves c
        LEFT JOIN users u ON u.id = c.submitter_user_id
        LEFT JOIN comments_log cl ON cl.id = c.current_comment_id
@@ -149,6 +153,7 @@ async function loadCurveWithComment(
         comment_content: string | null
         comment_at: string | null
         comment_author: string | null
+        comment_author_id: number | null
       }
     >()
   if (!row) return null
@@ -159,6 +164,7 @@ async function loadCurveWithComment(
           content: row.comment_content ?? '',
           created_at: row.comment_at ?? '',
           author: row.comment_author,
+          author_id: row.comment_author_id,
         }
       : null
   return { row, comment }
@@ -458,12 +464,31 @@ app.get('/auth/:provider', startOAuth)
 app.get('/auth/:provider/callback', handleCallback)
 app.post('/auth/logout', logout)
 
+// Public user page: display name, about text, and attributed curves. No email
+// or provider details.
+app.get('/user/:id', async (c) => {
+  const id = Number(c.req.param('id'))
+  if (!Number.isInteger(id)) return c.html(notFoundPage(c.get('user')), 404)
+  const profile = await c.env.DB.prepare(
+    'SELECT id, display_name, avatar_url, about, created_at FROM users WHERE id = ?',
+  )
+    .bind(id)
+    .first<PublicUser>()
+  if (!profile) return c.html(notFoundPage(c.get('user')), 404)
+  const curves = await listUserCurves(c.env, id)
+  return c.html(userPage(profile, curves, c.get('user')))
+})
+
 // --- Profile & API tokens ---
 app.get('/profile', async (c) => {
   const user = c.get('user')
   if (!user) return c.redirect('/auth/github?return_to=/profile', 302)
-  const [tokens, curves] = await Promise.all([listTokens(c.env, user.id), listUserCurves(c.env, user.id)])
-  return c.html(profilePage(user, tokens, null, curves))
+  const [tokens, curves, about] = await Promise.all([
+    listTokens(c.env, user.id),
+    listUserCurves(c.env, user.id),
+    getAbout(c.env, user.id),
+  ])
+  return c.html(profilePage(user, tokens, null, curves, about))
 })
 
 app.post('/profile/tokens', async (c) => {
@@ -472,8 +497,12 @@ app.post('/profile/tokens', async (c) => {
   const form = await c.req.parseBody()
   const name = String(form.name ?? '').trim().slice(0, 100) || null
   const newToken = await generateApiToken(c.env, user.id, name)
-  const [tokens, curves] = await Promise.all([listTokens(c.env, user.id), listUserCurves(c.env, user.id)])
-  return c.html(profilePage(user, tokens, newToken, curves))
+  const [tokens, curves, about] = await Promise.all([
+    listTokens(c.env, user.id),
+    listUserCurves(c.env, user.id),
+    getAbout(c.env, user.id),
+  ])
+  return c.html(profilePage(user, tokens, newToken, curves, about))
 })
 
 app.post('/profile/tokens/:id/revoke', async (c) => {
@@ -490,6 +519,16 @@ app.post('/profile/tokens/:id/revoke', async (c) => {
   return c.redirect('/profile', 302)
 })
 
+app.post('/profile/about', async (c) => {
+  const user = c.get('user')
+  if (!user) return c.redirect('/auth/github', 302)
+  const form = await c.req.parseBody()
+  // Empty submission clears the field.
+  const about = String(form.about ?? '').trim().slice(0, ABOUT_MAX) || null
+  await c.env.DB.prepare('UPDATE users SET about = ? WHERE id = ?').bind(about, user.id).run()
+  return c.redirect('/profile', 302)
+})
+
 app.post('/profile/name', async (c) => {
   const user = c.get('user')
   if (!user) return c.redirect('/auth/github', 302)
@@ -503,6 +542,13 @@ app.post('/profile/name', async (c) => {
 })
 
 app.notFound((c) => c.html(notFoundPage(c.get('user') ?? null), 404))
+
+function getAbout(env: Bindings, userId: number): Promise<string | null> {
+  return env.DB.prepare('SELECT about FROM users WHERE id = ?')
+    .bind(userId)
+    .first<{ about: string | null }>()
+    .then((r) => r?.about ?? null)
+}
 
 function listTokens(env: Bindings, userId: number): Promise<TokenRow[]> {
   return env.DB.prepare(
