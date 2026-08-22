@@ -51,7 +51,9 @@ const PROVIDERS: Record<string, Provider> = {
     authorize: 'https://github.com/login/oauth/authorize',
     token: 'https://github.com/login/oauth/access_token',
     userInfo: 'https://api.github.com/user',
-    scope: 'read:user',
+    // Empty scope = read-only access to public profile info, which is all we
+    // use; the consent screen then only mentions public data.
+    scope: '',
     clientIdEnv: 'GITHUB_CLIENT_ID',
     clientSecretEnv: 'GITHUB_CLIENT_SECRET',
     mapUser: async (info) => ({
@@ -155,7 +157,7 @@ export async function startOAuth(c: Ctx): Promise<Response> {
   const authUrl = new URL(provider.authorize)
   authUrl.searchParams.set('client_id', clientId)
   authUrl.searchParams.set('redirect_uri', redirectUri)
-  authUrl.searchParams.set('scope', provider.scope)
+  if (provider.scope) authUrl.searchParams.set('scope', provider.scope)
   authUrl.searchParams.set('state', state)
   return c.redirect(authUrl.toString(), 302)
 }
