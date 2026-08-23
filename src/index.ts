@@ -246,7 +246,7 @@ app.get('/acknowledge', (c) => c.html(acknowledgePage(c.get('user'))))
 
 // Shared SELECT + JSON shape for the database download and the per-curve JSON.
 const CURVE_JSON_SELECT = `SELECT c.id, c.curve_key, c.ainvs, c.discriminant, c.naive_height, c.rank_lower_bound,
-            c.regulator, c.points, c.conductor, c.bad_primes, c.faltings_height,
+            c.regulator, c.points, c.conductor, c.bad_primes, c.faltings_height, c.torsion,
             c.created_at, c.updated_at, u.display_name AS submitter, cl.content AS commentary
        FROM curves c
        LEFT JOIN users u ON u.id = c.submitter_user_id
@@ -264,6 +264,7 @@ interface CurveJsonRow {
   conductor: string | null
   bad_primes: string | null // JSON array of decimal strings
   faltings_height: number | null
+  torsion: string | null // JSON array of invariant factors, e.g. "[2,2]"
   created_at: string
   updated_at: string
   submitter: string | null
@@ -283,6 +284,7 @@ function curveJson(r: CurveJsonRow) {
     curve_key: r.curve_key,
     ainvs: parse(r.ainvs),
     rank_lower_bound: r.rank_lower_bound,
+    torsion: r.torsion == null ? null : parse(r.torsion),
     naive_height: r.naive_height,
     faltings_height: r.faltings_height,
     conductor: r.conductor,
@@ -589,6 +591,7 @@ function rejectedVerification(message: string): VerifyResult {
     conductor: null,
     badPrimes: null,
     faltingsHeight: null,
+    torsion: null,
     conductorNote: null,
   }
 }

@@ -116,6 +116,11 @@ export interface VerifyResult {
   // Stable Faltings height of the global minimal model — computed from its period
   // lattice alone (no primes needed), so always present for a verified curve.
   faltingsHeight: string | null
+  // Torsion subgroup structure — invariant factors as a JSON array string,
+  // e.g. "[]" (trivial), "[2,2]", "[12]". Intrinsic to the Q-isomorphism class;
+  // computed exactly by elltors during certification (the certificate needs it),
+  // so present whenever the certificate stage ran.
+  torsion: string | null
   // Set when primes were supplied but failed validation (conductor not recorded).
   conductorNote: string | null
 }
@@ -581,6 +586,7 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     conductor: null,
     badPrimes: null,
     faltingsHeight: null,
+    torsion: null,
     conductorNote: null,
   }
 
@@ -720,6 +726,9 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
     const torsionRank = Number(evalGp(gp, 'erkRes[4]'))
     const halvings = Number(evalGp(gp, 'erkRes[5]'))
     const torsion = evalGp(gp, 'elltors(erkF)[2]')
+    // erkF is Q-isomorphic to the minimal model, so this is the curve's torsion
+    // structure; normalized to compact JSON for storage.
+    result.torsion = JSON.stringify(parseGpVector(torsion, 'torsion structure').map(Number))
 
     const independent = status === '1'
     // Certified lower bound even on failure: point rows contribute

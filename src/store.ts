@@ -240,11 +240,13 @@ export async function recordCurve(
   const conductor = result.conductor // string | null
   const badPrimes = result.badPrimes ? JSON.stringify(result.badPrimes) : null
   const faltings = result.faltingsHeight != null ? toFloat(result.faltingsHeight) : null
+  // Torsion structure (JSON array string) — intrinsic to the curve, write-once.
+  const torsion = result.torsion
 
   const hasCommentary = !!commentary && commentary.trim().length > 0
 
   const existing = await env.DB.prepare(
-    `SELECT id, rank_lower_bound, naive_height, conductor, bad_primes, current_comment_id
+    `SELECT id, rank_lower_bound, naive_height, conductor, bad_primes, torsion, current_comment_id
        FROM curves WHERE curve_key = ?`,
   )
     .bind(key)
@@ -254,6 +256,7 @@ export async function recordCurve(
       naive_height: number
       conductor: string | null
       bad_primes: string | null
+      torsion: string | null
       current_comment_id: number | null
     }>()
 
@@ -261,8 +264,8 @@ export async function recordCurve(
     const ins = await env.DB.prepare(
       `INSERT INTO curves
          (curve_key, c4, c6, ainvs, discriminant, naive_height, rank_lower_bound,
-          regulator, points, submitter_user_id, conductor, bad_primes, faltings_height)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          regulator, points, submitter_user_id, conductor, bad_primes, faltings_height, torsion)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
         key,
@@ -278,6 +281,7 @@ export async function recordCurve(
         conductor,
         badPrimes,
         faltings,
+        torsion,
       )
       .run()
     const id = ins.meta.last_row_id as number
@@ -296,6 +300,15 @@ export async function recordCurve(
   if (Math.abs(existing.naive_height - height) > 1e-9) {
     await env.DB.prepare('UPDATE curves SET naive_height = ? WHERE id = ?')
       .bind(height, existing.id)
+      .run()
+  }
+
+  // Torsion is intrinsic and computed on every verify, so a re-submission
+  // backfills rows recorded before the column existed. Like the height
+  // correction above, this is metadata repair: it does not bump updated_at.
+  if (torsion != null && existing.torsion == null) {
+    await env.DB.prepare('UPDATE curves SET torsion = ? WHERE id = ?')
+      .bind(torsion, existing.id)
       .run()
   }
 

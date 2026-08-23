@@ -199,7 +199,8 @@ if (
   !rk12res.independence?.certificate ||
   rk12res.independence.certificate.matrixRank !== 12 ||
   rk12res.independence.certificate.torsionRank !== 0 ||
-  rk12res.independence.certificate.primes.length === 0
+  rk12res.independence.certificate.primes.length === 0 ||
+  rk12res.torsion !== '[]'
 ) {
   console.error('FAIL: accepted submission missing exact certificate data')
   process.exitCode = 1
@@ -242,7 +243,8 @@ if (
   !e34.ok ||
   e34.independence.rankLowerBound !== 2 ||
   e34.independence.certificate.torsionRank !== 2 ||
-  e34.independence.certificate.torsion !== '[2, 2]'
+  e34.independence.certificate.torsion !== '[2, 2]' ||
+  e34.torsion !== '[2,2]'
 ) {
   console.error(`FAIL: 2-torsion curve independent pair: ${JSON.stringify(e34.independence)}`)
   process.exitCode = 1

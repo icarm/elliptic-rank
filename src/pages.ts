@@ -1099,6 +1099,7 @@ export interface CurveRow {
   conductor: string | null
   bad_primes: string | null // JSON array of decimal strings
   faltings_height: number | null
+  torsion: string | null // JSON array of invariant factors, e.g. "[2,2]"
   submitter_user_id: number | null
   submitter_name: string | null
   created_at: string
@@ -1128,6 +1129,21 @@ function weierstrassEq(ainvs: string[]): string {
   rhs = append(rhs, term(a4, 'x'))
   rhs = append(rhs, term(a6, ''))
   return `${lhs} = ${rhs}`
+}
+
+// Render a stored torsion structure (JSON array of invariant factors, e.g.
+// "[2,2]") as the group it names: &#8484;/2&#8484; &times; &#8484;/2&#8484;, or
+// "trivial" for "[]". Null when the stored value doesn't parse.
+function torsionGroupHtml(torsion: string): string | null {
+  let factors: unknown
+  try {
+    factors = JSON.parse(torsion)
+  } catch {
+    return null
+  }
+  if (!Array.isArray(factors) || !factors.every((n) => Number.isInteger(n) && n > 1)) return null
+  if (factors.length === 0) return 'trivial'
+  return `<span class="eqi">${factors.map((n) => `&#8484;/${n}&#8484;`).join(' &times; ')}</span>`
 }
 
 // Record badge for a curve-page metric: shown when no curve of equal or higher
@@ -1229,6 +1245,7 @@ export function curveDetailPage(
     /* leave empty */
   }
   const eq = weierstrassEq(ainvs)
+  const torsionHtml = curve.torsion != null ? torsionGroupHtml(curve.torsion) : null
   const pointList = points
     .map(([x, y]) => `<li><code>(${escapeHtml(x)}, ${escapeHtml(y)})</code></li>`)
     .join('\n          ')
@@ -1240,6 +1257,7 @@ export function curveDetailPage(
       <dl class="result-meta curve-meta">
         <dt>a-invariants</dt><dd><code>[${ainvs.map(escapeHtml).join(', ')}]</code></dd>
         <dt>rank (lower bound)</dt><dd><a href="/curves?sort=conductor&amp;minrank=${curve.rank_lower_bound}&amp;rankmode=eq" title="all curves with rank lower bound = ${curve.rank_lower_bound}, by increasing conductor">&ge; ${curve.rank_lower_bound}</a></dd>
+        ${torsionHtml ? `<dt>torsion subgroup</dt><dd>${torsionHtml}</dd>` : ''}
         ${curve.conductor ? `<dt>conductor (N)</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code>${badge(records.conductor, curve.rank_lower_bound, 'conductor')}</dd>` : ''}
         <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badge(records.naive, curve.rank_lower_bound, 'naive')}</dd>
         ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}${badge(records.faltings, curve.rank_lower_bound, 'faltings')}</dd>` : ''}
@@ -1441,6 +1459,7 @@ export function apiDocsPage(user: User | null = null): string {
   "faltingsHeight": "...",
   "conductor": "...",           // only if primes were supplied/recovered
   "badPrimes": ["2","3","211", ...],  // ditto: the verified primes, sorted
+  "torsion": "[]",              // torsion structure (JSON invariant factors)
   "leaderboard": { "status": "created", "rank": 12 }
 }`
   const primesReq = `curl -X POST https://elliptic-rank.icarm.cloud/api/curve/123/primes \\
