@@ -127,7 +127,7 @@ export interface VerifyResult {
 
 // Integer or rational literal, e.g. "12", "-3", "800843008889340065933/16".
 const NUM_RE = /^[+-]?\d+(?:\/\d+)?$/
-const MAX_NUMERIC_PART_DIGITS = 256
+const MAX_NUMERIC_PART_DIGITS = 512
 const MAX_POINTS = 64
 // Cap on point replacements (P -> R with 2R = P + torsion) while searching for
 // a certifiable working set. Each halving divides a canonical height by ~4;

@@ -304,7 +304,7 @@ show('dependent (P,P)', { ainvs: RK12.ainvs, points: [RK12.points[0], RK12.point
 show('injection attempt', { ainvs: ['0', '0', '1', '0', 'ellinit([0,1])'], points: [['0', '0']] })
 
 const tooLargeToken = verify(gp, {
-  ainvs: ['1' + '0'.repeat(256), '0'],
+  ainvs: ['1' + '0'.repeat(512), '0'],
   points: [['0', '0']],
 })
 if (!tooLargeToken.errors.some((e) => e.includes('too many digits'))) {
