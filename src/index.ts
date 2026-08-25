@@ -554,9 +554,10 @@ function listTokens(env: Bindings, userId: number): Promise<TokenRow[]> {
     .then((r) => r.results)
 }
 
-// Curves currently attributed to this user as submitter (they proved the
-// best-known rank). Highest rank first, then smallest naive height — the same
-// "best curve" ordering the database download uses.
+// Curves attributed to this user as original submitter (a later rank
+// improvement by someone else does not reassign credit). Highest rank first,
+// then smallest naive height — the same "best curve" ordering the database
+// download uses.
 function listUserCurves(env: Bindings, userId: number): Promise<TableCurve[]> {
   return env.DB.prepare(
     `SELECT id, ainvs, rank_lower_bound, naive_height, faltings_height, conductor, discriminant

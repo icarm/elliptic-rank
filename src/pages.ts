@@ -1559,9 +1559,10 @@ export function apiDocsPage(user: User | null = null): string {
   return layout('API — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
-// The curves currently attributed to the signed-in user (they were the latest
-// to prove the curve's best-known rank). Best rank first, so a contributor's
-// strongest results lead. A static table — no client-side sorting needed here.
+// The curves attributed to the signed-in user (they were the first to record
+// each curve; later rank improvements by others leave that credit in place).
+// Best rank first, so a contributor's strongest results lead. A static table —
+// no client-side sorting needed here.
 function submittedCurvesSection(curves: TableCurve[]): string {
   const heading = `<h3>Curves <span class="muted">(${curves.length})</span></h3>`
   if (curves.length === 0) {
@@ -1573,7 +1574,7 @@ function submittedCurvesSection(curves: TableCurve[]): string {
   const rows = curves.map((c) => curveTableRow(c)).join('\n')
   return `<section class="my-curves">
         ${heading}
-        <p class="muted">Curves currently attributed to this user (they proved their best-known rank), highest rank first. Click one for its witness.</p>
+        <p class="muted">Curves currently attributed to this user, highest rank first. Click one for its witness.</p>
         <div class="table-scroll">
         <table class="curves-table">
           <thead>
