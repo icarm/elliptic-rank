@@ -1563,7 +1563,7 @@ export function apiDocsPage(user: User | null = null): string {
 // each curve; later rank improvements by others leave that credit in place).
 // Best rank first, so a contributor's strongest results lead. A static table —
 // no client-side sorting needed here.
-function submittedCurvesSection(curves: TableCurve[]): string {
+function submittedCurvesSection(curves: TableCurve[], records: Map<number, RecordFlags>): string {
   const heading = `<h3>Curves <span class="muted">(${curves.length})</span></h3>`
   if (curves.length === 0) {
     return `<section class="my-curves">
@@ -1571,10 +1571,22 @@ function submittedCurvesSection(curves: TableCurve[]): string {
         <p class="muted">No curves currently attributed to this user.</p>
       </section>`
   }
-  const rows = curves.map((c) => curveTableRow(c)).join('\n')
+  const rows = curves
+    .map((c) => {
+      const r = records.get(c.id)
+      return curveTableRow(c, false, r && { conductor: r.conductor, naive: r.naive, faltings: r.faltings, disc: r.discriminant })
+    })
+    .join('\n')
+  // Records held: cells of a curve that are smallest among curves of equal or
+  // higher rank (the same rule as the /curves table, judged against the whole board).
+  const held = [...records.values()].reduce(
+    (n, r) => n + Number(r.conductor) + Number(r.naive) + Number(r.faltings) + Number(r.discriminant),
+    0,
+  )
+  const recordNote = held > 0 ? ` Highlighted cells are records: ${held === 1 ? 'a value' : 'values'} smallest among curves of equal or higher rank.` : ''
   return `<section class="my-curves">
         ${heading}
-        <p class="muted">Curves currently attributed to this user, highest rank first. Click one for its witness.</p>
+        <p class="muted">Curves currently attributed to this user, highest rank first. Click one for its witness.${recordNote}</p>
         <div class="table-scroll">
         <table class="curves-table">
           <thead>
@@ -1673,7 +1685,12 @@ export interface PublicUser {
   created_at: string
 }
 
-export function userPage(profile: PublicUser, curves: TableCurve[], viewer: User | null = null): string {
+export function userPage(
+  profile: PublicUser,
+  curves: TableCurve[],
+  records: Map<number, RecordFlags>,
+  viewer: User | null = null,
+): string {
   const name = escapeHtml(profile.display_name || `user #${profile.id}`)
   const avatar = profile.avatar_url
     ? `<img class="user-avatar" src="${escapeHtml(profile.avatar_url)}" alt="" width="64" height="64" />`
@@ -1695,7 +1712,7 @@ export function userPage(profile: PublicUser, curves: TableCurve[], viewer: User
         </div>
       </div>
       ${about}
-      ${submittedCurvesSection(curves)}`
+      ${submittedCurvesSection(curves, records)}`
   return layout(`${profile.display_name || `user #${profile.id}`} — Elliptic Curve Rank Leaderboard`, inner, viewer)
 }
 

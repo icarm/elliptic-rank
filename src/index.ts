@@ -28,7 +28,7 @@ import {
   type TableCurve,
   type CurveRow,
 } from './pages'
-import { recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordFlags, COMMENT_MAX, type CommentView } from './store'
+import { recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordFlags, recordFlagsForCurves, COMMENT_MAX, type CommentView } from './store'
 import { notifyRecord, notifyBackfillRecord } from './zulip'
 import { parsePoints } from './input'
 import {
@@ -478,7 +478,8 @@ app.get('/user/:id', async (c) => {
     .first<PublicUser>()
   if (!profile) return c.html(notFoundPage(c.get('user')), 404)
   const curves = await listUserCurves(c.env, id)
-  return c.html(userPage(profile, curves, c.get('user')))
+  const records = await recordFlagsForCurves(c.env, curves)
+  return c.html(userPage(profile, curves, records, c.get('user')))
 })
 
 // --- Profile & API tokens ---

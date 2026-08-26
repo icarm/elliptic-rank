@@ -154,6 +154,57 @@ export async function recordFlags(env: Bindings, curve: RecordCandidate): Promis
   }
 }
 
+// Record flags for many curves at once — e.g. everything attributed to one
+// user — judged against the whole board, not just the given subset. One query
+// loads the metrics of every curve at rank ≥ the lowest rank in the batch; a
+// rank-descending sweep then tracks, per metric, the smallest value seen at
+// any rank ≥ the current one (the Pareto frontier), and a curve is a record
+// when its value is not exceeded by that frontier (ties share it). Same rule
+// as recordFlags and the /curves table.
+export async function recordFlagsForCurves(env: Bindings, curves: RecordCandidate[]): Promise<Map<number, RecordFlags>> {
+  const flags = new Map<number, RecordFlags>()
+  if (curves.length === 0) return flags
+  const minRank = Math.min(...curves.map((c) => c.rank_lower_bound))
+  const { results: board } = await env.DB.prepare(
+    `SELECT id, rank_lower_bound, naive_height, faltings_height, conductor, discriminant FROM curves
+       WHERE rank_lower_bound >= ? ORDER BY rank_lower_bound DESC`,
+  )
+    .bind(minRank)
+    .all<RecordCandidate>()
+  const wanted = new Set(curves.map((c) => c.id))
+  const isRecord = <T,>(get: (c: RecordCandidate) => T | null, less: (a: T, b: T) => boolean): Set<number> => {
+    const recs = new Set<number>()
+    let frontier: T | null = null
+    for (let i = 0; i < board.length; ) {
+      let j = i
+      for (; j < board.length && board[j].rank_lower_bound === board[i].rank_lower_bound; j++) {
+        const v = get(board[j])
+        if (v != null && (frontier == null || less(v, frontier))) frontier = v
+      }
+      for (let k = i; k < j; k++) {
+        const v = get(board[k])
+        if (v != null && frontier != null && !less(frontier, v)) recs.add(board[k].id)
+      }
+      i = j
+    }
+    return recs
+  }
+  const naive = isRecord((c): number | null => c.naive_height, (a, b) => a < b)
+  const faltings = isRecord((c) => c.faltings_height, (a, b) => a < b)
+  const conductor = isRecord((c) => c.conductor, lessDecimal)
+  const discriminant = isRecord((c): string | null => c.discriminant, lessAbsDecimal)
+  for (const c of board) {
+    if (!wanted.has(c.id)) continue
+    flags.set(c.id, {
+      naive: naive.has(c.id),
+      faltings: faltings.has(c.id),
+      conductor: conductor.has(c.id),
+      discriminant: discriminant.has(c.id),
+    })
+  }
+  return flags
+}
+
 // Backfill the conductor — the one prime-gated invariant — and its verified
 // bad primes (JSON array string) for an existing curve. COALESCE so an
 // already-recorded value is never overwritten. (Discriminant and Faltings
