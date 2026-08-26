@@ -1577,16 +1577,8 @@ function submittedCurvesSection(curves: TableCurve[], records: Map<number, Recor
       return curveTableRow(c, false, r && { conductor: r.conductor, naive: r.naive, faltings: r.faltings, disc: r.discriminant })
     })
     .join('\n')
-  // Records held: cells of a curve that are smallest among curves of equal or
-  // higher rank (the same rule as the /curves table, judged against the whole board).
-  const held = [...records.values()].reduce(
-    (n, r) => n + Number(r.conductor) + Number(r.naive) + Number(r.faltings) + Number(r.discriminant),
-    0,
-  )
-  const recordNote = held > 0 ? ` Highlighted cells are records: ${held === 1 ? 'a value' : 'values'} smallest among curves of equal or higher rank.` : ''
   return `<section class="my-curves">
         ${heading}
-        <p class="muted">Curves currently attributed to this user, highest rank first. Click one for its witness.${recordNote}</p>
         <div class="table-scroll">
         <table class="curves-table">
           <thead>
