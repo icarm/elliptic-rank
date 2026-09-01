@@ -176,7 +176,7 @@ const MAX_HALVINGS = 40
 //   - if Q is torsion (or the identity), the points are PROVABLY dependent
 //     modulo torsion: reject with the relation;
 //   - if Q + tau = 2R for some torsion tau (exact division by 2 via
-//     ellisdivisible), replace one involved point by R and retry. This leaves
+//     erk_half2 below), replace one involved point by R and retry. This leaves
 //     the Q-span of the working set unchanged (2R = Q + tau gives R in the
 //     span tensor Q, and the replaced point is recovered from 2R minus the
 //     others), so both later verdicts transfer to the submitted points. The
@@ -207,6 +207,23 @@ const MAX_HALVINGS = 40
 // (never observed for honest input; a safe reject).
 const GP_CERT: string[] = [
   'erk_psi(a, p) = (1 - kronecker(a, p)) / 2;',
+  // Exact division by 2 on the short model y^2 = x^3 + Ax + B: R with 2R = T,
+  // or 0 if none. x(2R) = xT is the quartic below (the doubling formula with
+  // y^2 eliminated); its rational roots are the x-coordinates of all R with
+  // 2R = +-T, and trying both y's covers the sign. Complete because nfroots
+  // returns every rational root; sound because 2R = T is re-checked exactly.
+  // We do NOT use ellisdivisible here: since PARI 2.15 its strategy for
+  // division by 2 over Q can attempt an unbounded CRT reconstruction of R
+  // whose 10-prime local gate almost never fails on the points this
+  // certificate produces (character-kernel elements are locally 2-divisible
+  // at most primes by construction), which stalls for minutes or exhausts
+  // the PARI stack on points with large coordinates (e.g. curve #159).
+  'erk_half2(F, T) = {my(A = F.a4, B = F.a6, xT = T[1], ' +
+    "pol = 4*(xT)*('x^3 + A*'x + B) - ('x^4 - 2*A*'x^2 - 8*B*'x + A^2), " +
+    'rts = nfroots(, pol)); ' +
+    'for(i = 1, #rts, my(ys = ellordinate(F, rts[i])); ' +
+    'for(j = 1, #ys, my(R = [rts[i], ys[j]]); ' +
+    'if(ellmul(F, R, 2) == T, return(R)))); 0;}',
   'erk_eps(A, pts, p, rs) = {my(k = min(#rs, 2), m = matrix(#pts, k)); ' +
     'for(i = 1, #pts, if(#pts[i] == 1, next); ' +
     'my(u = numerator(pts[i][1]), w2 = denominator(pts[i][1])); ' +
@@ -247,7 +264,7 @@ const GP_CERT: string[] = [
     '      for(i = 1, #c, Q = elladd(F, Q, work[c[i]])); ' +
     '      if(#Q == 1 || ellorder(F, Q), return([-1, Vec(used), rall, rt, halved, c])); ' +
     '      my(R = 0, hit = 0); ' +
-    '      for(k = 1, #tors, if(ellisdivisible(F, elladd(F, Q, tors[k]), 2, &R), hit = 1; break)); ' +
+    '      for(k = 1, #tors, my(H = erk_half2(F, elladd(F, Q, tors[k]))); if(H, R = H; hit = 1; break)); ' +
     '      if(hit, ' +
     '        halved++; ' +
     '        if(halved > maxhalve, return([0, Vec(used), rall, rt, halved, []])); ' +
