@@ -1,14 +1,7 @@
-import fs from 'node:fs'
 import { canonicalKey } from './src/verify.ts'
+import { loadGp } from './scripts/load-pari.mjs'
 
-const factory = (await import('@sagemath/pari/dist/gp-sta.js')).default
-const wasmBinary = fs.readFileSync('src/gp-sta.wasm')
-const mod = await factory({
-  noInitialRun: true, print: () => {}, printErr: () => {},
-  instantiateWasm(i, r) { const x = new WebAssembly.Instance(new WebAssembly.Module(wasmBinary), i); r(x); return x.exports },
-})
-mod.ccall('gp_embedded_init', null, ['number', 'number'], [16 << 20, 16 << 20])
-const gp = (s) => mod.cwrap('gp_embedded', 'string', ['string'])(s)
+const gp = await loadGp()
 
 // Scale a model by u: [a1,a2,a3,a4,a6] -> [u a1, u^2 a2, u^3 a3, u^4 a4, u^6 a6].
 // This gives a different (non-minimal) Weierstrass model of the *same* curve.

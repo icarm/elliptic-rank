@@ -1,21 +1,9 @@
-import fs from 'node:fs'
 import { canonicalKey, naiveLogHeight, verify } from './src/verify.ts'
+import { loadGp } from './scripts/load-pari.mjs'
 
-// Build a gp() callable from the PARI WASM module (same module the Worker uses).
-const factory = (await import('@sagemath/pari/dist/gp-sta.js')).default
-const wasmBinary = fs.readFileSync('node_modules/@sagemath/pari/dist/gp-sta.wasm')
-const mod = await factory({
-  noInitialRun: true,
-  print: () => {},
-  printErr: () => {},
-  instantiateWasm(imports, recv) {
-    const inst = new WebAssembly.Instance(new WebAssembly.Module(wasmBinary), imports)
-    recv(inst)
-    return inst.exports
-  },
-})
-mod.ccall('gp_embedded_init', null, ['number', 'number'], [64 << 20, 64 << 20])
-const gp = (s) => mod.cwrap('gp_embedded', 'string', ['string'])(s)
+// Build a gp() callable from the PARI WASM module (same module, same stack
+// size as the Worker uses).
+const gp = await loadGp()
 
 const RK12 = {
   ainvs: ['0', '0', '1', '-6349808647', '193146346911036'],
