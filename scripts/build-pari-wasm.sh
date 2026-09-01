@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 # Builds src/gp-sta.js + src/gp-sta.wasm — the PARI/GP module the Worker
 # embeds — from upstream PARI sources with Emscripten.
 #
@@ -8,7 +8,8 @@
 # current upstream PARI — 2.15+ is required for ellrank (Allombert's
 # 2-descent) — and fixes the linear memory at link time instead of patching.
 #
-# Requirements: node, perl, git, curl (emsdk is fetched below).
+# Requirements: bash (emsdk_env.sh cannot be sourced from dash/sh), node, perl,
+# git, curl (emsdk is fetched below).
 # Usage: scripts/build-pari-wasm.sh   (from the repo root; ~10 min cold)
 
 set -eu
