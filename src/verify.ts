@@ -761,8 +761,17 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
             `point indices [${rel.join(', ')}]); only ${exactLB} of ${n} certified independent`,
         )
       } else {
+        // Status 0: a budget ran out; nothing was proven about the points
+        // either way. erk_cert increments past maxhalve exactly when the
+        // halving budget fired, so halvings distinguishes the two budgets.
+        const reason =
+          halvings > MAX_HALVINGS
+            ? `the halving budget was exhausted (${MAX_HALVINGS} point replacements)`
+            : `the character budget was exhausted (${certPrimes.length} good primes)`
         result.errors.push(
-          `points are not certified independent (only ${exactLB} of ${n} certified independent)`,
+          `certification inconclusive: ${reason} with only ${exactLB} of ${n} points ` +
+            `certified independent; no dependence was proven — try submitting fewer ` +
+            `points or points of smaller height`,
         )
       }
       return result
