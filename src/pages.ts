@@ -330,10 +330,18 @@ export function progressPage(
   const rankMax = Math.max(...pts.map((p) => p.rank)) + 1
   const X = (r: number) => L + (r / rankMax) * plotW
   const scaleForMetric = (metric: ProgressMetric): { qmin: number; qmax: number } => {
-    const qs = pts
-      .map((p) => p[metric])
-      .filter((v): v is number => v != null)
-    if (qs.length === 0) return { qmin: 0, qmax: 1 }
+    // Scale to the best (lowest) value at each rank, like the home-page plots,
+    // so a deliberately huge low-rank submission cannot stretch the axis for
+    // everyone. Dots above the scale are clipped to the plot area.
+    const minByRank = new Map<number, number>()
+    for (const p of pts) {
+      const v = p[metric]
+      if (v == null) continue
+      const prev = minByRank.get(p.rank)
+      if (prev == null || v < prev) minByRank.set(p.rank, v)
+    }
+    if (minByRank.size === 0) return { qmin: 0, qmax: 1 }
+    const qs = [...minByRank.values()]
     let qmin = Math.min(...qs), qmax = Math.max(...qs)
     if (qmin === qmax) { qmin -= 1; qmax += 1 }
     const qpad = (qmax - qmin) * 0.05
@@ -468,7 +476,9 @@ export function progressPage(
           <g id="progress-reference-curves" class="progress-reference-curves${referenceHiddenClass}" clip-path="url(#progress-plot-clip)">
             ${referenceCurvesMarkup}
           </g>
-          ${dots}
+          <g clip-path="url(#progress-plot-clip)">
+            ${dots}
+          </g>
         </svg>
       </section>
       <script>
@@ -515,15 +525,21 @@ export function progressPage(
         }
 
         function scaleFor(metric) {
-          let min = Infinity, max = -Infinity, count = 0;
+          // Mirror the server: scale to the best (lowest) value at each rank
+          // so one huge low-rank submission cannot stretch the axis.
+          const minByRank = new Map();
           points.forEach((p) => {
             const value = p[metric];
             if (value == null) return;
+            const prev = minByRank.get(p.rank);
+            if (prev == null || value < prev) minByRank.set(p.rank, value);
+          });
+          if (minByRank.size === 0) return { min: 0, max: 1 };
+          let min = Infinity, max = -Infinity;
+          minByRank.forEach((value) => {
             if (value < min) min = value;
             if (value > max) max = value;
-            count += 1;
           });
-          if (count === 0) return { min: 0, max: 1 };
           if (min === max) { min -= 1; max += 1; }
           const pad = (max - min) * 0.05;
           return { min: min - pad, max: max + pad };
