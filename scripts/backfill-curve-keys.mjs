@@ -10,6 +10,7 @@
 
 import fs from 'node:fs'
 import { canonicalKey } from '../src/verify.ts'
+import { loadGp } from './load-pari.mjs'
 
 const SITE = (process.env.ERANK_SITE ?? 'https://elliptic-rank.icarm.cloud').replace(/\/+$/, '')
 const DATABASE_FILE = process.env.ERANK_DATABASE_FILE ?? null
@@ -29,23 +30,6 @@ async function loadDatabase() {
   return res.json()
 }
 
-async function initGp() {
-  const factory = (await import('@sagemath/pari/dist/gp-sta.js')).default
-  const wasmBinary = fs.readFileSync('src/gp-sta.wasm')
-  const mod = await factory({
-    noInitialRun: true,
-    print: () => {},
-    printErr: () => {},
-    instantiateWasm(imports, recv) {
-      const inst = new WebAssembly.Instance(new WebAssembly.Module(wasmBinary), imports)
-      recv(inst)
-      return inst.exports
-    },
-  })
-  mod.ccall('gp_embedded_init', null, ['number', 'number'], [16 << 20, 16 << 20])
-  return mod.cwrap('gp_embedded', 'string', ['string'])
-}
-
 function curveAinvs(curve) {
   if (Array.isArray(curve.ainvs)) return curve.ainvs
   if (typeof curve.ainvs === 'string') return JSON.parse(curve.ainvs)
@@ -57,7 +41,7 @@ if (!db || !Array.isArray(db.curves)) {
   throw new Error('database JSON did not contain a curves array')
 }
 
-const gp = await initGp()
+const gp = await loadGp()
 const rows = db.curves.map((curve) => {
   if (!Number.isInteger(curve.id)) throw new Error(`bad curve id: ${curve.id}`)
   if (typeof curve.curve_key !== 'string') throw new Error(`#${curve.id}: missing curve_key`)

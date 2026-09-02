@@ -1,21 +1,9 @@
-import fs from 'node:fs'
 import { canonicalKey, naiveLogHeight, verify } from './src/verify.ts'
+import { loadGp } from './scripts/load-pari.mjs'
 
-// Build a gp() callable from the PARI WASM module (same module the Worker uses).
-const factory = (await import('@sagemath/pari/dist/gp-sta.js')).default
-const wasmBinary = fs.readFileSync('node_modules/@sagemath/pari/dist/gp-sta.wasm')
-const mod = await factory({
-  noInitialRun: true,
-  print: () => {},
-  printErr: () => {},
-  instantiateWasm(imports, recv) {
-    const inst = new WebAssembly.Instance(new WebAssembly.Module(wasmBinary), imports)
-    recv(inst)
-    return inst.exports
-  },
-})
-mod.ccall('gp_embedded_init', null, ['number', 'number'], [64 << 20, 64 << 20])
-const gp = (s) => mod.cwrap('gp_embedded', 'string', ['string'])(s)
+// Build a gp() callable from the PARI WASM module (same module, same stack
+// size as the Worker uses).
+const gp = await loadGp()
 
 const RK12 = {
   ainvs: ['0', '0', '1', '-6349808647', '193146346911036'],
@@ -290,6 +278,48 @@ if (!twoGT.ok || twoGT.independence.rankLowerBound !== 1) {
   process.exitCode = 1
 } else {
   console.log(`2G+T torsion-translate halving OK (${twoGT.independence.certificate.halvings} halving)`)
+}
+
+// Regression for the spurious-relation halving probe (site curve #159, Edgar
+// Costa's rank-17 prime-conductor curve): the certificate hits a kernel
+// relation whose 9-point sum has ~430-digit coordinates and is NOT 2-divisible
+// — such character-kernel points look locally 2-divisible at most primes, the
+// worst case for PARI 2.15+'s ellisdivisible (its CRT reconstruction stalled
+// for minutes / overflowed a 16MB stack). erk_half2 must answer "no" exactly
+// and quickly, after which more characters kill the relation (0 halvings).
+const RK17 = {
+  ainvs: ['1', '-1', '0', '-1321749187079172070', '247663242328119893241310696'],
+  points: [
+    ['17949979918713078398541/6617884875625', '-2194610111437610055414042537451414/17024674289667203125'],
+    ['1069553418', '7581789774136'],
+    ['1914845121457/37249', '-96411962079340334623/7189057'],
+    ['212468732619099/113569', '2516334388237502223941/38272753'],
+    ['2552123861358/1681', '-2875329490394494594/68921'],
+    ['209259772307129/135424', '2169286183762609158459/49836032'],
+    ['4700687044159/1225', '9746723920117144932/42875'],
+    ['-4095591542092/3481', '-2709694728931345656/205379'],
+    ['4122774202837/3721', '-2717812918567624915/226981'],
+    ['-1855427204865/2401', '-3343323765033902131/117649'],
+    ['-10901289782/9', '-228387183419464/27'],
+    ['61860660194/25', '13765447649461718/125'],
+    ['60291876902082/16129', '446623168719117198098/2048383'],
+    ['13915417197647147/4583881', '1527058322512021184486745/9814089221'],
+    ['2959589615', '149194293187741'],
+    ['1298436411595/484', '1347253441578324783/10648'],
+    ['168529858382/49', '65428320462144828/343'],
+  ],
+}
+const t159 = Date.now()
+const rk17res = verify(gp, RK17)
+if (!rk17res.ok || rk17res.independence.rankLowerBound !== 17 ||
+    rk17res.independence.certificate.halvings !== 0) {
+  console.error(`FAIL: rank-17 spurious-relation curve should certify with 0 halvings: ${JSON.stringify(rk17res.independence)}`)
+  process.exitCode = 1
+} else if (Date.now() - t159 > 30000) {
+  console.error(`FAIL: rank-17 spurious-relation curve took ${Date.now() - t159}ms (halving probe stalled?)`)
+  process.exitCode = 1
+} else {
+  console.log(`spurious-relation halving probe OK: rank 17, 0 halvings (${Date.now() - t159}ms)`)
 }
 
 // failure cases
