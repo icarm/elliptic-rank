@@ -28,7 +28,7 @@ import {
   type TableCurve,
   type CurveRow,
 } from './pages'
-import { recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordFlags, recordFlagsForCurves, COMMENT_MAX, type CommentView } from './store'
+import { recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordFlags, recordFlagsForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
 import { notifyRecord, notifyBackfillRecord } from './zulip'
 import { parsePoints } from './input'
 import {
@@ -103,7 +103,8 @@ app.get('/curve/:file{[0-9]+\\.json}', async (c) => {
     .bind(id)
     .first<CurveJsonRow>()
   if (!row) return c.json({ error: 'no such curve' }, 404)
-  return jsonDownload(c.req.raw, JSON.stringify(curveJson(row), null, 2), `elliptic-rank-curve-${id}.json`)
+  const history = await curveEvents(c.env, id)
+  return jsonDownload(c.req.raw, JSON.stringify(curveJson(row, history), null, 2), `elliptic-rank-curve-${id}.json`)
 })
 
 // A JSON attachment response with a strong ETag over the exact body, so
@@ -179,7 +180,8 @@ app.get('/curve/:id', async (c) => {
   // A failed bad-primes submission redirects back here with the reason in the
   // query (and a #bad-primes fragment) so the page scrolls to the form.
   const primesError = c.req.query('primes_error') ?? null
-  return c.html(curveDetailPage(row, comment, c.get('user'), await recordFlags(c.env, row), primesError))
+  const [records, events] = await Promise.all([recordFlags(c.env, row), curveEvents(c.env, id)])
+  return c.html(curveDetailPage(row, comment, c.get('user'), records, primesError, events))
 })
 
 // Supply the primes of bad reduction from the curve's detail page, backfilling
@@ -195,7 +197,7 @@ app.post('/curve/:id/primes', async (c) => {
   // primes the submitter typed.
   const mode = String(form.mode ?? '') === 'auto' ? 'auto' : 'manual'
   const gp = await getGp()
-  const outcome = await backfillPrimes(c.env, gp, id, mode, parseTokens(String(form.primes ?? '')))
+  const outcome = await backfillPrimes(c.env, gp, user.id, id, mode, parseTokens(String(form.primes ?? '')))
   if (outcome.status === 'no-curve') return c.html(notFoundPage(user), 404)
   // Recorded or already-recorded: back to the curve page (Post/Redirect/Get). A
   // fresh backfill may have made the curve a conductor/Faltings record.
@@ -271,7 +273,18 @@ interface CurveJsonRow {
   commentary: string | null
 }
 
-function curveJson(r: CurveJsonRow) {
+// The curve's contribution history as exported: who improved the rank (and
+// from/to what) or recorded the primes of bad reduction, oldest first. Only
+// display names are exported, matching `submitter`.
+function historyJson(events: CurveEvent[]) {
+  return events.map((e) =>
+    e.kind === 'rank_improved'
+      ? { kind: e.kind, user: e.user, old_rank: e.old_rank, new_rank: e.new_rank, at: e.created_at }
+      : { kind: e.kind, user: e.user, at: e.created_at },
+  )
+}
+
+function curveJson(r: CurveJsonRow, history: CurveEvent[]) {
   const parse = (s: string): unknown => {
     try {
       return JSON.parse(s)
@@ -293,6 +306,7 @@ function curveJson(r: CurveJsonRow) {
     regulator: r.regulator,
     points: parse(r.points),
     submitter: r.submitter,
+    history: historyJson(history),
     commentary: r.commentary || null,
     created_at: r.created_at,
     updated_at: r.updated_at,
@@ -304,7 +318,8 @@ app.get('/database.json', async (c) => {
   const { results } = await c.env.DB.prepare(
     `${CURVE_JSON_SELECT} ORDER BY c.rank_lower_bound DESC, c.naive_height ASC`,
   ).all<CurveJsonRow>()
-  const curves = results.map(curveJson)
+  const events = await allCurveEvents(c.env)
+  const curves = results.map((r) => curveJson(r, events.get(r.id) ?? []))
   // Pretty-printed (2-space indent) so the download is readable line-by-line —
   // a single 60+ KB line is awkward for humans and tools alike.
   const payload = JSON.stringify({ count: curves.length, curves }, null, 2)
@@ -379,7 +394,7 @@ app.post('/api/curve/:id/primes', async (c) => {
   // "auto" attempts bounded trial division; otherwise use the supplied list.
   const mode = body.mode === 'auto' ? 'auto' : 'manual'
   const primes = Array.isArray(body.primes) ? (body.primes as (string | number)[]) : []
-  const outcome = await backfillPrimes(c.env, gp, id, mode, primes)
+  const outcome = await backfillPrimes(c.env, gp, user.id, id, mode, primes)
   switch (outcome.status) {
     case 'no-curve':
       return c.json({ ok: false, errors: ['no such curve'] }, 404)
@@ -477,9 +492,9 @@ app.get('/user/:id', async (c) => {
     .bind(id)
     .first<PublicUser>()
   if (!profile) return c.html(notFoundPage(c.get('user')), 404)
-  const curves = await listUserCurves(c.env, id)
+  const [curves, contributions] = await Promise.all([listUserCurves(c.env, id), userContributions(c.env, id)])
   const records = await recordFlagsForCurves(c.env, curves)
-  return c.html(userPage(profile, curves, records, c.get('user')))
+  return c.html(userPage(profile, curves, records, contributions, c.get('user')))
 })
 
 // --- Profile & API tokens ---

@@ -1196,3 +1196,9 @@ a.external::after {
   .curve-meta dt { margin-top: 0; padding-bottom: 0; }
   .curve-meta dd { padding-top: 0.1rem; }
 }
+
+/* Curve page: later contributions (rank improvements, primes recorded). */
+.curve-history { list-style: none; margin: 0; padding: 0; }
+.curve-history li { margin: 0; }
+.curve-history li + li { margin-top: 0.2rem; }
+.witness-credit { font-size: 0.85rem; font-weight: normal; }

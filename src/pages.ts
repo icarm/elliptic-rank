@@ -3,7 +3,7 @@
 // so GitHub login / profiles can slot in later without reworking the chrome.
 
 import type { VerifyResult } from './verify'
-import { COMMENT_MAX, lessDecimal, lessAbsDecimal, type CommentView, type ActivityItem } from './store'
+import { COMMENT_MAX, lessDecimal, lessAbsDecimal, type CommentView, type ActivityItem, type CurveEvent, type Contribution } from './store'
 
 export const ABOUT_MAX = 1000
 
@@ -40,9 +40,10 @@ function utcTime(ts: string): string {
   return `${escapeHtml(ts)} UTC`
 }
 
-// A user's name, linked to their public page when we know who they are.
+// A user's name, linked to their public page. Submissions require login, so a
+// missing user is a legacy row or a deleted account, not an anonymous one.
 function userLink(id: number | null | undefined, name: string | null | undefined): string {
-  if (id == null) return '<span class="muted">anonymous</span>'
+  if (id == null) return '<span class="muted">(deleted user)</span>'
   return `<a href="/user/${id}">${escapeHtml(name || `user #${id}`)}</a>`
 }
 
@@ -1243,12 +1244,24 @@ function badPrimesSection(curveId: number, user: User | null, error: string | nu
       </section>`
 }
 
+// One line of a curve's contribution history, e.g.
+// "rank ≥ 3 → ≥ 5 · alice · 2026-09-01 12:00:00 UTC".
+function eventLine(e: CurveEvent): string {
+  const what =
+    e.kind === 'rank_improved'
+      ? `rank &ge; ${e.old_rank} &rarr; &ge; ${e.new_rank}`
+      : 'primes of bad reduction recorded'
+  return `<li>${what} &middot; ${userLink(e.user_id, e.user)} &middot; ${utcTime(e.created_at)}</li>`
+}
+
 export function curveDetailPage(
   curve: CurveRow,
   comment: CommentView | null = null,
   user: User | null = null,
   records: RecordFlags = { naive: false, faltings: false, conductor: false, discriminant: false },
   primesError: string | null = null,
+  // Later contributions (rank improvements, primes recorded), oldest first.
+  events: CurveEvent[] = [],
 ): string {
   let ainvs: string[] = []
   let points: [string, string][] = []
@@ -1266,6 +1279,18 @@ export function curveDetailPage(
     .map(([x, y]) => `<li><code>(${escapeHtml(x)}, ${escapeHtml(y)})</code></li>`)
     .join('\n          ')
   const submitter = userLink(curve.submitter_user_id, curve.submitter_name)
+  // The original submitter keeps "submitted by"; later contributors are
+  // credited line by line. With no contributions the bare "last updated"
+  // timestamp stands in (it may still differ from "submitted at" on curves
+  // whose history predates the log).
+  const historyRow = events.length
+    ? `<dt>later contributions</dt><dd><ul class="curve-history">${events.map(eventLine).join('')}</ul></dd>`
+    : `<dt>last updated</dt><dd>${utcTime(curve.updated_at)}</dd>`
+  // The stored witness belongs to whoever last improved the rank, if anyone.
+  const lastImprovement = [...events].reverse().find((e) => e.kind === 'rank_improved')
+  const witnessCredit = lastImprovement
+    ? ` <span class="muted witness-credit">found by ${userLink(lastImprovement.user_id, lastImprovement.user)}</span>`
+    : ''
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a> &nbsp;&middot;&nbsp; <a href="/curves">all curves</a> &nbsp;&middot;&nbsp; <a href="/curve/${curve.id}.json" download>JSON &darr;</a></p>
       <h2>curve #${curve.id}</h2>
@@ -1282,10 +1307,10 @@ export function curveDetailPage(
         <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
         <dt>submitted by</dt><dd>${submitter}</dd>
         <dt>submitted at</dt><dd>${utcTime(curve.created_at)}</dd>
-        <dt>last updated</dt><dd>${utcTime(curve.updated_at)}</dd>
+        ${historyRow}
       </dl>
       <section class="witness">
-        <h3>Witness: ${points.length} independent points</h3>
+        <h3>Witness: ${points.length} independent points${witnessCredit}</h3>
         <ul class="point-list">
           ${pointList}
         </ul>
@@ -1318,7 +1343,8 @@ export function commentHistoryPage(
   return layout('Commentary history — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
-// Recent-activity feed: submissions and commentary edits, newest first.
+// Recent-activity feed: submissions, later contributions, and commentary
+// edits, newest first.
 export function activityPage(
   items: ActivityItem[],
   page: number,
@@ -1332,6 +1358,18 @@ export function activityPage(
       return `<li>
           ${meta}
           <p class="activity-line">submitted ${link} &mdash; rank &ge; ${a.rank}, naive height ${a.height.toFixed(2)}</p>
+        </li>`
+    }
+    if (a.kind === 'rank_improved') {
+      return `<li>
+          ${meta}
+          <p class="activity-line">improved ${link} from rank &ge; ${a.old_rank} to rank &ge; ${a.new_rank} &mdash; naive height ${a.height.toFixed(2)}</p>
+        </li>`
+    }
+    if (a.kind === 'primes_recorded') {
+      return `<li>
+          ${meta}
+          <p class="activity-line">recorded the primes of bad reduction of ${link} &mdash; rank &ge; ${a.rank}, naive height ${a.height.toFixed(2)}</p>
         </li>`
     }
     const cleared = !a.content || a.content.length === 0
@@ -1354,7 +1392,7 @@ export function activityPage(
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>Recent activity</h2>
-      <p class="page-subtitle">New submissions and commentary edits, newest first.</p>
+      <p class="page-subtitle">New submissions, rank improvements, recorded primes of bad reduction, and commentary edits, newest first.</p>
       ${list}
       <nav class="pager">${newer} <span class="muted">page ${page + 1}</span> ${older}</nav>`
   return layout('Recent activity — Elliptic Curve Rank Leaderboard', inner, user)
@@ -1512,7 +1550,8 @@ export function apiDocsPage(user: User | null = null): string {
       still reported as an informational diagnostic. On success the
       curve is <strong>recorded on the leaderboard</strong>; a new curve is attributed to you, while
       improving an already-recorded curve's rank bound updates its witness points but leaves the
-      original submitter's credit in place. Accepted curves and
+      original submitter's credit in place (the improvement is credited to you in the curve's
+      history and on your public page). Accepted curves and
       witness points are stored in the curve's global minimal model. Body:
       <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>.</p>
       <p>The <strong>discriminant</strong> and <strong>Faltings height</strong> are recorded for every
@@ -1562,7 +1601,10 @@ export function apiDocsPage(user: User | null = null): string {
       global-minimal a-invariants, transformed witness points, <code>discriminant</code> (the minimal
       discriminant), rank lower bound, naive height, Faltings height, and (when recorded) conductor,
       <code>bad_primes</code> (the verified primes of bad reduction &mdash; the factorization of the
-      conductor's support), submitter, and commentary. No auth required.</p>
+      conductor's support), submitter, commentary, and <code>history</code>: later contributions by
+      other users, oldest first, each <code>{ kind, user, at }</code> with <code>kind</code> either
+      <code>"rank_improved"</code> (also carrying <code>old_rank</code> and <code>new_rank</code>)
+      or <code>"primes_recorded"</code>. No auth required.</p>
 
       <h3>GET <code>/curve/:id.json</code></h3>
       <p>A single curve as JSON &mdash; the same shape as one entry of the
@@ -1606,6 +1648,53 @@ function submittedCurvesSection(curves: TableCurve[], records: Map<number, Recor
               <th class="num">naive height</th>
               <th class="num">Faltings height</th>
               <th class="num">log |&Delta;|</th>
+            </tr>
+          </thead>
+          <tbody>
+          ${rows}
+          </tbody>
+        </table>
+        </div>
+      </section>`
+}
+
+// Contributions to other people's curves: rank improvements and primes of bad
+// reduction recorded. Newest first. The curve's a-invariants are shown so the
+// list reads without clicking through.
+function contributionsSection(contributions: Contribution[]): string {
+  if (contributions.length === 0) return ''
+  const rows = contributions
+    .map((x) => {
+      let ainvs: string[] = []
+      try {
+        ainvs = (JSON.parse(x.ainvs) as unknown[]).map(String)
+      } catch {
+        /* leave empty */
+      }
+      const what =
+        x.kind === 'rank_improved'
+          ? `improved rank &ge; ${x.old_rank} &rarr; &ge; ${x.new_rank}`
+          : 'recorded the primes of bad reduction'
+      return `<tr>
+            <td><a href="/curve/${x.curve_id}">#${x.curve_id}</a></td>
+            <td><code>[${ainvs.map(escapeHtml).join(', ')}]</code></td>
+            <td>${what}</td>
+            <td class="num">${x.rank_lower_bound}</td>
+            <td>${utcTime(x.created_at)}</td>
+          </tr>`
+    })
+    .join('\n')
+  return `<section class="my-curves my-contributions">
+        <h3>Contributions to other curves <span class="muted">(${contributions.length})</span></h3>
+        <div class="table-scroll">
+        <table class="curves-table">
+          <thead>
+            <tr>
+              <th>curve</th>
+              <th>a-invariants</th>
+              <th>contribution</th>
+              <th class="num" title="current rank lower bound">rank</th>
+              <th>when</th>
             </tr>
           </thead>
           <tbody>
@@ -1697,6 +1786,7 @@ export function userPage(
   profile: PublicUser,
   curves: TableCurve[],
   records: Map<number, RecordFlags>,
+  contributions: Contribution[] = [],
   viewer: User | null = null,
 ): string {
   const name = escapeHtml(profile.display_name || `user #${profile.id}`)
@@ -1720,7 +1810,8 @@ export function userPage(
         </div>
       </div>
       ${about}
-      ${submittedCurvesSection(curves, records)}`
+      ${submittedCurvesSection(curves, records)}
+      ${contributionsSection(contributions)}`
   return layout(`${profile.display_name || `user #${profile.id}`} — Elliptic Curve Rank Leaderboard`, inner, viewer)
 }
 

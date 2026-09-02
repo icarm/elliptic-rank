@@ -47,10 +47,99 @@ export function commentHistory(env: Bindings, curveId: number): Promise<CommentV
     .then((r) => r.results)
 }
 
-// One row in the recent-activity feed: either a curve submission (its creation)
-// or a commentary edit. Both carry the curve's current rank/height for context.
+// A contribution to a curve after its first submission: a rank improvement
+// (new witness) or the recording of its primes of bad reduction. Logged in
+// curve_events so later contributors get credit alongside the original
+// submitter, who keeps "submitted by". See migrations/0012_curve_events.sql.
+export type CurveEventKind = 'rank_improved' | 'primes_recorded'
+
+export interface CurveEvent {
+  id: number
+  kind: CurveEventKind
+  old_rank: number | null
+  new_rank: number | null
+  created_at: string
+  user: string | null
+  user_id: number | null
+}
+
+async function logCurveEvent(
+  env: Bindings,
+  curveId: number,
+  userId: number,
+  kind: CurveEventKind,
+  ranks: { oldRank: number; newRank: number } | null = null,
+): Promise<void> {
+  await env.DB.prepare(
+    'INSERT INTO curve_events (curve_id, user_id, kind, old_rank, new_rank) VALUES (?, ?, ?, ?, ?)',
+  )
+    .bind(curveId, userId, kind, ranks?.oldRank ?? null, ranks?.newRank ?? null)
+    .run()
+}
+
+// A curve's contribution history, oldest first (it reads as a timeline under
+// the "submitted by" line).
+export function curveEvents(env: Bindings, curveId: number): Promise<CurveEvent[]> {
+  return env.DB.prepare(
+    `SELECT e.id, e.kind, e.old_rank, e.new_rank, e.created_at, u.display_name AS user, u.id AS user_id
+       FROM curve_events e LEFT JOIN users u ON u.id = e.user_id
+       WHERE e.curve_id = ? ORDER BY e.id ASC`,
+  )
+    .bind(curveId)
+    .all<CurveEvent>()
+    .then((r) => r.results)
+}
+
+// Contribution history for every curve at once (for the database download),
+// keyed by curve id, each list oldest first.
+export async function allCurveEvents(env: Bindings): Promise<Map<number, CurveEvent[]>> {
+  const { results } = await env.DB.prepare(
+    `SELECT e.id, e.curve_id, e.kind, e.old_rank, e.new_rank, e.created_at, u.display_name AS user, u.id AS user_id
+       FROM curve_events e LEFT JOIN users u ON u.id = e.user_id
+       ORDER BY e.id ASC`,
+  ).all<CurveEvent & { curve_id: number }>()
+  const out = new Map<number, CurveEvent[]>()
+  for (const { curve_id, ...e } of results) {
+    const list = out.get(curve_id)
+    if (list) list.push(e)
+    else out.set(curve_id, [e])
+  }
+  return out
+}
+
+// A user's contributions to curves they did not originally submit, newest
+// first, for their public page. (Improving one's own curve is not listed: the
+// curve already appears under their submissions.)
+export interface Contribution {
+  id: number
+  kind: CurveEventKind
+  old_rank: number | null
+  new_rank: number | null
+  created_at: string
+  curve_id: number
+  ainvs: string
+  rank_lower_bound: number
+}
+
+export function userContributions(env: Bindings, userId: number): Promise<Contribution[]> {
+  return env.DB.prepare(
+    `SELECT e.id, e.kind, e.old_rank, e.new_rank, e.created_at,
+            c.id AS curve_id, c.ainvs, c.rank_lower_bound
+       FROM curve_events e JOIN curves c ON c.id = e.curve_id
+       WHERE e.user_id = ? AND (c.submitter_user_id IS NULL OR c.submitter_user_id != e.user_id)
+       ORDER BY e.id DESC`,
+  )
+    .bind(userId)
+    .all<Contribution>()
+    .then((r) => r.results)
+}
+
+// One row in the recent-activity feed: a curve submission (its creation), a
+// commentary edit, or a later contribution (rank improvement / primes
+// recorded). All carry the curve's current rank/height for context; old_rank
+// and new_rank are set only for 'rank_improved'.
 export interface ActivityItem {
-  kind: 'submission' | 'comment'
+  kind: 'submission' | 'comment' | CurveEventKind
   ts: string
   curve_id: number
   rank: number
@@ -58,12 +147,14 @@ export interface ActivityItem {
   user: string | null
   user_id: number | null
   content: string | null
+  old_rank: number | null
+  new_rank: number | null
 }
 
 export const ACTIVITY_PAGE_SIZE = 30
 
-// Recent activity, newest first, paginated. Merges curve creations and
-// commentary edits in one timeline. `hasOlder` reports whether a further page
+// Recent activity, newest first, paginated. Merges curve creations, commentary
+// edits, and later contributions in one timeline. `hasOlder` reports whether a further page
 // exists (we fetch one extra row to find out).
 export async function recentActivity(
   env: Bindings,
@@ -71,23 +162,35 @@ export async function recentActivity(
 ): Promise<{ items: ActivityItem[]; page: number; hasOlder: boolean }> {
   const size = ACTIVITY_PAGE_SIZE
   const { results } = await env.DB.prepare(
-    `SELECT kind, ts, curve_id, rank, height, user, user_id, content FROM (
+    `SELECT kind, ts, curve_id, rank, height, user, user_id, content, old_rank, new_rank FROM (
          SELECT 'submission' AS kind, c.created_at AS ts, c.id AS curve_id,
                 c.rank_lower_bound AS rank, c.naive_height AS height,
-                u.display_name AS user, u.id AS user_id, NULL AS content
+                u.display_name AS user, u.id AS user_id, NULL AS content,
+                NULL AS old_rank, NULL AS new_rank
            FROM curves c LEFT JOIN users u ON u.id = c.submitter_user_id
          UNION ALL
          SELECT 'comment' AS kind, cl.created_at AS ts, cl.curve_id AS curve_id,
                 cv.rank_lower_bound AS rank, cv.naive_height AS height,
-                cu.display_name AS user, cu.id AS user_id, cl.content AS content
+                cu.display_name AS user, cu.id AS user_id, cl.content AS content,
+                NULL AS old_rank, NULL AS new_rank
            FROM comments_log cl
            LEFT JOIN users cu ON cu.id = cl.user_id
            JOIN curves cv ON cv.id = cl.curve_id
+         UNION ALL
+         SELECT e.kind AS kind, e.created_at AS ts, e.curve_id AS curve_id,
+                ce.rank_lower_bound AS rank, ce.naive_height AS height,
+                eu.display_name AS user, eu.id AS user_id, NULL AS content,
+                e.old_rank, e.new_rank
+           FROM curve_events e
+           LEFT JOIN users eu ON eu.id = e.user_id
+           JOIN curves ce ON ce.id = e.curve_id
        )
        -- kind ASC tiebreak: a submission with initial commentary writes both
        -- rows at the same second-precision timestamp; the comment ('comment' <
        -- 'submission') must sort first, i.e. display above = after, in this
        -- newest-first feed, since the commentary logically follows the curve.
+       -- 'comment' likewise sorts before the contribution kinds, so commentary
+       -- attached to an improving re-submission displays above the improvement.
        ORDER BY ts DESC, kind ASC
        LIMIT ? OFFSET ?`,
   )
@@ -208,12 +311,16 @@ export async function recordFlagsForCurves(env: Bindings, curves: RecordCandidat
 // Backfill the conductor — the one prime-gated invariant — and its verified
 // bad primes (JSON array string) for an existing curve. COALESCE so an
 // already-recorded value is never overwritten. (Discriminant and Faltings
-// height are set at submission.)
+// height are set at submission.) `creditUserId` logs a 'primes_recorded'
+// contribution; callers pass it only when the conductor is genuinely new
+// (filling bad_primes on a row whose conductor was already known is metadata
+// repair, not a contribution).
 export async function setCurveConductor(
   env: Bindings,
   curveId: number,
   conductor: string,
   badPrimes: string | null,
+  creditUserId: number | null = null,
 ): Promise<void> {
   await env.DB.prepare(
     `UPDATE curves SET conductor = COALESCE(conductor, ?), bad_primes = COALESCE(bad_primes, ?),
@@ -221,6 +328,7 @@ export async function setCurveConductor(
   )
     .bind(conductor, badPrimes, curveId)
     .run()
+  if (creditUserId != null) await logCurveEvent(env, curveId, creditUserId, 'primes_recorded')
 }
 
 // Outcome of backfilling a curve's prime-gated invariants from the primes
@@ -236,10 +344,11 @@ export type PrimesBackfill =
 // `mode: 'auto'` attempts bounded trial division, otherwise the supplied
 // `primes` are used. A no-op when the conductor is already recorded. Shared by
 // the curve-page form and the JSON API, which differ only in how they present
-// this outcome.
+// this outcome. `userId` is credited in the curve's history.
 export async function backfillPrimes(
   env: Bindings,
   gp: Gp,
+  userId: number,
   curveId: number,
   mode: 'auto' | 'manual',
   primes: (string | number)[],
@@ -262,6 +371,7 @@ export async function backfillPrimes(
       curveId,
       result.conductor,
       result.badPrimes ? JSON.stringify(result.badPrimes) : null,
+      userId,
     )
     return { status: 'recorded', result }
   }
@@ -371,7 +481,8 @@ export async function recordCurve(
   const setBadPrimes = badPrimes != null && existing.bad_primes == null
 
   // An improved rank bound updates the witness data but NOT submitter_user_id:
-  // "submitted by" credits whoever first put the curve on the board.
+  // "submitted by" credits whoever first put the curve on the board. The
+  // improver is credited in the curve's history (curve_events) instead.
   if (rank > existing.rank_lower_bound) {
     await env.DB.prepare(
       `UPDATE curves SET rank_lower_bound = ?, regulator = ?, points = ?, ainvs = ?,
@@ -382,9 +493,13 @@ export async function recordCurve(
     )
       .bind(rank, regulator, points, ainvs, conductor, badPrimes, faltings, existing.id)
       .run()
+    await logCurveEvent(env, existing.id, userId, 'rank_improved', { oldRank: existing.rank_lower_bound, newRank: rank })
+    if (setConductor) await logCurveEvent(env, existing.id, userId, 'primes_recorded')
     return { id: existing.id, status: 'improved', rank, previousRank: existing.rank_lower_bound, conductorRecorded: setConductor }
   }
 
-  if (setConductor || setBadPrimes) await setCurveConductor(env, existing.id, conductor!, badPrimes)
+  if (setConductor || setBadPrimes) {
+    await setCurveConductor(env, existing.id, conductor!, badPrimes, setConductor ? userId : null)
+  }
   return { id: existing.id, status: 'unchanged', rank: existing.rank_lower_bound, conductorRecorded: setConductor }
 }
