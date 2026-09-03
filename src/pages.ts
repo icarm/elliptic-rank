@@ -543,8 +543,8 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
 
       <p>
       This site tracks the smallest known elliptic curves (over <span class="eqi">&#8474;</span>)
-      for each <a class="external" href="https://en.wikipedia.org/wiki/Rank_of_an_elliptic_curve">Mordell&ndash;Weil rank</a>.
-      It follows in the footsteps of
+      for each <a class="external" href="https://en.wikipedia.org/wiki/Rank_of_an_elliptic_curve">Mordell&ndash;Weil rank</a>,
+      taking inspiration from
       <a class="external" href="https://web.math.pmf.unizg.hr/~duje/tors/rankhist.html">Dujella's rank tables</a>
       and a <a class="external" href="https://arxiv.org/pdf/math/0403374">2004 paper by Elkies and Watkins</a>.
       Whether ranks are unbounded is a long-standing open question.
