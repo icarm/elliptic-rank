@@ -6,9 +6,50 @@
 import type { Bindings } from './auth'
 import { verifyPrimes, autoPrimes, type VerifyResult, type PrimesResult } from './verify'
 import type { Gp } from './pari'
-import type { RecordFlags } from './pages'
+import type { RecordFlags, PlotCurve, TableCurve } from './pages'
 
 export const COMMENT_MAX = 4000
+
+// Columns every curve list reads: the landing and progress plots need the id,
+// rank and metrics (PlotCurve); the /curves table and a profile's curve list
+// also need the equation (TableCurve).
+const PLOT_COLUMNS = 'id, rank_lower_bound, naive_height, faltings_height, conductor, discriminant'
+const TABLE_COLUMNS = `${PLOT_COLUMNS}, ainvs`
+
+// Every curve with its metrics, in submission (id) order, for the landing and
+// progress plots.
+export function plotCurves(env: Bindings): Promise<PlotCurve[]> {
+  return env.DB.prepare(`SELECT ${PLOT_COLUMNS} FROM curves ORDER BY id ASC`)
+    .all<PlotCurve>()
+    .then((r) => r.results)
+}
+
+// Every curve for the /curves table. Default order matches the table's JS
+// default: increasing conductor, curves with no recorded conductor last.
+// Conductor is a big-integer decimal string, so numeric order = (length, then
+// lexicographic).
+export function tableCurves(env: Bindings): Promise<TableCurve[]> {
+  return env.DB.prepare(
+    `SELECT ${TABLE_COLUMNS} FROM curves
+       ORDER BY conductor IS NULL, LENGTH(conductor), conductor, naive_height ASC`,
+  )
+    .all<TableCurve>()
+    .then((r) => r.results)
+}
+
+// Curves attributed to this user as original submitter (a later rank
+// improvement by someone else does not reassign credit). Highest rank first,
+// then smallest naive height — the same "best curve" ordering the database
+// download uses.
+export function userCurves(env: Bindings, userId: number): Promise<TableCurve[]> {
+  return env.DB.prepare(
+    `SELECT ${TABLE_COLUMNS} FROM curves WHERE submitter_user_id = ?
+       ORDER BY rank_lower_bound DESC, naive_height ASC`,
+  )
+    .bind(userId)
+    .all<TableCurve>()
+    .then((r) => r.results)
+}
 
 export interface CommentView {
   id: number
@@ -234,6 +275,14 @@ export interface RecordCandidate {
   discriminant: string
 }
 
+// One curve's id, rank and metrics (null if there is no such curve), enough to
+// judge it with recordFlags.
+export function loadRecordCandidate(env: Bindings, curveId: number): Promise<RecordCandidate | null> {
+  return env.DB.prepare(`SELECT ${PLOT_COLUMNS} FROM curves WHERE id = ?`)
+    .bind(curveId)
+    .first<RecordCandidate>()
+}
+
 // Which of the curve's metrics are records for its rank: a metric is a record
 // when no curve of equal or higher rank has a strictly smaller value (i.e. the
 // curve is on the rank-vs-metric Pareto frontier).
@@ -269,7 +318,7 @@ export async function recordFlagsForCurves(env: Bindings, curves: RecordCandidat
   if (curves.length === 0) return flags
   const minRank = Math.min(...curves.map((c) => c.rank_lower_bound))
   const { results: board } = await env.DB.prepare(
-    `SELECT id, rank_lower_bound, naive_height, faltings_height, conductor, discriminant FROM curves
+    `SELECT ${PLOT_COLUMNS} FROM curves
        WHERE rank_lower_bound >= ? ORDER BY rank_lower_bound DESC`,
   )
     .bind(minRank)

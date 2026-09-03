@@ -8,7 +8,7 @@
 // notification is silently skipped.
 
 import type { Bindings } from './auth'
-import { recordFlags, type RecordCandidate, type RecordStatus } from './store'
+import { recordFlags, loadRecordCandidate, type RecordCandidate, type RecordStatus } from './store'
 import { logBigInt, type RecordFlags } from './pages'
 
 // Send `text` as a Zulip message via the incoming webhook. Returns true on a 2xx
@@ -29,15 +29,6 @@ async function send(url: string, text: string): Promise<boolean> {
     console.error('Zulip webhook request failed:', err)
     return false
   }
-}
-
-function loadCurve(env: Bindings, curveId: number): Promise<RecordCandidate | null> {
-  return env.DB.prepare(
-    `SELECT id, rank_lower_bound, naive_height, faltings_height, conductor, discriminant
-       FROM curves WHERE id = ?`,
-  )
-    .bind(curveId)
-    .first<RecordCandidate>()
 }
 
 type Metric = 'naive' | 'faltings' | 'conductor' | 'disc'
@@ -92,7 +83,7 @@ export async function notifyRecord(
     return
   }
 
-  const curve = await loadCurve(env, status.id)
+  const curve = await loadRecordCandidate(env, status.id)
   if (!curve) return
   const flags = await recordFlags(env, curve)
   const records = recordPhrases(curve, flags, ['naive', 'faltings', 'conductor', 'disc'])
@@ -124,7 +115,7 @@ export async function notifyBackfillRecord(
   const url = env.ZULIP_WEBHOOK_URL
   if (!url) return
 
-  const curve = await loadCurve(env, curveId)
+  const curve = await loadRecordCandidate(env, curveId)
   if (!curve) return
   const flags = await recordFlags(env, curve)
   const records = recordPhrases(curve, flags, ['conductor'])

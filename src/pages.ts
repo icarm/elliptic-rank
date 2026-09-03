@@ -133,15 +133,6 @@ export interface PlotCurve {
   discriminant: string
 }
 
-export interface ProgressCurve {
-  id: number
-  rank_lower_bound: number
-  naive_height: number
-  faltings_height: number | null
-  conductor: string | null
-  discriminant: string
-}
-
 type ProgressMetric = 'conductor' | 'naive' | 'faltings' | 'disc'
 
 // 'disc' matches the landing page's ?metric= values and the table's sort key;
@@ -268,7 +259,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
 }
 
 export function progressPage(
-  curves: ProgressCurve[],
+  curves: PlotCurve[],
   user: User | null = null,
   requestedStartId?: number,
   requestedMetric?: string,

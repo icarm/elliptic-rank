@@ -23,12 +23,9 @@ import {
   type PublicUser,
   type TokenRow,
   type SubmitInfo,
-  type PlotCurve,
-  type ProgressCurve,
-  type TableCurve,
   type CurveRow,
 } from './pages'
-import { recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordFlags, recordFlagsForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
+import { plotCurves, tableCurves, userCurves, recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordFlags, recordFlagsForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
 import { notifyRecord, notifyBackfillRecord } from './zulip'
 import { parsePoints } from './input'
 import {
@@ -55,22 +52,13 @@ app.use('*', async (c, next) => {
 })
 
 app.get('/', async (c) => {
-  const { results } = await c.env.DB.prepare(
-    'SELECT id, rank_lower_bound, naive_height, faltings_height, conductor, discriminant FROM curves',
-  ).all<PlotCurve>()
-  return c.html(landingPage(c.get('user'), results, c.req.query('metric'), c.req.query('show')))
+  const curves = await plotCurves(c.env)
+  return c.html(landingPage(c.get('user'), curves, c.req.query('metric'), c.req.query('show')))
 })
 
 app.get('/curves', async (c) => {
-  const { results } = await c.env.DB.prepare(
-    `SELECT id, ainvs, rank_lower_bound, naive_height, faltings_height, conductor, discriminant
-       FROM curves
-       -- Default order matches the table's JS default: increasing conductor,
-       -- curves with no recorded conductor last. Conductor is a big-integer
-       -- decimal string, so numeric order = (length, then lexicographic).
-       ORDER BY conductor IS NULL, LENGTH(conductor), conductor, naive_height ASC`,
-  ).all<TableCurve>()
-  return c.html(curveTablePage(results, c.get('user'), {
+  const curves = await tableCurves(c.env)
+  return c.html(curveTablePage(curves, c.get('user'), {
     sort: c.req.query('sort'),
     dir: c.req.query('dir'),
     minrank: c.req.query('minrank'),
@@ -89,11 +77,8 @@ app.get('/progress', async (c) => {
   const parsedStartId = startParam === undefined ? undefined : Math.floor(Number(startParam))
   const startId = parsedStartId !== undefined && Number.isFinite(parsedStartId) ? parsedStartId : undefined
   const metric = c.req.query('metric')
-  const { results } = await c.env.DB.prepare(
-    `SELECT id, rank_lower_bound, naive_height, faltings_height, conductor, discriminant FROM curves
-       ORDER BY id ASC`,
-  ).all<ProgressCurve>()
-  return c.html(progressPage(results, c.get('user'), startId, metric))
+  const curves = await plotCurves(c.env)
+  return c.html(progressPage(curves, c.get('user'), startId, metric))
 })
 
 // Single curve as downloadable JSON — the same shape as a database.json entry.
@@ -492,7 +477,7 @@ app.get('/user/:id', async (c) => {
     .bind(id)
     .first<PublicUser>()
   if (!profile) return c.html(notFoundPage(c.get('user')), 404)
-  const [curves, contributions] = await Promise.all([listUserCurves(c.env, id), userContributions(c.env, id)])
+  const [curves, contributions] = await Promise.all([userCurves(c.env, id), userContributions(c.env, id)])
   const records = await recordFlagsForCurves(c.env, curves)
   return c.html(userPage(profile, curves, records, contributions, c.get('user')))
 })
@@ -567,21 +552,6 @@ function listTokens(env: Bindings, userId: number): Promise<TokenRow[]> {
   )
     .bind(userId)
     .all<TokenRow>()
-    .then((r) => r.results)
-}
-
-// Curves attributed to this user as original submitter (a later rank
-// improvement by someone else does not reassign credit). Highest rank first,
-// then smallest naive height — the same "best curve" ordering the database
-// download uses.
-function listUserCurves(env: Bindings, userId: number): Promise<TableCurve[]> {
-  return env.DB.prepare(
-    `SELECT id, ainvs, rank_lower_bound, naive_height, faltings_height, conductor, discriminant
-       FROM curves WHERE submitter_user_id = ?
-       ORDER BY rank_lower_bound DESC, naive_height ASC`,
-  )
-    .bind(userId)
-    .all<TableCurve>()
     .then((r) => r.results)
 }
 
