@@ -542,11 +542,12 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
       </section>
 
       <p>
-      Inspired by <a class="external" href="https://web.math.pmf.unizg.hr/~duje/tors/rankhist.html">Dujella's rank tables</a>,
-      this site tracks elliptic curves <span class="eqi">E/&#8474;</span> of high
-      <a class="external" href="https://en.wikipedia.org/wiki/Rank_of_an_elliptic_curve">Mordell&ndash;Weil rank</a>
-      relative to their size &mdash; measured by
-      <a class="external" href="https://en.wikipedia.org/wiki/Conductor_of_an_elliptic_curve">conductor</a>, height, or discriminant.</p>
+      This site tracks the smallest known elliptic curves (over <span class="eqi">&#8474;</span>)
+      for each <a class="external" href="https://en.wikipedia.org/wiki/Rank_of_an_elliptic_curve">Mordell&ndash;Weil rank</a>.
+      It follows in the footsteps of
+      <a class="external" href="https://web.math.pmf.unizg.hr/~duje/tors/rankhist.html">Dujella's rank tables</a>
+      and a <a class="external" href="https://arxiv.org/pdf/math/0403374">2004 paper by Elkies and Watkins</a>.
+      </p>
       <p class="browse-cta"><a href="/database.json" download>Download the database (JSON) &darr;</a> <span class="cta-sep">|</span> <a href="/curves">Browse all curves as a table &rarr;</a> <span class="cta-sep">|</span> <a href="/recent">See recent activity &rarr;</a> <span class="cta-sep">|</span> <a class="external" href="https://icarm.zulipchat.com/#narrow/channel/519875-general/topic/Elliptic.20Curve.20Rank.20Leaderboard/near/603443505">Discuss on Zulip</a></p>
 
       <section class="submit">
