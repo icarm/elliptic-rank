@@ -946,11 +946,6 @@ export function curveDetailPage(
   const historyRow = events.length
     ? `<dt>later contributions</dt><dd><ul class="curve-history">${events.map(eventLine).join('')}</ul></dd>`
     : `<dt>last updated</dt><dd>${utcTime(curve.updated_at)}</dd>`
-  // The stored witness belongs to whoever last improved the rank, if anyone.
-  const lastImprovement = [...events].reverse().find((e) => e.kind === 'rank_improved')
-  const witnessCredit = lastImprovement
-    ? ` <span class="muted witness-credit">found by ${userLink(lastImprovement.user_id, lastImprovement.user)}</span>`
-    : ''
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a> &nbsp;&middot;&nbsp; <a href="/curves">all curves</a> &nbsp;&middot;&nbsp; <a href="/curve/${curve.id}.json" download>JSON &darr;</a></p>
       <h2>curve #${curve.id}</h2>
@@ -970,7 +965,7 @@ export function curveDetailPage(
         ${historyRow}
       </dl>
       <section class="witness">
-        <h3>Witness: ${points.length} independent points${witnessCredit}</h3>
+        <h3>Witness: ${points.length} independent points</h3>
         <ul class="point-list">
           ${pointList}
         </ul>

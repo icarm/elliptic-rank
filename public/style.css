@@ -1201,4 +1201,3 @@ a.external::after {
 .curve-history { list-style: none; margin: 0; padding: 0; }
 .curve-history li { margin: 0; }
 .curve-history li + li { margin-top: 0.2rem; }
-.witness-credit { font-size: 0.85rem; font-weight: normal; }
