@@ -418,9 +418,14 @@ export function progressPage(
         </a>`
     })
     .join('\n')
-  const ids = JSON.stringify(pts.map((p) => p.id)).replace(/</g, '\\u003c')
-  const progressData = JSON.stringify(pts).replace(/</g, '\\u003c')
-  const referenceData = JSON.stringify(referenceCurves.map(({ key, c, label, equation }) => ({ key, c, label, equation }))).replace(/</g, '\\u003c')
+  // Everything /progress.js needs that the server knows: the points, the
+  // reference curves, and the plot geometry (so client y-values match the
+  // server-rendered dots). Escaped so the JSON can never close its <script>.
+  const progressData = JSON.stringify({
+    points: pts,
+    referenceCurves: referenceCurves.map(({ key, c, label, equation }) => ({ key, c, label, equation })),
+    geometry: { T, plotH, L, rankMax, plotW, plotRight: W - R },
+  }).replace(/</g, '\\u003c')
   const metricControls = (['conductor', 'naive', 'faltings', 'disc'] as const)
     .map((key) => `<label><input type="radio" name="progress-metric" value="${key}"${key === selectedMetric ? ' checked' : ''} /><span>${metricLabels[key]}</span></label>`)
     .join('\n')
@@ -482,218 +487,8 @@ export function progressPage(
           </g>
         </svg>
       </section>
-      <script>
-      (() => {
-        const ids = ${ids};
-        const points = ${progressData};
-        const referenceCurves = ${referenceData};
-        const metrics = {
-          conductor: { label: 'log conductor', format: (v) => v.toFixed(0) },
-          naive: { label: 'naive height', format: (v) => v.toFixed(0) },
-          faltings: { label: 'Faltings height', format: (v) => v.toFixed(2) },
-          disc: { label: 'log |discriminant|', format: (v) => v.toFixed(0) },
-        };
-        const T = ${T}, plotH = ${plotH}, L = ${L}, RANK_MAX = ${rankMax}, PLOT_W = ${plotW}, PLOT_RIGHT = ${W - R};
-        const startSlider = document.getElementById('progress-start');
-        const startCurrent = document.getElementById('progress-start-current');
-        const slider = document.getElementById('progress-id');
-        const current = document.getElementById('progress-current');
-        const count = document.getElementById('progress-count');
-        const play = document.getElementById('progress-play');
-        const dots = Array.from(document.querySelectorAll('.progress-link'));
-        const metricInputs = Array.from(document.querySelectorAll('input[name="progress-metric"]'));
-        const yTicks = Array.from(document.querySelectorAll('.progress-y-tick'));
-        const yTitle = document.getElementById('progress-y-title');
-        const svg = document.querySelector('.progress-plot');
-        const referenceControls = document.getElementById('progress-reference-controls');
-        const referenceGroup = document.getElementById('progress-reference-curves');
-        const referenceToggles = Array.from(document.querySelectorAll('.progress-reference-toggle'));
-        let timer = null;
-
-        function visibleCount(cutoff) {
-          let lo = 0, hi = ids.length;
-          while (lo < hi) {
-            const mid = (lo + hi) >> 1;
-            if (ids[mid] <= cutoff) lo = mid + 1;
-            else hi = mid;
-          }
-          return lo;
-        }
-
-        function currentMetric() {
-          const checked = metricInputs.find((input) => input.checked);
-          return checked ? checked.value : 'conductor';
-        }
-
-        function scaleFor(metric) {
-          // Mirror the server: scale to the best (lowest) value at each rank
-          // so one huge low-rank submission cannot stretch the axis.
-          const minByRank = new Map();
-          points.forEach((p) => {
-            const value = p[metric];
-            if (value == null) return;
-            const prev = minByRank.get(p.rank);
-            if (prev == null || value < prev) minByRank.set(p.rank, value);
-          });
-          if (minByRank.size === 0) return { min: 0, max: 1 };
-          let min = Infinity, max = -Infinity;
-          minByRank.forEach((value) => {
-            if (value < min) min = value;
-            if (value > max) max = value;
-          });
-          if (min === max) { min -= 1; max += 1; }
-          const pad = (max - min) * 0.05;
-          return { min: min - pad, max: max + pad };
-        }
-
-        function yFor(value, scale) {
-          return T + plotH - ((value - scale.min) / (scale.max - scale.min)) * plotH;
-        }
-
-        function xForRank(rank) {
-          return L + (rank / RANK_MAX) * PLOT_W;
-        }
-
-        function referenceGeometry(c, scale) {
-          const qStart = Math.max(scale.min, 1.000001);
-          const qEnd = scale.max;
-          if (qEnd <= qStart) return { d: '', label: null };
-          let d = '';
-          let drawing = false;
-          let last = null;
-          for (let i = 0; i <= 180; i++) {
-            const q = qStart + (i / 180) * (qEnd - qStart);
-            const denom = Math.log(q);
-            const rank = c * q / denom;
-            if (!Number.isFinite(rank) || rank < 0 || rank > RANK_MAX) {
-              drawing = false;
-              continue;
-            }
-            const x = xForRank(rank);
-            const y = yFor(q, scale);
-            d += (drawing ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1);
-            drawing = true;
-            last = { x, y };
-          }
-          if (last == null) return { d, label: null };
-          const nearRight = last.x > PLOT_RIGHT - 80;
-          return {
-            d,
-            label: {
-              x: nearRight ? Math.max(L + 8, last.x - 8) : Math.min(PLOT_RIGHT - 8, last.x + 8),
-              y: Math.max(T + 16, Math.min(T + plotH - 8, last.y - 6)),
-              anchor: nearRight ? 'end' : 'start',
-            },
-          };
-        }
-
-        function referenceToggle(key) {
-          return referenceToggles.find((input) => input.value === key);
-        }
-
-        function renderReferenceCurves(metric, scale) {
-          const conductorMode = metric === 'conductor';
-          referenceControls.classList.toggle('is-disabled', !conductorMode);
-          referenceGroup.classList.toggle('is-hidden', !conductorMode);
-          referenceToggles.forEach((input) => { input.disabled = !conductorMode; });
-          referenceCurves.forEach((curve) => {
-            const toggle = referenceToggle(curve.key);
-            const path = referenceGroup.querySelector('[data-ref="' + curve.key + '"]');
-            const label = referenceGroup.querySelector('[data-ref-label="' + curve.key + '"]');
-            const enabled = conductorMode && toggle && toggle.checked;
-            const geom = enabled ? referenceGeometry(curve.c, scale) : { d: '', label: null };
-            path.setAttribute('d', geom.d);
-            path.style.display = enabled && geom.d ? '' : 'none';
-            label.style.display = enabled && geom.label ? '' : 'none';
-            if (geom.label) {
-              label.setAttribute('x', geom.label.x.toFixed(1));
-              label.setAttribute('y', geom.label.y.toFixed(1));
-              label.setAttribute('text-anchor', geom.label.anchor);
-            }
-          });
-        }
-
-        function render() {
-          const metric = currentMetric();
-          const cfg = metrics[metric];
-          const scale = scaleFor(metric);
-          const start = Number(startSlider.value);
-          if (Number(slider.value) < start) slider.value = String(start);
-          const cutoff = Number(slider.value);
-          let baseline = 0;
-          let shown = 0;
-          startCurrent.value = '#' + start;
-          current.value = '#' + cutoff;
-          yTicks.forEach((tick) => {
-            const i = Number(tick.dataset.tick);
-            const value = scale.min + (i / 5) * (scale.max - scale.min);
-            tick.textContent = cfg.format(value);
-          });
-          yTitle.textContent = cfg.label + ' \\u2192';
-          svg.setAttribute('aria-label', cfg.label + ' versus rank over time');
-          renderReferenceCurves(metric, scale);
-          dots.forEach((a, i) => {
-            const p = points[i];
-            const value = p[metric];
-            const hasValue = value != null;
-            const gray = hasValue && p.id <= start;
-            const on = hasValue && p.id > start && p.id <= cutoff;
-            if (gray) baseline += 1;
-            if (on) shown += 1;
-            const c = a.querySelector('circle');
-            const title = c.querySelector('title');
-            c.classList.toggle('is-baseline', gray);
-            c.classList.toggle('is-visible', on);
-            c.setAttribute('r', gray ? '3.5' : on ? '5' : '0');
-            c.setAttribute('cy', hasValue ? yFor(value, scale).toFixed(1) : String(T + plotH));
-            title.textContent = hasValue
-              ? 'curve #' + p.id + ': rank >= ' + p.rank + ', ' + cfg.label + ' ' + cfg.format(value)
-              : 'curve #' + p.id + ': ' + cfg.label + ' not recorded';
-          });
-          count.textContent = shown + ' new; ' + baseline + ' gray';
-        }
-
-        function stop() {
-          if (timer) clearInterval(timer);
-          timer = null;
-          play.textContent = 'Play';
-        }
-
-        function updateStartUrl() {
-          const url = new URL(window.location.href);
-          url.searchParams.set('start', startSlider.value);
-          window.history.replaceState(null, '', url);
-        }
-
-        function updateMetricUrl() {
-          const url = new URL(window.location.href);
-          url.searchParams.set('metric', currentMetric());
-          window.history.replaceState(null, '', url);
-        }
-
-        startSlider.addEventListener('input', () => { stop(); updateStartUrl(); render(); });
-        slider.addEventListener('input', () => { stop(); render(); });
-        metricInputs.forEach((input) => {
-          input.addEventListener('change', () => { stop(); updateMetricUrl(); render(); });
-        });
-        referenceToggles.forEach((input) => {
-          input.addEventListener('change', render);
-        });
-        play.addEventListener('click', () => {
-          if (timer) { stop(); return; }
-          if (Number(slider.value) >= Number(slider.max)) slider.value = startSlider.value;
-          play.textContent = 'Pause';
-          timer = setInterval(() => {
-            const next = ids[visibleCount(Number(slider.value))];
-            if (next == null) { slider.value = slider.max; render(); stop(); return; }
-            slider.value = String(next);
-            render();
-          }, 90);
-          render();
-        });
-        render();
-      })();
-      </script>`
+      <script type="application/json" id="progress-data">${progressData}</script>
+      <script src="/progress.js" defer></script>`
   return layout('Progress — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
@@ -752,31 +547,7 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
           )}
         </div>
         <noscript><style>.plot-tabs { display: none; } .board .plot-panel[hidden] { display: block; }</style></noscript>
-        <script>
-        (function () {
-          var tabs = Array.prototype.slice.call(document.querySelectorAll('input[name="plot-metric"]'));
-          var panels = Array.prototype.slice.call(document.querySelectorAll('.board .plot-panel'));
-          // The server renders the selected panel already; we only handle switches.
-          tabs.forEach(function (t) {
-            t.addEventListener('change', function () {
-              if (!t.checked) return;
-              panels.forEach(function (p) { p.hidden = p.dataset.metric !== t.value; });
-              var q = new URLSearchParams(location.search);
-              q.set('metric', t.value);
-              history.replaceState(null, '', location.pathname + '?' + q.toString());
-            });
-          });
-          var showAll = document.getElementById('plot-show-all');
-          var board = document.querySelector('.board');
-          showAll.addEventListener('change', function () {
-            board.classList.toggle('best-only', !showAll.checked);
-            var q = new URLSearchParams(location.search);
-            if (showAll.checked) q.set('show', 'all'); else q.delete('show');
-            var qs = q.toString();
-            history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
-          });
-        })();
-        </script>
+        <script src="/landing.js" defer></script>
       </section>
 
       <p>
@@ -996,109 +767,7 @@ export function curveTablePage(
         </tbody>
       </table>
       </div>
-      <script>
-      (function () {
-        var KEYS = ['id', 'rank', 'naive', 'faltings', 'conductor', 'disc'];
-        var tbody = document.getElementById('curves-table').tBodies[0];
-        var rows = Array.prototype.slice.call(tbody.rows);
-        var rankInput = document.getElementById('rank-filter');
-        var rankOp = document.getElementById('rank-op');
-        var count = document.getElementById('curve-count');
-        var heading = document.getElementById('table-title');
-        var buttons = document.querySelectorAll('a.sort');
-        var sortKey = 'conductor';
-        var sortDir = 1; // 1 = ascending, -1 = descending; default: smallest conductor first
-
-        var params = new URLSearchParams(location.search);
-        if (KEYS.indexOf(params.get('sort')) >= 0) {
-          sortKey = params.get('sort');
-          sortDir = params.get('dir') === 'desc' ? -1 : 1;
-        }
-        if (/^[0-9]+$/.test(params.get('minrank') || '')) rankInput.value = params.get('minrank');
-        if (params.get('rankmode') === 'eq') rankOp.value = 'eq';
-
-        function apply() {
-          rows.sort(function (a, b) {
-            var av = a.dataset[sortKey], bv = b.dataset[sortKey];
-            if (av === '') return bv === '' ? 0 : 1; // missing values last either way
-            if (bv === '') return -1;
-            return (Number(av) - Number(bv)) * sortDir;
-          });
-          // Rank values are proven lower bounds. Empty input = no filter;
-          // otherwise restrict to lower bound == n ("=") or lower bound >= n (">=").
-          var hasFilter = /^[0-9]+$/.test(rankInput.value);
-          var n = Number(rankInput.value);
-          var eq = rankOp.value === 'eq';
-          // "=" with an empty box means no filter (any rank); ">=" defaults to 1.
-          rankInput.placeholder = eq ? 'any' : '1';
-          var shown = 0;
-          rows.forEach(function (r) {
-            var rk = Number(r.dataset.rank);
-            r.hidden = hasFilter && (eq ? rk !== n : rk < n);
-            if (!r.hidden) shown++;
-            tbody.appendChild(r);
-          });
-          count.textContent = shown;
-          buttons.forEach(function (b) {
-            b.className = 'sort' + (b.dataset.key === sortKey ? (sortDir === 1 ? ' asc' : ' desc') : '');
-          });
-          // The heading names the current view: "All curves" when unfiltered
-          // (including ">= 1", which every curve satisfies), the rank
-          // restriction otherwise — same condition as the query string below.
-          var restricted = hasFilter && (eq || n > 1);
-          var title = restricted
-            ? 'Curves with rank lower bound ' + (eq ? '= ' : '\\u2265 ') + n
-            : 'All curves';
-          heading.textContent = title;
-          document.title = title + ' \\u2014 Elliptic Curve Rank Leaderboard';
-          var q = new URLSearchParams();
-          if (sortKey !== 'conductor' || sortDir !== 1) {
-            q.set('sort', sortKey);
-            if (sortDir === -1) q.set('dir', 'desc');
-          }
-          // Persist the value whenever it filters: any value in "=" mode, or >1 in ">=" mode.
-          if (restricted) q.set('minrank', String(n));
-          if (eq) q.set('rankmode', 'eq');
-          var qs = q.toString();
-          history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
-        }
-
-        buttons.forEach(function (b) {
-          b.addEventListener('click', function (e) {
-            // Modified clicks fall through to the href (open sorted view in a
-            // new tab); the href is also the no-JS fallback.
-            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-            e.preventDefault();
-            if (sortKey === b.dataset.key) {
-              sortDir = -sortDir;
-            } else {
-              sortKey = b.dataset.key;
-              sortDir = sortKey === 'rank' ? -1 : 1; // high rank first; small heights first
-            }
-            apply();
-          });
-        });
-        rankInput.addEventListener('input', apply);
-        rankOp.addEventListener('change', apply);
-        // The controls form is the no-JS fallback; here everything is already
-        // applied live, so Enter in the rank box must not reload the page.
-        document.querySelector('form.table-controls').addEventListener('submit', function (e) {
-          e.preventDefault();
-        });
-        // Clicking a row's "≥ N" restricts the view to exactly that lower bound,
-        // in place (preserving the current sort). Modified clicks fall through to
-        // the link's href so the filtered view can still open in a new tab.
-        tbody.addEventListener('click', function (e) {
-          var a = e.target.closest('a.rank-link');
-          if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-          e.preventDefault();
-          rankInput.value = a.closest('tr').dataset.rank;
-          rankOp.value = 'eq';
-          apply();
-        });
-        apply();
-      })();
-      </script>`
+      <script src="/curves.js" defer></script>`
   return layout(`${pageTitle} — Elliptic Curve Rank Leaderboard`, inner, user)
 }
 
