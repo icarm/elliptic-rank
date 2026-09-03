@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { parsePoints, PointParseError } from './src/input.ts'
+import { parsePoints, PointParseError } from '../src/input.ts'
 
 const thirtyLines = Array.from({ length: 30 }, (_, i) => `${i + 1}, ${i + 2}`).join('\n')
 assert.equal(parsePoints(thirtyLines).length, 30)

@@ -1,5 +1,5 @@
-import { canonicalKey, naiveLogHeight, verify } from './src/verify.ts'
-import { loadGp } from './scripts/load-pari.mjs'
+import { canonicalKey, naiveLogHeight, verify } from '../src/verify.ts'
+import { loadGp } from '../scripts/load-pari.mjs'
 
 // Build a gp() callable from the PARI WASM module (same module, same stack
 // size as the Worker uses).

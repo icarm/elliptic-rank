@@ -1,5 +1,5 @@
-import { canonicalKey } from './src/verify.ts'
-import { loadGp } from './scripts/load-pari.mjs'
+import { canonicalKey } from '../src/verify.ts'
+import { loadGp } from '../scripts/load-pari.mjs'
 
 const gp = await loadGp()
 
