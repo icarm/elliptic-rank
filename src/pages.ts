@@ -58,7 +58,7 @@ function authNav(user: User | null): string {
   return `<a href="/auth/github">log in with GitHub</a>`
 }
 
-const SITE_ORIGIN = 'https://elliptic-rank.icarm.cloud'
+export const SITE_ORIGIN = 'https://elliptic-rank.icarm.cloud'
 const SITE_DESCRIPTION =
   'Can we find small elliptic curves of high rank? A leaderboard of certified ' +
   'Mordell–Weil rank lower bounds, ordered by naive height, Faltings height, and conductor.'
@@ -1254,7 +1254,10 @@ export function apiDocsPage(user: User | null = null): string {
       <pre><code>${escapeHtml(primesResp)}</code></pre>
 
       <h3>GET <code>/database.json</code></h3>
-      <p>The entire database as one JSON download: <code>{ count, curves }</code>, each curve with its
+      <p>The entire database as one JSON download. The top level carries attribution metadata
+      (<code>source</code>, <code>url</code>, <code>maintainer</code>, <code>acknowledgement</code>,
+      <code>documentation</code>) so a shared copy still says where it came from, then
+      <code>count</code> and <code>curves</code>, each curve with its
       global-minimal a-invariants, transformed witness points, <code>discriminant</code> (the minimal
       discriminant), rank lower bound, naive height, Faltings height, and (when recorded) conductor,
       <code>bad_primes</code> (the verified primes of bad reduction &mdash; the factorization of the

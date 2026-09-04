@@ -17,6 +17,7 @@ import {
   activityPage,
   curveTablePage,
   acknowledgePage,
+  SITE_ORIGIN,
   progressPage,
   userPage,
   ABOUT_MAX,
@@ -305,9 +306,26 @@ app.get('/database.json', async (c) => {
   ).all<CurveJsonRow>()
   const events = await allCurveEvents(c.env)
   const curves = results.map((r) => curveJson(r, events.get(r.id) ?? []))
+  // Attribution travels with the file: a downloaded copy may be shared around
+  // far from this site, so the metadata comes first and names the source, the
+  // live URL, and the acknowledgement requested in the footer. Deliberately no
+  // generation timestamp — the body must be byte-stable while the data is
+  // unchanged so the ETag in jsonDownload keeps working. (Data-license terms
+  // are not yet decided; add a `license` field here once they are.)
+  const meta = {
+    source: 'Elliptic Curve Rank Leaderboard',
+    url: `${SITE_ORIGIN}/database.json`,
+    maintainer:
+      'The Institute for Computer-Aided Reasoning in Mathematics (ICARM), supported by U.S. National Science Foundation Grant DMS 2425401',
+    acknowledgement:
+      'Please acknowledge ICARM and NSF Grant DMS 2425401 in related publications, projects, or other scholarly work, for example: ' +
+      '"This research made use of the Elliptic Curve Rank Leaderboard, maintained by the Institute for Computer-Aided Reasoning (ICARM) under NSF Grant DMS 2425401." ' +
+      `See ${SITE_ORIGIN}/acknowledge.`,
+    documentation: `${SITE_ORIGIN}/api`,
+  }
   // Pretty-printed (2-space indent) so the download is readable line-by-line —
   // a single 60+ KB line is awkward for humans and tools alike.
-  const payload = JSON.stringify({ count: curves.length, curves }, null, 2)
+  const payload = JSON.stringify({ ...meta, count: curves.length, curves }, null, 2)
   return jsonDownload(c.req.raw, payload, 'elliptic-rank-database.json')
 })
 
