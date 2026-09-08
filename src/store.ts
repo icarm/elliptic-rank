@@ -2,11 +2,19 @@
 // by the canonical key. The verifier normalizes accepted witnesses to the
 // global minimal model before they reach this layer; the stored witness is
 // replaced only when a new submission proves a strictly higher rank lower bound.
+// A curve new to the board is written only if it places in the top BOARD_TOP_K
+// on some metric for its rank (see placement/qualifies); existing rows are
+// never evicted.
 
 import type { Bindings } from './auth'
 import { verifyPrimes, autoPrimes, type VerifyResult, type PrimesResult } from './verify'
 import type { Gp } from './pari'
 import type { RecordFlags, PlotCurve, TableCurve } from './pages'
+import { BOARD_TOP_K, placement, qualifies, lessDecimal, lessAbsDecimal, type Metrics, type Placement } from './gate'
+
+// The entry gate and the decimal comparators live in ./gate (dependency-free
+// so they can be unit-tested without the verifier); re-exported for callers.
+export { BOARD_TOP_K, placement, qualifies, lessDecimal, lessAbsDecimal, type Metrics, type Placement }
 
 export const COMMENT_MAX = 4000
 
@@ -240,29 +248,29 @@ export async function recentActivity(
   return { items: results.slice(0, size), page, hasOlder: results.length > size }
 }
 
-export interface RecordStatus {
-  id: number
-  status: 'created' | 'improved' | 'unchanged'
-  rank: number
-  previousRank?: number
-  // True when this submission newly recorded the conductor for the curve (i.e.
-  // the conductor was not previously on record). Not the conductor value itself.
-  conductorRecorded?: boolean
-}
+export type RecordStatus =
+  | {
+      id: number
+      status: 'created' | 'improved' | 'unchanged'
+      rank: number
+      previousRank?: number
+      // True when this submission newly recorded the conductor for the curve (i.e.
+      // the conductor was not previously on record). Not the conductor value itself.
+      conductorRecorded?: boolean
+    }
+  | {
+      // Verified, but not written: the curve is new and places outside the top
+      // `limit` on every metric among curves of rank ≥ `rank`. Nothing is stored,
+      // so there is no id.
+      status: 'declined'
+      rank: number
+      placement: Placement
+      limit: number
+    }
 
 // Parse a PARI real ("79.328...", "1.5 E-17") to a JS number for sorting.
 function toFloat(s: string): number {
   return Number(s.replace(/\s+/g, '').replace(/E/i, 'e'))
-}
-
-// a < b for non-negative decimal integer strings of any size.
-export function lessDecimal(a: string, b: string): boolean {
-  return a.length !== b.length ? a.length < b.length : a < b
-}
-
-// |a| < |b| for signed decimal integer strings (compares magnitude).
-export function lessAbsDecimal(a: string, b: string): boolean {
-  return lessDecimal(a.replace('-', ''), b.replace('-', ''))
 }
 
 // Curve fields needed to decide which metrics are records.
@@ -471,6 +479,20 @@ export async function recordCurve(
     }>()
 
   if (!existing) {
+    // Entry gate: a new curve must place in the top BOARD_TOP_K on some metric
+    // among the curves of equal or higher rank already on the board.
+    const { results: rivals } = await env.DB.prepare(
+      `SELECT naive_height, faltings_height, conductor, discriminant FROM curves
+         WHERE rank_lower_bound >= ?`,
+    )
+      .bind(rank)
+      .all<Metrics>()
+    const place = placement(
+      { naive_height: height, faltings_height: faltings, conductor, discriminant: result.curve!.discriminant },
+      rivals,
+    )
+    if (!qualifies(place)) return { status: 'declined', rank, placement: place, limit: BOARD_TOP_K }
+
     const ins = await env.DB.prepare(
       `INSERT INTO curves
          (curve_key, c4, c6, ainvs, discriminant, naive_height, rank_lower_bound,

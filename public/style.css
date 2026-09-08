@@ -356,6 +356,11 @@ main p code, .result code, pre code, .submit-help code {
   color: #1d7a36;
 }
 
+.leaderboard-status.declined {
+  font-weight: 400;
+  color: var(--muted);
+}
+
 .result-errors {
   margin: 0.5rem 0 0 1.25rem;
   color: var(--fg);

@@ -61,8 +61,9 @@ function joinRecords(parts: string[]): string {
 
 // Notify Zulip if the just-recorded submission newly holds a record. Only fresh
 // frontier entries ('created' or 'improved') are considered: an 'unchanged'
-// submission did not change the board. No-op when the webhook is unconfigured or
-// the curve holds no record for its rank.
+// submission did not change the board, and a 'declined' one was never written.
+// No-op when the webhook is unconfigured or the curve holds no record for its
+// rank.
 //
 // Intended to be called via `ctx.waitUntil(...)` so delivery does not block the
 // response to the submitter.
@@ -78,6 +79,7 @@ export async function notifyRecord(
   // existing curve with its primes of bad reduction backfills the conductor and
   // Faltings height, which can newly make it a record just like the dedicated
   // primes-backfill endpoints. Hand those off to the backfill notifier.
+  if (status.status === 'declined') return
   if (status.status === 'unchanged') {
     if (status.conductorRecorded) await notifyBackfillRecord(env, status.id, submitter, baseUrl)
     return

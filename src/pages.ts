@@ -3,7 +3,8 @@
 // so GitHub login / profiles can slot in later without reworking the chrome.
 
 import type { VerifyResult } from './verify'
-import { COMMENT_MAX, lessDecimal, lessAbsDecimal, type CommentView, type ActivityItem, type CurveEvent, type Contribution } from './store'
+import { COMMENT_MAX, type CommentView, type ActivityItem, type CurveEvent, type Contribution, type RecordStatus } from './store'
+import { BOARD_TOP_K, lessDecimal, lessAbsDecimal, type Placement } from './gate'
 
 export const ABOUT_MAX = 1000
 
@@ -559,7 +560,10 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
         <a href="https://johncremona.github.io/papers/filter.pdf">Cremona</a>/Brumer) &mdash; the points
         are proven independent in <span class="eqi">E(&#8474;)</span> modulo torsion, so
         rank &ge; the number of points, with no floating-point arithmetic in the decision. Supplying the
-        primes of bad reduction additionally records its conductor.</p>
+        primes of bad reduction additionally records its conductor. To keep the board focused, a curve
+        not yet on it is added only if it places in the top ${BOARD_TOP_K} on some metric (conductor, naive
+        height, Faltings height, or |&Delta;|) among curves of equal or higher rank; a curve already on the
+        board can always have its rank improved or its conductor recorded.</p>
         <div class="eq-line">
           <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
         </div>
@@ -1061,16 +1065,35 @@ function clip(s: string, n = 60): string {
 }
 
 // Outcome of recording a submitted curve on the leaderboard.
-export interface SubmitInfo {
-  id: number
-  status: 'created' | 'improved' | 'unchanged'
-  rank: number
-  previousRank?: number
-  conductorRecorded?: boolean
+export type SubmitInfo = RecordStatus
+
+// "14th by naive height, 12th by Faltings height, and 11th by log |Δ|" — where a
+// declined curve placed on each metric it could be judged on.
+function placementPhrase(p: Placement): string {
+  const ord = (n: number) => {
+    const teens = n % 100 >= 11 && n % 100 <= 13
+    const suffix = teens ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' } as Record<number, string>)[n % 10] ?? 'th'
+    return `${n}${suffix}`
+  }
+  const parts = [`${ord(p.naive)} by naive height`]
+  if (p.faltings != null) parts.push(`${ord(p.faltings)} by Faltings height`)
+  if (p.conductor != null) parts.push(`${ord(p.conductor)} by conductor`)
+  parts.push(`${ord(p.disc)} by log |&Delta;|`)
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
 }
 
 function leaderboardStatus(submit: SubmitInfo | null): string {
   if (!submit) return ''
+  if (submit.status === 'declined') {
+    const noConductor =
+      submit.placement.conductor == null
+        ? ' The conductor was not compared because no primes of bad reduction were supplied; if the curve is competitive on conductor, resubmit with them.'
+        : ''
+    return `<p class="leaderboard-status declined">Verified, but not added to the leaderboard: a curve not yet on
+      the board must place in the top ${submit.limit} on some metric among curves of rank &ge; ${submit.rank}, and
+      this one places ${placementPhrase(submit.placement)}.${noConductor}
+      <a href="/curves?minrank=${submit.rank}">see the curves of rank &ge; ${submit.rank} &rarr;</a></p>`
+  }
   let msg: string
   let added = true
   switch (submit.status) {
@@ -1205,7 +1228,7 @@ export function apiDocsPage(user: User | null = null): string {
       floating-point arithmetic in the decision. The response's <code>independence.certificate</code>
       lists the primes used and the F<sub>2</sub> matrix ranks; the N&eacute;ron&ndash;Tate regulator is
       still reported as an informational diagnostic. On success the
-      curve is <strong>recorded on the leaderboard</strong>; a new curve is attributed to you, while
+      curve is <strong>recorded on the leaderboard</strong> (subject to the entry rule below); a new curve is attributed to you, while
       improving an already-recorded curve's rank bound updates its witness points but leaves the
       original submitter's credit in place (the improvement is credited to you in the curve's
       history and on your public page). Accepted curves and
@@ -1230,9 +1253,15 @@ export function apiDocsPage(user: User | null = null): string {
       submitting too quickly, or <code>400</code> if the body isn't JSON. <code>independence.rankLowerBound</code> is
       the proven bound, <code>canonical.key</code> identifies the curve up to <span class="eqi">&#8474;</span>-isomorphism, and
       the <code>leaderboard</code> field reports the outcome &mdash; <code>status</code> is
-      <code>"created"</code>, <code>"improved"</code> (with <code>previousRank</code>), or
+      <code>"created"</code>, <code>"improved"</code> (with <code>previousRank</code>),
       <code>"unchanged"</code> (a curve's record only changes when a witness proves a strictly higher
-      rank).</p>
+      rank), or <code>"declined"</code>. A curve not yet on the board is added only if it places in the
+      top <code>${BOARD_TOP_K}</code> on some metric among curves of rank &ge; its own; otherwise the
+      submission is verified but not stored, and <code>leaderboard</code> is
+      <code>{ "status": "declined", "rank", "limit", "placement": { "naive", "faltings", "conductor", "disc" } }</code>
+      with each 1-based place (<code>conductor</code> is <code>null</code> when no primes were supplied,
+      so include them if the conductor is the metric your curve is competitive on). Curves already on
+      the board are never re-judged or removed.</p>
       <pre><code>${escapeHtml(verifyResp)}</code></pre>
 
       <h3>POST <code>/api/curve/:id/primes</code></h3>
