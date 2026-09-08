@@ -273,6 +273,16 @@ function toFloat(s: string): number {
   return Number(s.replace(/\s+/g, '').replace(/E/i, 'e'))
 }
 
+// A curve's equation and stored witness, for prefilling the submission form
+// ("improve this curve"). null if there is no such curve.
+export async function loadWitness(env: Bindings, curveId: number): Promise<{ id: number; ainvs: string[]; points: [string, string][] } | null> {
+  const row = await env.DB.prepare('SELECT id, ainvs, points FROM curves WHERE id = ?')
+    .bind(curveId)
+    .first<{ id: number; ainvs: string; points: string }>()
+  if (!row) return null
+  return { id: row.id, ainvs: JSON.parse(row.ainvs), points: JSON.parse(row.points) }
+}
+
 // Curve fields needed to decide which metrics are records.
 export interface RecordCandidate {
   id: number

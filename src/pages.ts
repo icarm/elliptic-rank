@@ -484,7 +484,21 @@ export function progressPage(
   return layout('Progress — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
-export function landingPage(user: User | null = null, curves: PlotCurve[] = [], metric?: string, show?: string): string {
+// The submission form's initial contents (from ?from=<id>): a curve's
+// equation and witness, ready to extend with a new point.
+export interface FormPrefill {
+  id: number
+  ainvs: string[]
+  points: [string, string][]
+}
+
+export function landingPage(
+  user: User | null = null,
+  curves: PlotCurve[] = [],
+  metric?: string,
+  show?: string,
+  prefill: FormPrefill | null = null,
+): string {
   // Which plot the switcher shows first; honored from ?metric= so the view is
   // shareable and renders without a flash. Defaults to the conductor plot.
   const sel: 'conductor' | 'naive' | 'faltings' | 'disc' =
@@ -552,8 +566,15 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
       </p>
       <p class="browse-cta"><a href="/database.json" download>Download the database (JSON) &darr;</a> <span class="cta-sep">|</span> <a href="/curves">Browse all curves as a table &rarr;</a> <span class="cta-sep">|</span> <a href="/recent">See recent activity &rarr;</a> <span class="cta-sep">|</span> <a class="external" href="https://icarm.zulipchat.com/#narrow/channel/519875-general/topic/Elliptic.20Curve.20Rank.20Leaderboard/near/603443505">Discuss on Zulip</a></p>
 
-      <section class="submit">
+      <section class="submit" id="submit">
         <h2>Submit a curve</h2>
+        ${
+          prefill
+            ? `<p class="prefill-note">Prefilled with the equation and the ${prefill.points.length}-point witness of
+        <a href="/curve/${prefill.id}">curve #${prefill.id}</a>. Add your new point(s) below the existing ones and submit
+        to improve its rank bound.</p>`
+            : ''
+        }
         <p class="submit-help">Give the Weierstrass coefficients and a set of independent rational points.
         Each point is checked to lie on the curve, and independence is certified by an exact 2-descent
         computation (quadratic characters at good primes, after
@@ -570,11 +591,15 @@ export function landingPage(user: User | null = null, curves: PlotCurve[] = [], 
         <form method="post" action="/submit-form">
           <label class="field">
             <span>a-invariants <span class="muted">&mdash; [a<sub>4</sub>, a<sub>6</sub>] or [a<sub>1</sub>, a<sub>2</sub>, a<sub>3</sub>, a<sub>4</sub>, a<sub>6</sub>], comma- or space-separated</span></span>
-            <input type="text" name="ainvs" ${user ? 'required' : 'disabled'} placeholder="${escapeHtml(SAMPLE_AINVS)}" />
+            <input type="text" name="ainvs" ${user ? 'required' : 'disabled'} placeholder="${escapeHtml(SAMPLE_AINVS)}"${
+              prefill ? ` value="${escapeHtml(prefill.ainvs.join(', '))}"` : ''
+            } />
           </label>
           <label class="field">
-            <span>points <span class="muted">&mdash; one per line, <code>x, y</code> (integers or rationals like <code>3/16</code>)</span></span>
-            <textarea name="points" rows="12" ${user ? 'required' : 'disabled'} placeholder="${escapeHtml(SAMPLE_POINTS)}"></textarea>
+            <span>points <span class="muted">&mdash; one per line, <code>x, y</code> (integers or rationals like <code>3/16</code>); bracketed forms such as <code>(x, y)</code> from a curve page or a PARI vector <code>[[x, y], ...]</code> are accepted too</span></span>
+            <textarea name="points" rows="12" ${user ? 'required' : 'disabled'} placeholder="${escapeHtml(SAMPLE_POINTS)}">${
+              prefill ? escapeHtml(prefill.points.map(([x, y]) => `${x}, ${y}`).join('\n')) : ''
+            }</textarea>
           </label>
           <label class="field">
             <span>primes of bad reduction <span class="muted">&mdash; optional; equivalently, primes dividing the minimal discriminant. If given, the conductor is recorded.</span></span>
@@ -971,7 +996,8 @@ export function curveDetailPage(
         ${historyRow}
       </dl>
       <section class="witness">
-        <h3>Witness: ${points.length} independent points</h3>
+        <h3>Witness: ${points.length} independent points
+          <a class="improve-link" href="/?from=${curve.id}#submit" title="open the submission form prefilled with this curve and its witness, to add a point">improve this curve &rarr;</a></h3>
         <ul class="point-list">
           ${pointList}
         </ul>

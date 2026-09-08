@@ -26,9 +26,9 @@ import {
   type SubmitInfo,
   type CurveRow,
 } from './pages'
-import { plotCurves, tableCurves, userCurves, recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordFlags, recordFlagsForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
+import { plotCurves, tableCurves, userCurves, loadWitness, recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordFlags, recordFlagsForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
 import { notifyRecord, notifyBackfillRecord } from './zulip'
-import { parsePoints } from './input'
+import { parsePoints, parseTokens } from './input'
 import {
   type AppEnv,
   type Bindings,
@@ -53,8 +53,15 @@ app.use('*', async (c, next) => {
 })
 
 app.get('/', async (c) => {
-  const curves = await plotCurves(c.env)
-  return c.html(landingPage(c.get('user'), curves, c.req.query('metric'), c.req.query('show')))
+  // ?from=<id> prefills the submission form with that curve's equation and
+  // witness (the "improve this curve" link on a curve page). Unknown ids just
+  // leave the form empty.
+  const from = Number(c.req.query('from'))
+  const [curves, prefill] = await Promise.all([
+    plotCurves(c.env),
+    Number.isInteger(from) && from > 0 ? loadWitness(c.env, from) : Promise.resolve(null),
+  ])
+  return c.html(landingPage(c.get('user'), curves, c.req.query('metric'), c.req.query('show'), prefill))
 })
 
 app.get('/curves', async (c) => {
@@ -576,10 +583,6 @@ function listTokens(env: Bindings, userId: number): Promise<TokenRow[]> {
 }
 
 // Split free-form text into integer/rational tokens (commas or whitespace).
-function parseTokens(s: string): string[] {
-  return s.trim().split(/[\s,]+/).filter(Boolean)
-}
-
 function submissionBodyTooLarge(req: Request): boolean {
   const length = Number(req.headers.get('content-length') ?? '')
   return Number.isFinite(length) && length > MAX_SUBMISSION_BODY_BYTES
