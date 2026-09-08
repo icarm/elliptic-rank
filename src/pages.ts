@@ -1089,7 +1089,9 @@ function leaderboardStatus(submit: SubmitInfo | null): string {
       submit.placement.conductor == null
         ? ' The conductor was not compared because no primes of bad reduction were supplied; if the curve is competitive on conductor, resubmit with them.'
         : ''
-    return `<p class="leaderboard-status declined">Verified, but not added to the leaderboard: a curve not yet on
+    // Rendered at the top of the result, directly under the heading: the
+    // outcome is the one thing a submitter needs to see.
+    return `<p class="leaderboard-status declined"><strong>Not added to the leaderboard.</strong> A curve not yet on
       the board must place in the top ${submit.limit} on some metric among curves of rank &ge; ${submit.rank}, and
       this one places ${placementPhrase(submit.placement)}.${noConductor}
       <a href="/curves?minrank=${submit.rank}">see the curves of rank &ge; ${submit.rank} &rarr;</a></p>`
@@ -1124,10 +1126,14 @@ export function submitResultPage(
   if (result.ok && result.independence) {
     const ind = result.independence
     const c = result.curve!
+    // A declined submission was verified but not stored: say "Verified", not
+    // "Submitted", lead with the outcome, and drop the green accent.
+    const declined = submit?.status === 'declined'
     inner = `
       <p class="page-nav"><a href="/">&larr; submit another</a></p>
-      <div class="result result-accepted">
-        <h2>&#10003; Submitted: rank &ge; ${ind.rankLowerBound}</h2>
+      <div class="result ${declined ? 'result-declined' : 'result-accepted'}">
+        <h2>&#10003; ${declined ? 'Verified' : 'Submitted'}: rank &ge; ${ind.rankLowerBound}</h2>
+        ${declined ? leaderboardStatus(submit) : ''}
         <dl class="result-meta">
           <dt>points</dt><dd>${result.points.length}, all on the curve and independent</dd>
           ${
@@ -1143,7 +1149,7 @@ export function submitResultPage(
         </dl>
         <p class="result-method">${escapeHtml(ind.method)}.</p>
         ${result.conductorNote ? `<p class="muted">Conductor not recorded: ${escapeHtml(result.conductorNote)}.</p>` : ''}
-        ${leaderboardStatus(submit)}
+        ${declined ? '' : leaderboardStatus(submit)}
       </div>`
   } else {
     const offCurve = result.points.filter((p) => !p.onCurve).length

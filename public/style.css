@@ -313,6 +313,14 @@ main p code, .result code, pre code, .submit-help code {
   color: #1d7a36;
 }
 
+.result-declined {
+  border-left: 4px solid #b8860b;
+}
+
+.result-declined h2 {
+  color: var(--fg);
+}
+
 .result-rejected {
   border-left: 4px solid #c0392b;
 }
@@ -356,9 +364,15 @@ main p code, .result code, pre code, .submit-help code {
   color: #1d7a36;
 }
 
+/* Declined: shown at the top of the result, under the heading, not as a footer. */
 .leaderboard-status.declined {
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  border-top: 0;
+  border-radius: 4px;
+  background: rgba(184, 134, 11, 0.1);
   font-weight: 400;
-  color: var(--muted);
+  color: var(--fg);
 }
 
 .result-errors {
