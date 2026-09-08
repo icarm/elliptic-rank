@@ -151,3 +151,10 @@ assert.throws(
 )
 
 console.log('point form parser OK')
+
+// U+2212 MINUS SIGN passes through untouched in every mode; verify.ts's token()
+// normalizes it to '-' before validating the number.
+assert.deepEqual(parsePoints('(−3635871/4, −314862269/8)'), [['−3635871/4', '−314862269/8']])
+assert.deepEqual(parsePoints('−1, 2'), [['−1', '2']])
+assert.deepEqual(parseTokens('[0, 0, 1, −6349808647, 193146346911036]'), ['0', '0', '1', '−6349808647', '193146346911036'])
+console.log('unicode minus preserved OK')
