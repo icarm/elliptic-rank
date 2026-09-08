@@ -999,7 +999,11 @@ export function curveDetailPage(
       </dl>
       <section class="witness">
         <h3>Witness: ${points.length} independent points
-          <a class="improve-link" href="/?from=${curve.id}#submit" title="open the submission form prefilled with this curve and its witness, to add a point">improve this curve &rarr;</a></h3>
+          ${
+            user
+              ? `<a class="improve-link" href="/?from=${curve.id}#submit" title="open the submission form prefilled with this curve and its witness points">add more points &rarr;</a>`
+              : `<a class="improve-link" href="/auth/github?return_to=${encodeURIComponent(`/?from=${curve.id}#submit`)}" title="log in, then open the submission form prefilled with this curve and its witness points">log in to add more points &rarr;</a>`
+          }</h3>
         <ul class="point-list">
           ${pointList}
         </ul>
