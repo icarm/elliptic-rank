@@ -735,6 +735,22 @@ pre code {
 }
 
 /* Curve detail page */
+/* Client-drawn real locus of the curve (curve-plot.js); hidden until drawn. */
+.curve-plot { margin: 0 0 1.5rem; }
+.curve-plot svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.curve-plot .axis { stroke: var(--border); stroke-width: 1; }
+.curve-plot .locus { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.curve-plot .oval { fill: var(--accent-soft); }
+.curve-plot .pt { fill: var(--accent-dark); stroke: var(--panel); stroke-width: 1.5; }
+.curve-plot figcaption { margin-top: 0.4rem; font-size: 0.85rem; }
+
 .curve-eq {
   margin: 0.5rem 0 1.5rem;
   padding: 0.75rem 1rem;
