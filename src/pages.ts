@@ -570,8 +570,9 @@ export function landingPage(
         <h2>Submit a curve</h2>
         ${
           prefill
-            ? `<p class="prefill-note">Prefilled from <a href="/curve/${prefill.id}">curve #${prefill.id}</a> (${prefill.points.length} points).
-        Add a point to improve its rank bound.</p>`
+            ? `<p class="prefill-note">Prefilled with the equation and the ${prefill.points.length}-point witness of
+        <a href="/curve/${prefill.id}">curve #${prefill.id}</a>. Add your new point(s) below the existing ones and submit
+        to improve its rank bound.</p>`
             : ''
         }
         <p class="submit-help">Give the Weierstrass coefficients and a set of independent rational points.
@@ -592,7 +593,7 @@ export function landingPage(
             } />
           </label>
           <label class="field">
-            <span>points <span class="muted">&mdash; one per line, <code>x, y</code> (integers or rationals like <code>3/16</code>)</span></span>
+            <span>points <span class="muted">&mdash; one per line, <code>x, y</code> (integers or rationals like <code>3/16</code>); bracketed forms such as <code>(x, y)</code> from a curve page or a PARI vector <code>[[x, y], ...]</code> are accepted too</span></span>
             <textarea name="points" rows="12" ${user ? 'required' : 'disabled'} placeholder="${escapeHtml(SAMPLE_POINTS)}">${
               prefill ? escapeHtml(prefill.points.map(([x, y]) => `${x}, ${y}`).join('\n')) : ''
             }</textarea>
