@@ -750,7 +750,7 @@ pre code {
 .curve-plot .oval { fill: var(--accent-soft); }
 /* Witness points are rational points on this curve, not curves on the board:
    a warm color, distinct from the teal dots of the leaderboard plots. */
-.curve-plot .pt { fill: #c2410c; stroke: var(--panel); stroke-width: 1.5; }
+.curve-plot .pt { fill: #6d2e7a; stroke: var(--panel); stroke-width: 1.5; }
 .curve-plot figcaption { margin-top: 0.4rem; font-size: 0.85rem; }
 
 .curve-eq {
