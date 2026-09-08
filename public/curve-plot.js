@@ -136,8 +136,10 @@
         Ymin = Math.min(Ymin, p.Y); Ymax = Math.max(Ymax, p.Y);
       }
     });
-    var pad = 0.06 * (Ymax - Ymin || 1);
-    var Ylo = Ymin - pad, Yhi = Ymax + pad;
+    // Symmetric about y = 0 so the x-axis sits at mid-height on every plot.
+    var Yhalf = Math.max(-Ymin, Ymax, 1e-9);
+    var pad = 0.06 * Yhalf;
+    var Ylo = -(Yhalf + pad), Yhi = Yhalf + pad;
     // Once both branches of the arm have left through the top and bottom,
     // nothing further right is visible (a witness point inside the vertical
     // window lies on a branch before it exits), so trim the horizontal window.
