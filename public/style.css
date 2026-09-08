@@ -736,7 +736,7 @@ pre code {
 
 /* Curve detail page */
 /* Client-drawn real locus of the curve (curve-plot.js); hidden until drawn. */
-.curve-plot { margin: 0 0 1.5rem; max-width: 26rem; }
+.curve-plot { margin: 0 auto 1.5rem; max-width: 26rem; text-align: center; }
 .curve-plot svg {
   display: block;
   width: 100%;

@@ -190,7 +190,7 @@
       'Real locus (' + (plot.components === 2 ? 'two components' : 'one component') + ') with ' +
       (m === n ? (n === 1 ? 'its witness point' : n === 2 ? 'both witness points' : 'all ' + n + ' witness points') : m + ' of the ' + n + ' witness points') +
       (m < n ? '; the other ' + (n - m === 1 ? 'one lies' : n - m + ' lie') + ' outside the plotted range' : '') +
-      '. Axes rescaled by powers of two.';
+      '.';
     fig.querySelector('figcaption').textContent = cap;
     fig.hidden = false;
   }
