@@ -86,8 +86,43 @@ assert.throws(
 // A truncated paste: unclosed outer vector, or a half-written point.
 assert.throws(
   () => parsePoints('[[1, 2], [3, 4]'),
-  (e) => e instanceof PointParseError && e.message.includes('unbalanced brackets (1 "[" vs 0 "]")'),
+  (e) => e instanceof PointParseError && e.message === 'could not parse the points: 1 "[" never closed (unbalanced brackets)',
 )
+assert.throws(
+  () => parsePoints('[1, 2]]'),
+  (e) => e instanceof PointParseError && e.message === 'could not parse the points: a "]" closes nothing (unbalanced brackets)',
+)
+// Equal counts in the wrong order are still unbalanced.
+assert.throws(
+  () => parsePoints('] [1, 2] ['),
+  (e) => e instanceof PointParseError && e.message.includes('closes nothing'),
+)
+// A lone closing bracket or parenthesis is reported by the parser, not left
+// for the numeric validator to trip over.
+assert.throws(
+  () => parsePoints('1, 2)'),
+  (e) => e instanceof PointParseError && e.message.includes('unexpected text "1, 2)"'),
+)
+assert.throws(
+  () => parsePoints('1, 2]'),
+  (e) => e instanceof PointParseError && e.message.includes('unexpected text "1, 2]"'),
+)
+// An unclosed point, and a stray opening parenthesis after a good one.
+assert.throws(
+  () => parsePoints('(1, 2)\n(3, 4'),
+  (e) => e instanceof PointParseError && e.message.includes('unexpected text "(3, 4"'),
+)
+assert.throws(
+  () => parsePoints('(1, 2) ('),
+  (e) => e instanceof PointParseError && e.message.includes('unexpected text "("'),
+)
+// Doubled parentheses are not a vector wrapper (only square brackets are).
+assert.throws(
+  () => parsePoints('((1, 2))'),
+  (e) => e instanceof PointParseError && e.message.includes('unexpected text "( )"'),
+)
+// Square brackets may wrap a vector of parenthesized points (Sage style).
+assert.deepEqual(parsePoints('[(1 : 2 : 1), (3 : 4 : 1)]'), [['1', '2'], ['3', '4']])
 assert.throws(
   () => parsePoints('[[1, 2], [3,'),
   (e) => e instanceof PointParseError && e.message.includes('unexpected text'),

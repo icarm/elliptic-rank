@@ -88,13 +88,15 @@ function groupCoordinates(inner: string, groupNumber: number): [string, string] 
 //    points "[[x1, y1], [x2, y2]]" or the JSON API's [["x","y"], ...] pastes
 //    as-is.
 //
-// The bracketed form is used whenever the text contains a bracket. Everything
-// outside the groups must then be list punctuation (balanced outer brackets,
-// commas, semicolons, whitespace); a number outside a group, a mismatched or
-// unbalanced bracket, or a malformed group is an error, never dropped.
+// The bracketed form is used whenever the text contains any bracket character
+// (a lone closing one included, so it is reported here rather than as a bad
+// number later). Everything outside the groups must then be list punctuation
+// (properly nested outer square brackets, commas, semicolons, whitespace); a
+// number outside a group, a mismatched, unbalanced or misordered bracket, or a
+// malformed group is an error, never dropped.
 export function parsePoints(s: string): [string, string][] {
   const points: [string, string][] = []
-  if (/[\[(]/.test(s)) {
+  if (/[\[\]()]/.test(s)) {
     let n = 0
     const rest = s.replace(/\(([^()\[\]]*)\)|\[([^()\[\]]*)\]/g, (_, paren: string | undefined, square: string | undefined) => {
       n++
@@ -108,10 +110,17 @@ export function parsePoints(s: string): [string, string][] {
           'use one point per line, or a bracketed pair per point',
       )
     }
-    const opens = (rest.match(/\[/g) ?? []).length
-    const closes = (rest.match(/\]/g) ?? []).length
-    if (opens !== closes) {
-      throw new PointParseError(`could not parse the points: unbalanced brackets (${opens} "[" vs ${closes} "]")`)
+    // The remaining square brackets wrap the vector(s) of points: they must
+    // nest properly, so a depth scan never goes negative and ends at zero.
+    let depth = 0
+    for (const ch of rest) {
+      if (ch === '[') depth++
+      else if (ch === ']' && --depth < 0) {
+        throw new PointParseError('could not parse the points: a "]" closes nothing (unbalanced brackets)')
+      }
+    }
+    if (depth > 0) {
+      throw new PointParseError(`could not parse the points: ${depth} "[" never closed (unbalanced brackets)`)
     }
     return points
   }
