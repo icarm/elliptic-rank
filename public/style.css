@@ -749,8 +749,9 @@ pre code {
 .curve-plot .locus { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
 .curve-plot .oval { fill: var(--accent-soft); }
 /* Witness points are rational points on this curve, not curves on the board:
-   a warm color, distinct from the teal dots of the leaderboard plots. */
-.curve-plot .pt { fill: #6d2e7a; stroke: var(--panel); stroke-width: 1.5; }
+   the palette's dark header tone, distinct from the leaderboard plots' teal
+   dots and from the status greens/ambers/reds. */
+.curve-plot .pt { fill: var(--header-bg); stroke: var(--panel); stroke-width: 1.5; }
 .curve-plot figcaption { margin-top: 0.4rem; font-size: 0.85rem; }
 
 .curve-eq {
