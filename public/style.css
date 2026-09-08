@@ -747,7 +747,6 @@ pre code {
 }
 .curve-plot .axis { stroke: var(--border); stroke-width: 1; }
 .curve-plot .locus { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
-.curve-plot .oval { fill: var(--accent-soft); }
 /* Witness points are rational points on this curve, not curves on the board:
    the palette's dark header tone, distinct from the leaderboard plots' teal
    dots and from the status greens/ambers/reds. */
