@@ -1126,13 +1126,17 @@ export function submitResultPage(
   if (result.ok && result.independence) {
     const ind = result.independence
     const c = result.curve!
-    // A declined submission was verified but not stored: say "Verified", not
-    // "Submitted", lead with the outcome, and drop the green accent.
+    // "Accepted" only when the submission changed the board (new curve, higher
+    // rank, or a newly recorded conductor); otherwise "Verified" — the proof
+    // checked out but nothing was written. A declined submission additionally
+    // leads with the outcome and drops the green accent.
     const declined = submit?.status === 'declined'
+    const wrote =
+      submit != null && submit.status !== 'declined' && (submit.status !== 'unchanged' || !!submit.conductorRecorded)
     inner = `
       <p class="page-nav"><a href="/">&larr; submit another</a></p>
       <div class="result ${declined ? 'result-declined' : 'result-accepted'}">
-        <h2>&#10003; ${declined ? 'Verified' : 'Submitted'}: rank &ge; ${ind.rankLowerBound}</h2>
+        <h2>&#10003; ${wrote ? 'Accepted' : 'Verified'}: rank &ge; ${ind.rankLowerBound}</h2>
         ${declined ? leaderboardStatus(submit) : ''}
         <dl class="result-meta">
           <dt>points</dt><dd>${result.points.length}, all on the curve and independent</dd>
