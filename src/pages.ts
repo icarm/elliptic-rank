@@ -580,10 +580,7 @@ export function landingPage(
         <a href="https://johncremona.github.io/papers/filter.pdf">Cremona</a>/Brumer) &mdash; the points
         are proven independent in <span class="eqi">E(&#8474;)</span> modulo torsion, so
         rank &ge; the number of points, with no floating-point arithmetic in the decision. Supplying the
-        primes of bad reduction additionally records its conductor. To keep the board focused, a curve
-        not yet on it is added only if it places in the top ${BOARD_TOP_K} on some metric (conductor, naive
-        height, Faltings height, or |&Delta;|) among curves of equal or higher rank; a curve already on the
-        board can always have its rank improved or its conductor recorded.</p>
+        primes of bad reduction additionally records its conductor.</p>
         <div class="eq-line">
           <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
         </div>
