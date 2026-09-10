@@ -42,7 +42,7 @@ import {
 } from './auth'
 
 const app = new Hono<AppEnv>()
-const MAX_SUBMISSION_BODY_BYTES = 64 * 1024
+const MAX_SUBMISSION_BODY_BYTES = 128 * 1024
 
 // Resolve the current user (session cookie, else API bearer token) for every
 // request. Both lookups short-circuit cheaply when their credential is absent.
