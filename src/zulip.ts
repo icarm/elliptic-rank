@@ -44,10 +44,10 @@ function recordPhrases(curve: RecordCandidate, flags: RecordFlags, consider: Met
     out.push(`smallest **Faltings height** (${curve.faltings_height.toFixed(4)})`)
   }
   if (consider.includes('conductor') && flags.conductor && curve.conductor != null) {
-    out.push(`smallest **conductor** (${curve.conductor})`)
+    out.push(`smallest **log conductor** (${logBigInt(curve.conductor).toFixed(4)})`)
   }
   if (consider.includes('disc') && flags.discriminant) {
-    out.push(`smallest **log |Δ|** (${logBigInt(curve.discriminant).toFixed(2)})`)
+    out.push(`smallest **log |Δ|** (${logBigInt(curve.discriminant).toFixed(4)})`)
   }
   return out
 }

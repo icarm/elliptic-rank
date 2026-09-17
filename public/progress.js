@@ -7,6 +7,7 @@
   const points = data.points;
   const ids = points.map((p) => p.id);
   const referenceCurves = data.referenceCurves;
+  // `format` is for the axis ticks; dot tooltips always show 4 decimals.
   const metrics = {
     conductor: { label: 'log conductor', format: (v) => v.toFixed(0) },
     naive: { label: 'naive height', format: (v) => v.toFixed(0) },
@@ -167,7 +168,7 @@
       c.setAttribute('r', gray ? '3.5' : on ? '5' : '0');
       c.setAttribute('cy', hasValue ? yFor(value, scale).toFixed(1) : String(T + plotH));
       title.textContent = hasValue
-        ? 'curve #' + p.id + ': rank >= ' + p.rank + ', ' + cfg.label + ' ' + cfg.format(value)
+        ? 'curve #' + p.id + ': rank >= ' + p.rank + ', ' + cfg.label + ' ' + value.toFixed(4)
         : 'curve #' + p.id + ': ' + cfg.label + ' not recorded';
     });
     count.textContent = shown + ' new; ' + baseline + ' gray';

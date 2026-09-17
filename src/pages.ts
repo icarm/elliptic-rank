@@ -165,6 +165,7 @@ interface PlotPoint {
 // `sort` is the table column key for this plot's quantity ('conductor',
 // 'naive', or 'faltings'); the rank ticks link to the table filtered to that
 // rank and sorted on it (ascending — smallest first, matching the frontier).
+// `qFmt` formats the (coarse) axis ticks; dot tooltips always show 4 decimals.
 function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => string, sort: string): string {
   if (pts.length === 0) {
     return `<p class="muted plot-empty">No curves with a recorded ${qLabel} yet.</p>`
@@ -241,7 +242,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   const dot = (p: PlotPoint): string => {
     const x = X(p.rank).toFixed(1)
     const y = Y(p.x).toFixed(1)
-    return `<a href="/curve/${p.id}"><circle class="dot${isBest(p) ? ' best' : ''}" cx="${x}" cy="${y}" r="4"><title>curve #${p.id}: rank &ge; ${p.rank}, ${qLabel} ${qFmt(p.x)}</title></circle></a>`
+    return `<a href="/curve/${p.id}"><circle class="dot${isBest(p) ? ' best' : ''}" cx="${x}" cy="${y}" r="4"><title>curve #${p.id}: rank &ge; ${p.rank}, ${qLabel} ${p.x.toFixed(4)}</title></circle></a>`
   }
   // Non-records first, records last so they paint on top of any overlapping dot
   // and are therefore the easiest to click.
@@ -305,6 +306,7 @@ export function progressPage(
       className: 'progress-ref-c05',
     },
   ] as const
+  // Axis-tick formatting; dot tooltips show 4 decimals regardless of metric.
   const fmtMetric = (metric: ProgressMetric, value: number): string =>
     metric === 'faltings' ? value.toFixed(2) : value.toFixed(0)
   const pts = curves
@@ -402,7 +404,7 @@ export function progressPage(
       const active = value != null && p.id > initialStartId && p.id <= initialId
       const title = value == null
         ? `curve #${p.id}: ${metricLabels[selectedMetric]} not recorded`
-        : `curve #${p.id}: rank >= ${p.rank}, ${metricLabels[selectedMetric]} ${fmtMetric(selectedMetric, value)}`
+        : `curve #${p.id}: rank >= ${p.rank}, ${metricLabels[selectedMetric]} ${value.toFixed(4)}`
       return `<a href="/curve/${p.id}" class="progress-link" data-id="${p.id}">
           <circle class="progress-dot${baseline ? ' is-baseline' : ''}${active ? ' is-visible' : ''}" cx="${X(p.rank).toFixed(1)}" cy="${value == null ? (T + plotH).toFixed(1) : Y(value).toFixed(1)}" r="${baseline ? '3.5' : active ? '5' : '0'}">
             <title>${title}</title>
