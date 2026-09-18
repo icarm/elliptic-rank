@@ -3,18 +3,18 @@
 // global minimal model before they reach this layer; the stored witness is
 // replaced only when a new submission proves a strictly higher rank lower bound.
 // A curve new to the board is written only if it places in the top BOARD_TOP_K
-// on some metric for its rank (see placement/qualifies); existing rows are
-// never evicted.
+// on some metric for its rank, either overall or among curves with the same
+// torsion subgroup (see judge/admitted); existing rows are never evicted.
 
 import type { Bindings } from './auth'
 import { verifyPrimes, autoPrimes, type VerifyResult, type PrimesResult } from './verify'
 import type { Gp } from './pari'
 import type { RecordFlags, PlotCurve, TableCurve } from './pages'
-import { BOARD_TOP_K, placement, qualifies, lessDecimal, lessAbsDecimal, type Metrics, type Placement } from './gate'
+import { BOARD_TOP_K, placement, qualifies, judge, admitted, lessDecimal, lessAbsDecimal, type Metrics, type Placement } from './gate'
 
 // The entry gate and the decimal comparators live in ./gate (dependency-free
 // so they can be unit-tested without the verifier); re-exported for callers.
-export { BOARD_TOP_K, placement, qualifies, lessDecimal, lessAbsDecimal, type Metrics, type Placement }
+export { BOARD_TOP_K, placement, qualifies, judge, admitted, lessDecimal, lessAbsDecimal, type Metrics, type Placement }
 
 export const COMMENT_MAX = 4000
 
@@ -257,14 +257,20 @@ export type RecordStatus =
       // True when this submission newly recorded the conductor for the curve (i.e.
       // the conductor was not previously on record). Not the conductor value itself.
       conductorRecorded?: boolean
+      // 'created' only: true when the curve was admitted solely on its placement
+      // among curves with the same torsion subgroup, not on the overall board.
+      viaTorsion?: boolean
     }
   | {
       // Verified, but not written: the curve is new and places outside the top
-      // `limit` on every metric among curves of rank ≥ `rank`. Nothing is stored,
-      // so there is no id.
+      // `limit` on every metric among curves of rank ≥ `rank`, both overall
+      // (`placement`) and among those with its torsion subgroup
+      // (`torsionPlacement`). Nothing is stored, so there is no id.
       status: 'declined'
       rank: number
       placement: Placement
+      torsionPlacement: Placement
+      torsion: string
       limit: number
     }
 
@@ -469,7 +475,10 @@ export async function recordCurve(
   const badPrimes = result.badPrimes ? JSON.stringify(result.badPrimes) : null
   const faltings = result.faltingsHeight != null ? toFloat(result.faltingsHeight) : null
   // Torsion structure (JSON array string) — intrinsic to the curve, write-once.
-  const torsion = result.torsion
+  // Computed in the certificate stage, which every verified submission passes
+  // through (a submission needs at least one point), so it is always present.
+  if (result.torsion == null) throw new Error('internal: verified curve without torsion structure')
+  const torsion: string = result.torsion
 
   const hasCommentary = !!commentary && commentary.trim().length > 0
 
@@ -490,18 +499,29 @@ export async function recordCurve(
 
   if (!existing) {
     // Entry gate: a new curve must place in the top BOARD_TOP_K on some metric
-    // among the curves of equal or higher rank already on the board.
+    // among the curves of equal or higher rank already on the board, either
+    // overall or among those sharing its torsion subgroup.
     const { results: rivals } = await env.DB.prepare(
-      `SELECT naive_height, faltings_height, conductor, discriminant FROM curves
+      `SELECT naive_height, faltings_height, conductor, discriminant, torsion FROM curves
          WHERE rank_lower_bound >= ?`,
     )
       .bind(rank)
       .all<Metrics>()
-    const place = placement(
-      { naive_height: height, faltings_height: faltings, conductor, discriminant: result.curve!.discriminant },
+    const verdict = judge(
+      { naive_height: height, faltings_height: faltings, conductor, discriminant: result.curve!.discriminant, torsion },
       rivals,
     )
-    if (!qualifies(place)) return { status: 'declined', rank, placement: place, limit: BOARD_TOP_K }
+    if (!admitted(verdict)) {
+      return {
+        status: 'declined',
+        rank,
+        placement: verdict.placement,
+        torsionPlacement: verdict.torsion,
+        torsion,
+        limit: BOARD_TOP_K,
+      }
+    }
+    const viaTorsion = !qualifies(verdict.placement)
 
     const ins = await env.DB.prepare(
       `INSERT INTO curves
@@ -528,7 +548,7 @@ export async function recordCurve(
       .run()
     const id = ins.meta.last_row_id as number
     if (hasCommentary) await postComment(env, id, userId, commentary!)
-    return { id, status: 'created', rank, conductorRecorded: !!conductor }
+    return { id, status: 'created', rank, conductorRecorded: !!conductor, viaTorsion }
   }
 
   // Existing curve: attach the supplied commentary only if it has none yet.

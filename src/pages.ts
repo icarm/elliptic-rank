@@ -1141,18 +1141,23 @@ function leaderboardStatus(submit: SubmitInfo | null): string {
       submit.placement.conductor == null
         ? ' The conductor was not compared because no primes of bad reduction were supplied; if the curve is competitive on conductor, resubmit with them.'
         : ''
+    const torsionGroup = torsionGroupHtml(submit.torsion) ?? `<code>${escapeHtml(submit.torsion)}</code>`
+    const torsionNote = ` Among those with torsion subgroup ${torsionGroup} it places ${placementPhrase(submit.torsionPlacement)}.`
     // Rendered at the top of the result, directly under the heading: the
     // outcome is the one thing a submitter needs to see.
     return `<p class="leaderboard-status declined"><strong>Not added to the leaderboard.</strong> A curve not yet on
-      the board must place in the top ${submit.limit} on some metric among curves of rank &ge; ${submit.rank}, and
-      this one places ${placementPhrase(submit.placement)}.${noConductor}
+      the board must place in the top ${submit.limit} on some metric among curves of rank &ge; ${submit.rank}, either
+      overall or among those with the same torsion subgroup. Overall this one places
+      ${placementPhrase(submit.placement)}.${torsionNote}${noConductor}
       <a href="/curves?minrank=${submit.rank}">see the curves of rank &ge; ${submit.rank} &rarr;</a></p>`
   }
   let msg: string
   let added = true
   switch (submit.status) {
     case 'created':
-      msg = 'Added to the leaderboard.'
+      msg = submit.viaTorsion
+        ? `Added to the leaderboard as a top-${BOARD_TOP_K} curve among those with the same torsion subgroup.`
+        : 'Added to the leaderboard.'
       break
     case 'improved':
       msg = `Improved this curve's record from rank &ge; ${submit.previousRank} to rank &ge; ${submit.rank}.`
@@ -1318,12 +1323,14 @@ export function apiDocsPage(user: User | null = null): string {
       <code>"created"</code>, <code>"improved"</code> (with <code>previousRank</code>),
       <code>"unchanged"</code> (a curve's record only changes when a witness proves a strictly higher
       rank), or <code>"declined"</code>. A curve not yet on the board is added only if it places in the
-      top <code>${BOARD_TOP_K}</code> on some metric among curves of rank &ge; its own; otherwise the
+      top <code>${BOARD_TOP_K}</code> on some metric among curves of rank &ge; its own, either overall or
+      among those with the same torsion subgroup (a <code>"created"</code> result carries
+      <code>"viaTorsion": true</code> when only the latter applied); otherwise the
       submission is verified but not stored, and <code>leaderboard</code> is
-      <code>{ "status": "declined", "rank", "limit", "placement": { "naive", "faltings", "conductor", "disc" } }</code>
-      with each 1-based place (<code>conductor</code> is <code>null</code> when no primes were supplied,
-      so include them if the conductor is the metric your curve is competitive on). Curves already on
-      the board are never re-judged or removed.</p>
+      <code>{ "status": "declined", "rank", "limit", "torsion", "placement": { "naive", "faltings", "conductor", "disc" }, "torsionPlacement": { ... } }</code>
+      with each 1-based place overall and within the torsion subgroup (<code>conductor</code> is
+      <code>null</code> when no primes were supplied, so include them if the conductor is the metric your
+      curve is competitive on). Curves already on the board are never re-judged or removed.</p>
       <pre><code>${escapeHtml(verifyResp)}</code></pre>
 
       <h3>POST <code>/api/curve/:id/primes</code></h3>

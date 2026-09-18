@@ -1,4 +1,4 @@
-import { placement, qualifies, BOARD_TOP_K } from '../src/gate.ts'
+import { placement, qualifies, judge, admitted, BOARD_TOP_K } from '../src/gate.ts'
 
 let failures = 0
 function check(name, cond, detail = '') {
@@ -60,6 +60,23 @@ const neg = placement({ naive_height: 100, faltings_height: 100, conductor: null
   { naive_height: 0, faltings_height: 0, conductor: null, discriminant: '-98' },
 ])
 check('|Δ| compares by magnitude', neg.disc === 2, JSON.stringify(neg))
+
+// Per-torsion admission. The board has 20 trivial-torsion rivals; a candidate
+// worse than all of them overall still gets in if it is top-K among the rivals
+// with its own torsion subgroup — and never gets in on torsion when it is not.
+const worst = { naive_height: 100, faltings_height: 100, conductor: '1' + '0'.repeat(30), discriminant: '-' + '9'.repeat(40) }
+const trivial = board.map((r) => ({ ...r, torsion: '[]' }))
+const j0 = judge({ ...worst, torsion: '[2]' }, trivial)
+check('first of its torsion subgroup: torsion place 1, overall 21', j0.torsion?.naive === 1 && j0.placement.naive === 21, JSON.stringify(j0))
+check('admitted via torsion alone', admitted(j0) && !qualifies(j0.placement))
+const j1 = judge({ ...worst, torsion: '[]' }, trivial)
+check('same torsion as every rival: torsion pool = overall pool', j1.torsion?.naive === 21 && !admitted(j1), JSON.stringify(j1))
+const j3 = judge({ ...worst, torsion: '[2]' }, [...trivial, ...board.map((r) => ({ ...r, torsion: '[2]' }))])
+check('21st within a full torsion pool is out', j3.torsion?.naive === 21 && !admitted(j3), JSON.stringify(j3))
+const j4 = judge({ ...worst, torsion: '[2]' }, board.map((r) => ({ ...r, torsion: null })))
+check('rivals with unknown torsion are not in any torsion pool', j4.torsion?.naive === 1 && admitted(j4), JSON.stringify(j4))
+// Anything qualifying overall is admitted regardless of torsion.
+check('overall qualifier admitted', admitted(judge({ ...rival(5), torsion: '[3]' }, trivial)))
 
 if (failures) {
   console.error(`\n${failures} check(s) failed`)

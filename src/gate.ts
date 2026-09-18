@@ -32,12 +32,16 @@ export interface Placement {
 }
 
 // Metrics of a curve being judged for entry (a subset of store.RecordCandidate:
-// it has no id yet) and of the rivals it is judged against.
+// it has no id yet) and of the rivals it is judged against. `torsion` is the
+// torsion subgroup as stored (JSON invariant factors, e.g. "[2, 2]"); it is
+// what the per-torsion placement groups by, and may be absent or null for
+// rows recorded before it was tracked.
 export interface Metrics {
   naive_height: number
   faltings_height: number | null
   conductor: string | null
   discriminant: string
+  torsion?: string | null
 }
 
 // Where a candidate would place among `rivals` (every curve of rank ≥ the
@@ -65,4 +69,30 @@ export function placement(candidate: Metrics, rivals: Metrics[]): Placement {
 // Whether a placement earns a spot on the board: top `limit` on some metric.
 export function qualifies(p: Placement, limit = BOARD_TOP_K): boolean {
   return [p.naive, p.faltings, p.conductor, p.disc].some((place) => place != null && place <= limit)
+}
+
+// A candidate's placement overall and among the rivals sharing its torsion
+// subgroup (records are also tracked per torsion subgroup, as at Dujella's
+// tables). The candidate's torsion is always known: the verifier computes it
+// for every certified curve. Rivals with no recorded torsion (rows predating
+// the column, all since backfilled) belong to no torsion pool.
+export interface Judgement {
+  placement: Placement
+  torsion: Placement
+}
+
+export function judge(candidate: Metrics & { torsion: string }, rivals: Metrics[]): Judgement {
+  return {
+    placement: placement(candidate, rivals),
+    torsion: placement(candidate, rivals.filter((o) => o.torsion === candidate.torsion)),
+  }
+}
+
+// Whether a judgement earns a spot on the board: top `limit` on some metric,
+// either overall or within the candidate's torsion subgroup. Every rival in the
+// torsion pool is also in the overall pool, so a per-torsion place is never
+// worse than the overall one: this admits a superset of what `qualifies` alone
+// would, and never fewer curves.
+export function admitted(j: Judgement, limit = BOARD_TOP_K): boolean {
+  return qualifies(j.placement, limit) || qualifies(j.torsion, limit)
 }
