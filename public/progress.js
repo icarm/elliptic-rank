@@ -14,7 +14,7 @@
     faltings: { label: 'Faltings height', format: (v) => v.toFixed(2) },
     disc: { label: 'log |discriminant|', format: (v) => v.toFixed(0) },
   };
-  const { T, plotH, L, rankMax: RANK_MAX, plotW: PLOT_W, plotRight: PLOT_RIGHT } = data.geometry;
+  const { T, plotH, L, rankMax: RANK_MAX, plotW: PLOT_W, plotRight: PLOT_RIGHT, topK: TOP_K } = data.geometry;
   const startSlider = document.getElementById('progress-start');
   const startCurrent = document.getElementById('progress-start-current');
   const slider = document.getElementById('progress-id');
@@ -47,20 +47,24 @@
   }
 
   function scaleFor(metric) {
-    // Mirror the server: scale to the best (lowest) value at each rank
-    // so one huge low-rank submission cannot stretch the axis.
-    const minByRank = new Map();
+    // Mirror the server (pages.ts scaleValues): scale to the top-K values at
+    // each rank, K being the board's entry gate, so one huge low-rank
+    // submission cannot stretch the axis while every gated-in curve fits.
+    const byRank = new Map();
     points.forEach((p) => {
       const value = p[metric];
       if (value == null) return;
-      const prev = minByRank.get(p.rank);
-      if (prev == null || value < prev) minByRank.set(p.rank, value);
+      const list = byRank.get(p.rank);
+      if (list) list.push(value); else byRank.set(p.rank, [value]);
     });
-    if (minByRank.size === 0) return { min: 0, max: 1 };
+    if (byRank.size === 0) return { min: 0, max: 1 };
     let min = Infinity, max = -Infinity;
-    minByRank.forEach((value) => {
-      if (value < min) min = value;
-      if (value > max) max = value;
+    byRank.forEach((list) => {
+      list.sort((a, b) => a - b);
+      list.slice(0, TOP_K).forEach((value) => {
+        if (value < min) min = value;
+        if (value > max) max = value;
+      });
     });
     if (min === max) { min -= 1; max += 1; }
     const pad = (max - min) * 0.05;
