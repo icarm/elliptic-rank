@@ -38,7 +38,12 @@ export function escapeHtml(s: unknown): string {
 // Timestamps come from SQLite's CURRENT_TIMESTAMP, which is UTC; say so
 // wherever one is displayed.
 function utcTime(ts: string): string {
-  return `${escapeHtml(ts)} UTC`
+  const text = `${escapeHtml(ts)} UTC`
+  // D1's CURRENT_TIMESTAMP form, "YYYY-MM-DD HH:MM:SS" in UTC. Wrapped in a
+  // <time> so relative-time.js (loaded where wanted) can show "3 hours ago",
+  // keeping the exact time as the tooltip.
+  if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(ts)) return text
+  return `<time datetime="${ts.replace(' ', 'T')}Z" title="${text}">${text}</time>`
 }
 
 // A user's name, linked to their public page. Submissions require login, so a
@@ -1317,7 +1322,8 @@ export function activityPage(
       <h2>Recent activity</h2>
       <p class="page-subtitle">New submissions, rank improvements, recorded primes of bad reduction, and commentary edits, newest first.</p>
       ${list}
-      <nav class="pager">${newer} <span class="muted">page ${page + 1}</span> ${older}</nav>`
+      <nav class="pager">${newer} <span class="muted">page ${page + 1}</span> ${older}</nav>
+      <script src="/relative-time.js" defer></script>`
   return layout('Recent activity — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
