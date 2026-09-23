@@ -1,5 +1,5 @@
 // Client side of the curve table (curveTablePage in src/pages.ts): live
-// sorting, the rank filter and the query-string round trip. Without JS the
+// sorting, the rank and torsion filters and the query-string round trip. Without JS the
 // sort links and the controls form still work server-side.
 (function () {
   var KEYS = ['id', 'rank', 'naive', 'faltings', 'conductor', 'disc'];
@@ -7,6 +7,7 @@
   var rows = Array.prototype.slice.call(tbody.rows);
   var rankInput = document.getElementById('rank-filter');
   var rankOp = document.getElementById('rank-op');
+  var torsionSel = document.getElementById('torsion-filter');
   var count = document.getElementById('curve-count');
   var heading = document.getElementById('table-title');
   var buttons = document.querySelectorAll('a.sort');
@@ -20,6 +21,9 @@
   }
   if (/^[0-9]+$/.test(params.get('minrank') || '')) rankInput.value = params.get('minrank');
   if (params.get('rankmode') === 'eq') rankOp.value = 'eq';
+  // Only offered groups are selectable; anything else leaves "any".
+  if (params.get('torsion')) torsionSel.value = params.get('torsion');
+  if (torsionSel.selectedIndex < 0) torsionSel.value = '';
 
   function apply() {
     rows.sort(function (a, b) {
@@ -35,10 +39,12 @@
     var eq = rankOp.value === 'eq';
     // "=" with an empty box means no filter (any rank); ">=" defaults to 1.
     rankInput.placeholder = eq ? 'any' : '1';
+    var torsion = torsionSel.value;
     var shown = 0;
     rows.forEach(function (r) {
       var rk = Number(r.dataset.rank);
-      r.hidden = hasFilter && (eq ? rk !== n : rk < n);
+      r.hidden = (hasFilter && (eq ? rk !== n : rk < n)) ||
+        (torsion !== '' && r.dataset.torsion !== torsion);
       if (!r.hidden) shown++;
       tbody.appendChild(r);
     });
@@ -47,12 +53,14 @@
       b.className = 'sort' + (b.dataset.key === sortKey ? (sortDir === 1 ? ' asc' : ' desc') : '');
     });
     // The heading names the current view: "All curves" when unfiltered
-    // (including ">= 1", which every curve satisfies), the rank
-    // restriction otherwise — same condition as the query string below.
+    // (including ">= 1", which every curve satisfies), the rank and torsion
+    // restrictions otherwise — same condition as the query string below.
     var restricted = hasFilter && (eq || n > 1);
-    var title = restricted
-      ? 'Curves with rank lower bound ' + (eq ? '= ' : '\u2265 ') + n
-      : 'All curves';
+    var phrases = [];
+    if (restricted) phrases.push('rank lower bound ' + (eq ? '= ' : '\u2265 ') + n);
+    if (torsion === 'trivial') phrases.push('trivial torsion');
+    else if (torsion !== '') phrases.push('torsion ' + torsionSel.selectedOptions[0].dataset.label);
+    var title = phrases.length ? 'Curves with ' + phrases.join(' and ') : 'All curves';
     heading.textContent = title;
     document.title = title + ' \u2014 Elliptic Curve Rank Leaderboard';
     var q = new URLSearchParams();
@@ -63,6 +71,7 @@
     // Persist the value whenever it filters: any value in "=" mode, or >1 in ">=" mode.
     if (restricted) q.set('minrank', String(n));
     if (eq) q.set('rankmode', 'eq');
+    if (torsion !== '') q.set('torsion', torsion);
     var qs = q.toString();
     history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
   }
@@ -84,6 +93,7 @@
   });
   rankInput.addEventListener('input', apply);
   rankOp.addEventListener('change', apply);
+  torsionSel.addEventListener('change', apply);
   // The controls form is the no-JS fallback; here everything is already
   // applied live, so Enter in the rank box must not reload the page.
   document.querySelector('form.table-controls').addEventListener('submit', function (e) {
@@ -92,12 +102,17 @@
   // Clicking a row's "≥ N" restricts the view to exactly that lower bound,
   // in place (preserving the current sort). Modified clicks fall through to
   // the link's href so the filtered view can still open in a new tab.
+  // A torsion cell likewise restricts to that torsion subgroup.
   tbody.addEventListener('click', function (e) {
-    var a = e.target.closest('a.rank-link');
+    var a = e.target.closest('a.rank-link, a.torsion-link');
     if (!a || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
-    rankInput.value = a.closest('tr').dataset.rank;
-    rankOp.value = 'eq';
+    if (a.classList.contains('rank-link')) {
+      rankInput.value = a.closest('tr').dataset.rank;
+      rankOp.value = 'eq';
+    } else {
+      torsionSel.value = a.closest('tr').dataset.torsion;
+    }
     apply();
   });
   apply();

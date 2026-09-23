@@ -201,9 +201,10 @@ function scaleValues(pts: { rank: number; x: number }[]): number[] {
 // anchor to the curve's page — clickable, no JS.
 // `sort` is the table column key for this plot's quantity ('conductor',
 // 'naive', or 'faltings'); the rank ticks link to the table filtered to that
-// rank and sorted on it (ascending — smallest first, matching the frontier).
+// rank and sorted on it (ascending — smallest first, matching the frontier),
+// and to `torsion` (a torsionKey) when the plot is restricted to one group.
 // `qFmt` formats the (coarse) axis ticks; dot tooltips always show 4 decimals.
-function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => string, sort: string): string {
+function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => string, sort: string, torsion: string | null = null): string {
   if (pts.length === 0) {
     return `<p class="muted plot-empty">No curves with a recorded ${qLabel} yet.</p>`
   }
@@ -265,7 +266,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
       const tickLen = labeled ? 5 : 10
       const mark = `<line class="tick-mark" x1="${x.toFixed(1)}" y1="${T + plotH}" x2="${x.toFixed(1)}" y2="${T + plotH + tickLen}"/>`
       const hit = `<rect class="tick-hit" x="${(x - dx / 2).toFixed(1)}" y="${T + plotH}" width="${dx.toFixed(1)}" height="22"/>`
-      grid += `<a class="tick-link" href="/curves?sort=${sort}&amp;minrank=${r}&amp;rankmode=eq"><title>curves with rank lower bound = ${r}</title>${hit}${mark}${label}</a>`
+      grid += `<a class="tick-link" href="/curves?sort=${sort}&amp;minrank=${r}&amp;rankmode=eq${torsion != null ? `&amp;torsion=${torsion}` : ''}"><title>curves with rank lower bound = ${r}</title>${hit}${mark}${label}</a>`
     } else {
       grid += label
     }
@@ -579,6 +580,7 @@ export function landingPage(
             'log conductor',
             (v) => v.toFixed(0),
             'conductor',
+            torsionSel,
           )}
         </div>
         <div class="plot-panel" data-metric="naive"${sel === 'naive' ? '' : ' hidden'}>
@@ -587,6 +589,7 @@ export function landingPage(
             'naive height',
             (v) => v.toFixed(0),
             'naive',
+            torsionSel,
           )}
         </div>
         <div class="plot-panel" data-metric="faltings"${sel === 'faltings' ? '' : ' hidden'}>
@@ -595,6 +598,7 @@ export function landingPage(
             'Faltings height',
             (v) => v.toFixed(1),
             'faltings',
+            torsionSel,
           )}
         </div>
         <div class="plot-panel" data-metric="disc"${sel === 'disc' ? '' : ' hidden'}>
@@ -603,9 +607,10 @@ export function landingPage(
             'log |Δ|',
             (v) => v.toFixed(0),
             'disc',
+            torsionSel,
           )}
         </div>
-        <noscript><style>.plot-tabs { display: none; } .board .plot-panel[hidden] { display: block; }</style></noscript>
+        <noscript><style>.plot-tabs .plot-metrics, .plot-tabs .plot-filter { display: none; } .board .plot-panel[hidden] { display: block; }</style></noscript>
         <script src="/landing.js" defer></script>
       </section>
 
@@ -692,10 +697,13 @@ function curveTableRow(c: TableCurve, hidden = false, records: MetricRecords = {
   // same rule as the curve page's ★ badge) gets a highlight class.
   const metricTd = (isRecord: boolean | undefined, content: string): string =>
     `<td class="num${isRecord ? ' record' : ''}"${isRecord ? ` title="record: smallest among curves of rank &ge; ${c.rank_lower_bound}"` : ''}>${content}</td>`
-  return `<tr${hidden ? ' hidden' : ''} data-id="${c.id}" data-rank="${c.rank_lower_bound}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}" data-disc="${logDisc}">
+  const tKey = c.torsion != null ? torsionKey(c.torsion) : null
+  const tHtml = c.torsion != null ? torsionGroupHtml(c.torsion) : null
+  return `<tr${hidden ? ' hidden' : ''} data-id="${c.id}" data-rank="${c.rank_lower_bound}" data-torsion="${tKey ?? ''}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}" data-disc="${logDisc}">
             <td><a href="/curve/${c.id}">#${c.id}</a></td>
             <td><code>[${ainvs.map((a) => escapeHtml(clip(a, 14))).join(', ')}]</code></td>
             <td class="num"><a class="rank-link" href="/curves?minrank=${c.rank_lower_bound}&amp;rankmode=eq" title="show only curves with rank lower bound = ${c.rank_lower_bound}">&ge; ${c.rank_lower_bound}</a></td>
+            <td>${tKey != null && tHtml != null ? `<a class="torsion-link" href="/curves?torsion=${tKey}" title="show only curves with this torsion subgroup">${tHtml}</a>` : unknown}</td>
             ${metricTd(records.conductor, logCond != null ? logCond.toFixed(2) : unknown)}
             ${metricTd(records.naive, c.naive_height.toFixed(2))}
             ${metricTd(records.faltings, c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown)}
@@ -712,7 +720,7 @@ function curveTableRow(c: TableCurve, hidden = false, records: MetricRecords = {
 export function curveTablePage(
   curves: TableCurve[],
   user: User | null = null,
-  query: { sort?: string; dir?: string; minrank?: string; rankmode?: string } = {},
+  query: { sort?: string; dir?: string; minrank?: string; rankmode?: string; torsion?: string } = {},
 ): string {
   const KEYS = ['id', 'rank', 'naive', 'faltings', 'conductor', 'disc'] as const
   type SortKey = (typeof KEYS)[number]
@@ -739,11 +747,24 @@ export function curveTablePage(
   const hasFilter = /^[0-9]+$/.test(query.minrank ?? '')
   const n = Number(query.minrank)
   const eq = query.rankmode === 'eq'
-  const rowHidden = (c: TableCurve): boolean => hasFilter && (eq ? c.rank_lower_bound !== n : c.rank_lower_bound < n)
+  // ?torsion= (a torsionKey) keeps one torsion subgroup; only groups some
+  // curve has are offered, anything else means any.
+  const groups = torsionGroups(curves)
+  const torsionGroup = groups.find((g) => g.key === query.torsion) ?? null
+  const rowHidden = (c: TableCurve): boolean =>
+    (hasFilter && (eq ? c.rank_lower_bound !== n : c.rank_lower_bound < n)) ||
+    (torsionGroup != null && (c.torsion == null || torsionKey(c.torsion) !== torsionGroup.key))
   const shown = sorted.filter((c) => !rowHidden(c)).length
   const restricted = hasFilter && (eq || n > 1)
-  const heading = restricted ? `Curves with rank lower bound ${eq ? '=' : '&ge;'} ${n}` : 'All curves'
-  const pageTitle = restricted ? `Curves with rank lower bound ${eq ? '=' : '≥'} ${n}` : 'All curves'
+  // Plain text (curves.js builds the same string): e.g. "Curves with rank
+  // lower bound ≥ 5 and torsion ℤ/2ℤ", "Curves with trivial torsion".
+  const torsionPhrase = torsionGroup == null ? null : torsionGroup.key === 'trivial' ? 'trivial torsion' : `torsion ${torsionGroup.label}`
+  const rankPhrase = restricted ? `rank lower bound ${eq ? '=' : '≥'} ${n}` : null
+  const pageTitle = rankPhrase || torsionPhrase ? `Curves with ${[rankPhrase, torsionPhrase].filter((x) => x != null).join(' and ')}` : 'All curves'
+  const heading = escapeHtml(pageTitle)
+  const torsionOptions = [`<option value="">any</option>`]
+    .concat(groups.map((g) => `<option value="${g.key}" data-label="${g.label}"${g === torsionGroup ? ' selected' : ''}>${g.label} (${g.count})</option>`))
+    .join('')
   // Record cells: for each metric, a curve is a record when no curve of equal
   // or higher rank has a strictly smaller value (ties share it) — the same
   // Pareto rule as store.recordFlags and the curve page's ★ badge, computed
@@ -794,6 +815,7 @@ export function curveTablePage(
     }
     if (restricted) q.set('minrank', String(n))
     if (eq) q.set('rankmode', 'eq')
+    if (torsionGroup != null) q.set('torsion', torsionGroup.key)
     const qs = q.toString()
     return '/curves' + (qs ? '?' + qs.replace(/&/g, '&amp;') : '')
   }
@@ -811,6 +833,9 @@ export function curveTablePage(
             <option value="eq"${eq ? ' selected' : ''}>=</option>
           </select>
           <input id="rank-filter" name="minrank" type="number" min="1" step="1" placeholder="${eq ? 'any' : '1'}" value="${hasFilter ? n : ''}" />
+        </label>
+        <label class="rank-filter">torsion
+          <select id="torsion-filter" name="torsion" aria-label="torsion subgroup">${torsionOptions}</select>
         </label>${
           sortKey !== 'conductor' || sortDir !== 1
             ? `
@@ -828,6 +853,7 @@ export function curveTablePage(
             ${sortHeader('id', 'curve', '')}
             <th>a-invariants</th>
             ${sortHeader('rank', 'rank')}
+            <th>torsion</th>
             ${sortHeader('conductor', 'log N', 'num', 'log conductor')}
             ${sortHeader('naive', 'naive height')}
             ${sortHeader('faltings', 'Faltings height')}
@@ -1470,6 +1496,7 @@ function submittedCurvesSection(curves: TableCurve[], records: Map<number, Recor
               <th>curve</th>
               <th>a-invariants</th>
               <th class="num">rank</th>
+              <th>torsion</th>
               <th class="num" title="log conductor">log N</th>
               <th class="num">naive height</th>
               <th class="num">Faltings height</th>

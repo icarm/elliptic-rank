@@ -71,6 +71,7 @@ app.get('/curves', async (c) => {
     dir: c.req.query('dir'),
     minrank: c.req.query('minrank'),
     rankmode: c.req.query('rankmode'),
+    torsion: c.req.query('torsion'),
   }))
 })
 
