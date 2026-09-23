@@ -1019,14 +1019,15 @@ function badge(isRecord: boolean, rank: number, sort: string): string {
 
 // The badge for a record within the curve's torsion subgroup, shown only where
 // the curve has no overall record (which would imply it). Styled like the
-// overall badge; the text says which record it is. Links to the table filtered
+// overall badge but with a hollow star (☆ vs ★), the lesser record; the text
+// says which record it is. Links to the table filtered
 // to that rank and subgroup.
 function torsionBadge(isRecord: boolean, rank: number, sort: string, torsion: string): string {
   const key = torsionKey(torsion)
   const group = torsionGroupHtml(torsion)
   if (!isRecord || key == null || group == null) return ''
   const name = key === 'trivial' ? 'trivial torsion' : `${group} torsion`
-  return ` <a class="record-badge torsion-badge" href="/curves?sort=${sort}&amp;minrank=${rank}&amp;torsion=${key}" title="smallest on the board among curves of rank &ge; ${rank} with this torsion subgroup">&#9733; record for ${name}, rank &ge; ${rank}</a>`
+  return ` <a class="record-badge torsion-badge" href="/curves?sort=${sort}&amp;minrank=${rank}&amp;torsion=${key}" title="smallest on the board among curves of rank &ge; ${rank} with this torsion subgroup">&#9734; record for ${name}, rank &ge; ${rank}</a>`
 }
 
 // Escape commentary, turning `curve#<id>` tokens into links to that curve.
