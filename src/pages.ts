@@ -944,7 +944,8 @@ function torsionFactors(torsion: string): number[] | null {
 }
 
 // The torsion subgroups present among `curves`, in Mazur's order: trivial,
-// then cyclic by order, then Z/2 x Z/2n. Labels are plain text (for
+// then cyclic by order, then Z/2 x Z/2n by n (stored larger factor first, as
+// PARI gives it, e.g. [4,2]; the sort doesn't rely on that). Labels are plain text (for
 // <option>), e.g. "ℤ/2ℤ × ℤ/4ℤ".
 function torsionGroups(curves: PlotCurve[]): { key: string; label: string }[] {
   const byKey = new Map<string, number[]>()
@@ -954,7 +955,7 @@ function torsionGroups(curves: PlotCurve[]): { key: string; label: string }[] {
     byKey.set(factors.length === 0 ? 'trivial' : factors.join('x'), factors)
   }
   return [...byKey.entries()]
-    .sort(([, a], [, b]) => a.length - b.length || (a.at(-1) ?? 0) - (b.at(-1) ?? 0))
+    .sort(([, a], [, b]) => a.length - b.length || Math.max(0, ...a) - Math.max(0, ...b))
     .map(([key, factors]) => ({
       key,
       label: factors.length === 0 ? 'trivial' : factors.map((n) => `\u2124/${n}\u2124`).join(' \u00d7 '),
