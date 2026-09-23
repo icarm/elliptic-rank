@@ -932,6 +932,10 @@ function torsionKey(torsion: string): string | null {
   return f == null ? null : f.length === 0 ? 'trivial' : f.join('x')
 }
 
+// The invariant factors of a stored torsion structure, smallest first
+// (d1 | d2, the usual way to write e.g. Z/2Z x Z/4Z) — PARI's elltors, and
+// hence the stored value, lists them largest first. Every display and URL key
+// goes through here.
 function torsionFactors(torsion: string): number[] | null {
   let factors: unknown
   try {
@@ -940,12 +944,11 @@ function torsionFactors(torsion: string): number[] | null {
     return null
   }
   if (!Array.isArray(factors) || !factors.every((n) => Number.isInteger(n) && n > 1)) return null
-  return factors as number[]
+  return (factors as number[]).slice().sort((a, b) => a - b)
 }
 
 // The torsion subgroups present among `curves`, in Mazur's order: trivial,
-// then cyclic by order, then Z/2 x Z/2n by n (stored larger factor first, as
-// PARI gives it, e.g. [4,2]; the sort doesn't rely on that). Labels are plain text (for
+// then cyclic by order, then Z/2 x Z/2n by n. Labels are plain text (for
 // <option>), e.g. "ℤ/2ℤ × ℤ/4ℤ".
 function torsionGroups(curves: PlotCurve[]): { key: string; label: string }[] {
   const byKey = new Map<string, number[]>()
@@ -955,7 +958,7 @@ function torsionGroups(curves: PlotCurve[]): { key: string; label: string }[] {
     byKey.set(factors.length === 0 ? 'trivial' : factors.join('x'), factors)
   }
   return [...byKey.entries()]
-    .sort(([, a], [, b]) => a.length - b.length || Math.max(0, ...a) - Math.max(0, ...b))
+    .sort(([, a], [, b]) => a.length - b.length || (a.at(-1) ?? 0) - (b.at(-1) ?? 0))
     .map(([key, factors]) => ({
       key,
       label: factors.length === 0 ? 'trivial' : factors.map((n) => `\u2124/${n}\u2124`).join(' \u00d7 '),
