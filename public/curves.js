@@ -51,7 +51,8 @@
     });
     count.textContent = shown;
     // With a torsion subgroup selected, highlight records within the subgroup
-    // (each row's data-trec) instead of overall records (data-rec). Titles
+    // (each row's data-trec) instead of overall records (data-rec); those that
+    // are not also overall records get the hollow star. Classes and titles
     // match curveTableRow's.
     if (torsion !== lastTorsion) {
       lastTorsion = torsion;
@@ -59,9 +60,11 @@
         var rank = r.dataset.rank;
         Array.prototype.forEach.call(r.querySelectorAll('td[data-rec]'), function (td) {
           var on = (torsion !== '' ? td.dataset.trec : td.dataset.rec) === '1';
+          var torsionOnly = on && td.dataset.rec !== '1';
           td.classList.toggle('record', on);
+          td.classList.toggle('torsion-record', torsionOnly);
           if (on) {
-            td.title = torsion !== ''
+            td.title = torsionOnly
               ? 'record for this torsion subgroup: smallest among curves of rank \u2265 ' + rank + ' with this torsion'
               : 'record: smallest among curves of rank \u2265 ' + rank;
           } else {

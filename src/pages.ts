@@ -710,17 +710,21 @@ function curveTableRow(
   const logDisc = logBigInt(c.discriminant)
   // A record cell (smallest value among curves of equal or higher rank — the
   // same rule as the curve page's ★ badge — or, with `useGroup`, among those
-  // with the same torsion subgroup) gets a highlight class. curves.js builds
-  // the same titles.
+  // with the same torsion subgroup) gets a highlight class. As on the curve
+  // page, a record only within the subgroup (not overall) is marked with a
+  // hollow star (class torsion-record). curves.js builds the same classes and
+  // titles.
   const metricTd = (metric: keyof MetricRecords, content: string): string => {
     const overall = !!records[metric]
     const group = !!groupRecords?.[metric]
     const on = useGroup ? group : overall
-    const title = useGroup
+    const torsionOnly = on && !overall
+    const title = torsionOnly
       ? `record for this torsion subgroup: smallest among curves of rank &ge; ${c.rank_lower_bound} with this torsion`
       : `record: smallest among curves of rank &ge; ${c.rank_lower_bound}`
     const flags = groupRecords ? ` data-rec="${overall ? 1 : 0}" data-trec="${group ? 1 : 0}"` : ''
-    return `<td class="num${on ? ' record' : ''}"${flags}${on ? ` title="${title}"` : ''}>${content}</td>`
+    const cls = on ? (torsionOnly ? ' record torsion-record' : ' record') : ''
+    return `<td class="num${cls}"${flags}${on ? ` title="${title}"` : ''}>${content}</td>`
   }
   const tKey = c.torsion != null ? torsionKey(c.torsion) : null
   const tHtml = c.torsion != null ? torsionGroupHtml(c.torsion) : null

@@ -1078,6 +1078,10 @@ a.record-badge:hover {
   margin-right: 0.5em;
 }
 
+/* Record only within the selected torsion subgroup: hollow star, as on the
+   curve page's torsion badge. */
+.curves-table td.torsion-record::before { content: "\2606"; }
+
 .curves-table a.sort {
   font: inherit;
   font-weight: 600;
@@ -1302,7 +1306,7 @@ a.external::after {
   /* Drop the torsion column too; the torsion filter above still works. */
   .curves-table th.torsion, .curves-table td.torsion { display: none; }
   /* No room for the ★ on narrow screens — the highlight alone marks records. */
-  .curves-table td.record::before { content: none; }
+  .curves-table td.record::before, .curves-table td.torsion-record::before { content: none; }
   .eq { font-size: 1rem; word-break: break-word; }
   .result-meta { grid-template-columns: 1fr; gap: 0.1rem; }
   .result-meta dt { margin-top: 0.5rem; }
