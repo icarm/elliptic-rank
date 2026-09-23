@@ -66,6 +66,35 @@ export function placement(candidate: Metrics, rivals: Metrics[]): Placement {
   }
 }
 
+// Which of a curve's metrics are records among `rivals` (every other curve of
+// rank ≥ its own): a metric is a record when no rival has a strictly smaller
+// value, so ties share it, as for the ★ badge (equivalently, place 1). With
+// `strict`, a tie doesn't count: the curve must be strictly smaller than every
+// rival, i.e. the sole holder — what the Zulip notifiers announce as a new
+// record. A missing value is never a record.
+export function recordsAmong(
+  candidate: Metrics,
+  rivals: Metrics[],
+  strict = false,
+): { naive: boolean; faltings: boolean; conductor: boolean; discriminant: boolean } {
+  const isRecord = <T,>(get: (c: Metrics) => T | null, less: (a: T, b: T) => boolean): boolean => {
+    const v = get(candidate)
+    if (v == null) return false
+    // Does a rival's value w take the record? Strictly smaller always does;
+    // equal does too in strict mode.
+    return !rivals.some((o) => {
+      const w = get(o)
+      return w != null && (strict ? !less(v, w) : less(w, v))
+    })
+  }
+  return {
+    naive: isRecord((c): number | null => c.naive_height, (a, b) => a < b),
+    faltings: isRecord((c) => c.faltings_height, (a, b) => a < b),
+    conductor: isRecord((c) => c.conductor, lessDecimal),
+    discriminant: isRecord((c): string | null => c.discriminant, lessAbsDecimal),
+  }
+}
+
 // Whether a placement earns a spot on the board: top `limit` on some metric.
 export function qualifies(p: Placement, limit = BOARD_TOP_K): boolean {
   return [p.naive, p.faltings, p.conductor, p.disc].some((place) => place != null && place <= limit)

@@ -59,7 +59,8 @@ function joinRecords(parts: string[]): string {
   return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`
 }
 
-// Notify Zulip if the just-recorded submission newly holds a record. Only fresh
+// Notify Zulip if the just-recorded submission newly holds a record — strictly:
+// merely tying the existing record holder isn't announced. Only fresh
 // frontier entries ('created' or 'improved') are considered: an 'unchanged'
 // submission did not change the board, and a 'declined' one was never written.
 // No-op when the webhook is unconfigured or the curve holds no record for its
@@ -87,7 +88,7 @@ export async function notifyRecord(
 
   const curve = await loadRecordCandidate(env, status.id)
   if (!curve) return
-  const flags = await recordFlags(env, curve)
+  const flags = await recordFlags(env, curve, { strict: true })
   const records = recordPhrases(curve, flags, ['naive', 'faltings', 'conductor', 'disc'])
   if (records.length === 0) return
 
@@ -105,7 +106,8 @@ export async function notifyRecord(
 // Notify Zulip if a primes backfill newly made the curve a record. The conductor
 // is the only invariant a backfill records (naive height, discriminant, and
 // Faltings height are all fixed at submission), so only a new smallest-conductor
-// record can result. No-op when the webhook is unconfigured or it isn't a record.
+// record can result, and as above only a strict one (not a tie) is announced.
+// No-op when the webhook is unconfigured or it isn't a record.
 //
 // Intended to be called via `ctx.waitUntil(...)` after a successful backfill.
 export async function notifyBackfillRecord(
@@ -119,7 +121,7 @@ export async function notifyBackfillRecord(
 
   const curve = await loadRecordCandidate(env, curveId)
   if (!curve) return
-  const flags = await recordFlags(env, curve)
+  const flags = await recordFlags(env, curve, { strict: true })
   const records = recordPhrases(curve, flags, ['conductor'])
   if (records.length === 0) return
 

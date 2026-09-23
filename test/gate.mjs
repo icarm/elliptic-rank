@@ -1,4 +1,4 @@
-import { placement, qualifies, judge, admitted, BOARD_TOP_K } from '../src/gate.ts'
+import { placement, qualifies, judge, admitted, recordsAmong, BOARD_TOP_K } from '../src/gate.ts'
 
 let failures = 0
 function check(name, cond, detail = '') {
@@ -77,6 +77,18 @@ const j4 = judge({ ...worst, torsion: '[2]' }, board.map((r) => ({ ...r, torsion
 check('rivals with unknown torsion are not in any torsion pool', j4.torsion?.naive === 1 && admitted(j4), JSON.stringify(j4))
 // Anything qualifying overall is admitted regardless of torsion.
 check('overall qualifier admitted', admitted(judge({ ...rival(5), torsion: '[3]' }, trivial)))
+
+// Records: ties share the ★ badge, but a strict (Zulip-announced) record needs
+// the sole holder. Curve #0 (11a3) and 11a2 tie on conductor 11 and |Δ| = 11.
+const c11a3 = { naive_height: 10.048, faltings_height: -1.113, conductor: '11', discriminant: '-11' }
+const c11a2 = { naive_height: 31.8, faltings_height: 0.497, conductor: '11', discriminant: '-11' }
+const flags = (f) => [f.naive, f.faltings, f.conductor, f.discriminant].map(Number).join('')
+check('tie shares the badge', flags(recordsAmong(c11a2, [c11a3])) === '0011')
+check('tie is not a strict record', flags(recordsAmong(c11a2, [c11a3], true)) === '0000')
+check('sole holder is a strict record', flags(recordsAmong(c11a3, [c11a2], true)) === '1100')
+check('strictly smaller everywhere', flags(recordsAmong(c11a3, [{ ...c11a2, conductor: '14', discriminant: '28' }], true)) === '1111')
+check('missing value is never a record', !recordsAmong({ ...c11a3, conductor: null, faltings_height: null }, [], true).conductor)
+check('empty board: every recorded metric is a strict record', flags(recordsAmong(c11a3, [], true)) === '1111')
 
 if (failures) {
   console.error(`\n${failures} check(s) failed`)

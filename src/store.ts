@@ -10,7 +10,7 @@ import type { Bindings } from './auth'
 import { verifyPrimes, autoPrimes, type VerifyResult, type PrimesResult } from './verify'
 import type { Gp } from './pari'
 import type { RecordFlags, PlotCurve, TableCurve } from './pages'
-import { BOARD_TOP_K, placement, qualifies, judge, admitted, lessDecimal, lessAbsDecimal, type Metrics, type Placement } from './gate'
+import { BOARD_TOP_K, placement, qualifies, judge, admitted, recordsAmong, lessDecimal, lessAbsDecimal, type Metrics, type Placement } from './gate'
 
 // The entry gate and the decimal comparators live in ./gate (dependency-free
 // so they can be unit-tested without the verifier); re-exported for callers.
@@ -307,27 +307,22 @@ export function loadRecordCandidate(env: Bindings, curveId: number): Promise<Rec
     .first<RecordCandidate>()
 }
 
-// Which of the curve's metrics are records for its rank: a metric is a record
-// when no curve of equal or higher rank has a strictly smaller value (i.e. the
-// curve is on the rank-vs-metric Pareto frontier).
-export async function recordFlags(env: Bindings, curve: RecordCandidate): Promise<RecordFlags> {
+// Which of the curve's metrics are records for its rank, judged against every
+// other curve of equal or higher rank (see gate.recordsAmong): ties share a
+// record, as for the ★ badge, unless `strict`, which needs the curve to be the
+// sole holder — what the Zulip notifiers announce.
+export async function recordFlags(
+  env: Bindings,
+  curve: RecordCandidate,
+  { strict = false }: { strict?: boolean } = {},
+): Promise<RecordFlags> {
   const { results: rivals } = await env.DB.prepare(
     `SELECT naive_height, faltings_height, conductor, discriminant FROM curves
        WHERE rank_lower_bound >= ? AND id != ?`,
   )
     .bind(curve.rank_lower_bound, curve.id)
-    .all<{ naive_height: number; faltings_height: number | null; conductor: string | null; discriminant: string }>()
-  return {
-    naive: !rivals.some((o) => o.naive_height < curve.naive_height),
-    faltings:
-      curve.faltings_height != null &&
-      !rivals.some((o) => o.faltings_height != null && o.faltings_height < curve.faltings_height!),
-    conductor:
-      curve.conductor != null &&
-      !rivals.some((o) => o.conductor != null && lessDecimal(o.conductor, curve.conductor!)),
-    // |Δ| is recorded for every curve (no factoring), so it is always comparable.
-    discriminant: !rivals.some((o) => lessAbsDecimal(o.discriminant, curve.discriminant)),
-  }
+    .all<Metrics>()
+  return recordsAmong(curve, rivals, strict)
 }
 
 // Record flags for many curves at once — e.g. everything attributed to one
