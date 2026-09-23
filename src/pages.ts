@@ -160,12 +160,14 @@ interface PlotPoint {
   x: number
 }
 
-// The values that set a plot's vertical scale: the BOARD_TOP_K smallest at
-// each rank, i.e. every curve that could have earned its row under the entry
-// gate. Scaling to these (rather than to every curve) keeps a deliberately huge
-// low-rank submission from stretching the axis for everyone, while scaling to
-// them all (rather than only the best per rank) keeps the top ranks' full
-// top-10 in view, since at rank 30+ almost every curve is in the top 10.
+// The values that set a plot's vertical scale: those of the curves that place
+// in the top BOARD_TOP_K among curves of rank >= their own, i.e. the rule of
+// the entry gate. Scaling to these (rather than to every curve) keeps a
+// deliberately huge low-rank submission from stretching the axis for everyone,
+// while scaling to them all (rather than only the best per rank) keeps the top
+// ranks' full top-10 in view, since at rank 30+ almost every curve is in the
+// top 10. Judging against higher ranks too (not just the curve's own rank)
+// matters when few curves share a rank, e.g. within one torsion subgroup.
 function scaleValues(pts: { rank: number; x: number }[]): number[] {
   const byRank = new Map<number, number[]>()
   for (const p of pts) {
@@ -173,10 +175,23 @@ function scaleValues(pts: { rank: number; x: number }[]): number[] {
     if (vs) vs.push(p.x)
     else byRank.set(p.rank, [p.x])
   }
+  // Walk the ranks downward, keeping every value at rank >= the current one
+  // sorted; a value is in when fewer than BOARD_TOP_K of those are smaller.
+  const seen: number[] = []
+  const countBelow = (v: number): number => {
+    let lo = 0, hi = seen.length
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1
+      if (seen[mid] < v) lo = mid + 1
+      else hi = mid
+    }
+    return lo
+  }
   const out: number[] = []
-  for (const vs of byRank.values()) {
-    vs.sort((a, b) => a - b)
-    out.push(...vs.slice(0, BOARD_TOP_K))
+  for (const rank of [...byRank.keys()].sort((a, b) => b - a)) {
+    const vs = byRank.get(rank)!
+    for (const v of vs) seen.splice(countBelow(v), 0, v)
+    for (const v of vs) if (countBelow(v) < BOARD_TOP_K) out.push(v)
   }
   return out
 }
@@ -214,7 +229,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   // has any point has a best, even when a higher rank beats its minimum. The
   // default plot view shows only these.
   const isBest = (p: PlotPoint): boolean => p.x <= minByRank.get(p.rank)!
-  // Scale to the top BOARD_TOP_K curves per rank (see scaleValues). The global
+  // Scale to the gated top BOARD_TOP_K curves (see scaleValues). The global
   // minimum is always among them, so nothing falls below the scale; dots above
   // it are skipped when drawing.
   const scaleQs = scaleValues(pts)
@@ -346,8 +361,9 @@ export function progressPage(
   const rankMax = Math.max(...pts.map((p) => p.rank)) + 1
   const X = (r: number) => L + (r / rankMax) * plotW
   const scaleForMetric = (metric: ProgressMetric): { qmin: number; qmax: number } => {
-    // Scale to the top BOARD_TOP_K values at each rank, like the home-page
-    // plots (see scaleValues); progress.js mirrors this, so keep them in step.
+    // Scale to the curves in the top BOARD_TOP_K among rank >= their own, like
+    // the home-page plots (see scaleValues); progress.js mirrors this, so keep
+    // them in step.
     // Dots above the scale are clipped to the plot area.
     const withValue: { rank: number; x: number }[] = []
     for (const p of pts) {

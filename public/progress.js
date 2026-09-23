@@ -47,9 +47,10 @@
   }
 
   function scaleFor(metric) {
-    // Mirror the server (pages.ts scaleValues): scale to the top-K values at
-    // each rank, K being the board's entry gate, so one huge low-rank
-    // submission cannot stretch the axis while every gated-in curve fits.
+    // Mirror the server (pages.ts scaleValues): scale to the curves placing
+    // in the top K among rank >= their own, K being the board's entry gate,
+    // so one huge low-rank submission cannot stretch the axis while every
+    // gated-in curve fits.
     const byRank = new Map();
     points.forEach((p) => {
       const value = p[metric];
@@ -58,12 +59,23 @@
       if (list) list.push(value); else byRank.set(p.rank, [value]);
     });
     if (byRank.size === 0) return { min: 0, max: 1 };
+    const seen = []; // every value at rank >= the current one, sorted
+    const countBelow = (v) => {
+      let lo = 0, hi = seen.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (seen[mid] < v) lo = mid + 1; else hi = mid;
+      }
+      return lo;
+    };
     let min = Infinity, max = -Infinity;
-    byRank.forEach((list) => {
-      list.sort((a, b) => a - b);
-      list.slice(0, TOP_K).forEach((value) => {
-        if (value < min) min = value;
-        if (value > max) max = value;
+    [...byRank.keys()].sort((a, b) => b - a).forEach((rank) => {
+      const list = byRank.get(rank);
+      list.forEach((v) => { seen.splice(countBelow(v), 0, v); });
+      list.forEach((v) => {
+        if (countBelow(v) >= TOP_K) return;
+        if (v < min) min = v;
+        if (v > max) max = v;
       });
     });
     if (min === max) { min -= 1; max += 1; }
