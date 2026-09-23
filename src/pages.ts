@@ -1269,7 +1269,14 @@ export function activityPage(
   const entry = (a: ActivityItem): string => {
     const link = `<a href="/curve/${a.curve_id}">curve #${a.curve_id}</a>`
     const meta = `<p class="activity-meta">${utcTime(a.ts)} &middot; ${userLink(a.user_id, a.user)}</p>`
-    const context = `log |&Delta;| = ${logBigInt(a.discriminant).toFixed(2)}${activityRecordBadges(records.overall.get(a.curve_id), records.torsion.get(a.curve_id), a.rank, a.torsion)}`
+    // Nontrivial torsion (trivial or unrecorded shows nothing), linking to the
+    // table filtered to that subgroup.
+    const tKey = a.torsion != null ? torsionKey(a.torsion) : null
+    const tHtml = a.torsion != null ? torsionGroupHtml(a.torsion) : null
+    const tors = tKey != null && tKey !== 'trivial' && tHtml != null
+      ? `torsion <a href="/curves?torsion=${tKey}" title="show only curves with this torsion subgroup">${tHtml}</a>, `
+      : ''
+    const context = `${tors}log |&Delta;| = ${logBigInt(a.discriminant).toFixed(2)}${activityRecordBadges(records.overall.get(a.curve_id), records.torsion.get(a.curve_id), a.rank, a.torsion)}`
     if (a.kind === 'submission') {
       return `<li>
           ${meta}
