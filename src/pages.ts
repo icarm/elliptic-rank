@@ -132,6 +132,7 @@ export interface PlotCurve {
   faltings_height: number | null
   conductor: string | null
   discriminant: string
+  torsion: string | null // JSON array of invariant factors, e.g. "[2,2]"
 }
 
 type ProgressMetric = 'conductor' | 'naive' | 'faltings' | 'disc'
@@ -518,14 +519,25 @@ export function landingPage(
   metric?: string,
   show?: string,
   prefill: FormPrefill | null = null,
+  torsion?: string,
 ): string {
   // Which plot the switcher shows first; honored from ?metric= so the view is
   // shareable and renders without a flash. Defaults to the conductor plot.
   const sel: 'conductor' | 'naive' | 'faltings' | 'disc' =
     metric === 'naive' || metric === 'faltings' || metric === 'disc' ? metric : 'conductor'
   // ?show=all plots every curve; the default shows only the best (lowest)
-  // curve at each rank bound — the frontier.
+  // curve at each rank bound.
   const showAll = show === 'all'
+  // ?torsion= restricts the plots to one torsion subgroup (by its URL key, see
+  // torsionKey). Only groups some curve has are offered; anything else means
+  // "any". The best-per-rank marks and the axis scale are then computed within
+  // the group, so this is rendered here rather than toggled client-side.
+  const groups = torsionGroups(curves)
+  const torsionSel = groups.some((g) => g.key === torsion) ? torsion! : null
+  if (torsionSel != null) curves = curves.filter((c) => c.torsion != null && torsionKey(c.torsion) === torsionSel)
+  const torsionOptions = [`<option value=""${torsionSel == null ? ' selected' : ''}>any</option>`]
+    .concat(groups.map((g) => `<option value="${g.key}"${g.key === torsionSel ? ' selected' : ''}>${g.label} (${g.count})</option>`))
+    .join('')
   const inner = `
       <section class="hero">
         <p class="lede">Can we find <em>small</em> elliptic curves of <em>high rank</em>?</p>
@@ -538,7 +550,12 @@ export function landingPage(
             <label title="Stable Faltings height (LMFDB normalization). Recorded for every curve."><input type="radio" name="plot-metric" value="faltings"${sel === 'faltings' ? ' checked' : ''} /><span>Faltings height</span></label>
             <label title="Natural log of the absolute discriminant of the global minimal model. Recorded for every curve."><input type="radio" name="plot-metric" value="disc"${sel === 'disc' ? ' checked' : ''} /><span>log |&Delta;|</span></label>
           </span>
-          <label class="plot-filter" title="Plot every submitted curve, not just the best (lowest) curve at each rank bound."><input type="checkbox" id="plot-show-all"${showAll ? ' checked' : ''} /><span>show all curves</span></label>
+          <form class="plot-controls" method="get" action="/">
+            <input type="hidden" name="metric" value="${sel}" />${showAll ? '<input type="hidden" name="show" value="all" />' : ''}
+            <label class="plot-torsion" title="Plot only curves with this torsion subgroup."><span>torsion</span> <select id="plot-torsion" name="torsion">${torsionOptions}</select></label>
+            <noscript><button type="submit">apply</button></noscript>
+            <label class="plot-filter" title="Plot only the best (lowest) curve at each rank bound."><input type="checkbox" id="plot-best-only"${showAll ? '' : ' checked'} /><span>best only</span></label>
+          </form>
         </div>
         <div class="plot-panel" data-metric="conductor"${sel === 'conductor' ? '' : ' hidden'}>
           ${scatterPlot(
@@ -860,6 +877,20 @@ function weierstrassEq(ainvs: string[]): string {
 // "[2,2]") as the group it names: &#8484;/2&#8484; &times; &#8484;/2&#8484;, or
 // "trivial" for "[]". Null when the stored value doesn't parse.
 function torsionGroupHtml(torsion: string): string | null {
+  const factors = torsionFactors(torsion)
+  if (factors == null) return null
+  if (factors.length === 0) return 'trivial'
+  return `<span class="eqi">${factors.map((n) => `&#8484;/${n}&#8484;`).join(' &times; ')}</span>`
+}
+
+// URL key for a stored torsion structure: "trivial", or the invariant factors
+// joined by "x" (e.g. "2x4"). Null when the stored value doesn't parse.
+function torsionKey(torsion: string): string | null {
+  const f = torsionFactors(torsion)
+  return f == null ? null : f.length === 0 ? 'trivial' : f.join('x')
+}
+
+function torsionFactors(torsion: string): number[] | null {
   let factors: unknown
   try {
     factors = JSON.parse(torsion)
@@ -867,8 +898,29 @@ function torsionGroupHtml(torsion: string): string | null {
     return null
   }
   if (!Array.isArray(factors) || !factors.every((n) => Number.isInteger(n) && n > 1)) return null
-  if (factors.length === 0) return 'trivial'
-  return `<span class="eqi">${factors.map((n) => `&#8484;/${n}&#8484;`).join(' &times; ')}</span>`
+  return factors as number[]
+}
+
+// The torsion subgroups present among `curves`, with how many curves have
+// each, in Mazur's order: trivial, then cyclic by order, then Z/2 x Z/2n.
+// Labels are plain text (for <option>), e.g. "ℤ/2ℤ × ℤ/4ℤ".
+function torsionGroups(curves: PlotCurve[]): { key: string; label: string; count: number }[] {
+  const byKey = new Map<string, { factors: number[]; count: number }>()
+  for (const c of curves) {
+    const factors = c.torsion == null ? null : torsionFactors(c.torsion)
+    if (factors == null) continue
+    const key = factors.length === 0 ? 'trivial' : factors.join('x')
+    const g = byKey.get(key)
+    if (g) g.count++
+    else byKey.set(key, { factors, count: 1 })
+  }
+  return [...byKey.entries()]
+    .sort(([, a], [, b]) => a.factors.length - b.factors.length || (a.factors.at(-1) ?? 0) - (b.factors.at(-1) ?? 0))
+    .map(([key, { factors, count }]) => ({
+      key,
+      label: factors.length === 0 ? 'trivial' : factors.map((n) => `\u2124/${n}\u2124`).join(' \u00d7 '),
+      count,
+    }))
 }
 
 // Record badge for a curve-page metric: shown when no curve of equal or higher

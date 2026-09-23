@@ -419,10 +419,36 @@ pre code {
   pointer-events: none;
 }
 
-/* "show all curves" toggle: best-per-rank is the default; checking it reveals
-   the remaining dots; .best-only below hides all but the best per rank column. */
-.plot-filter {
+/* Torsion selector and "best only" toggle, right-aligned after the metric
+   tabs. best-per-rank is the default; unchecking reveals the remaining dots
+   (.best-only below hides all but the best per rank column). */
+.plot-controls {
   margin-left: auto;
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+
+.plot-torsion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.plot-torsion select,
+.plot-controls button {
+  padding: 0.2rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font: inherit;
+  color: var(--fg);
+  background: var(--panel);
+}
+
+.plot-filter {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;

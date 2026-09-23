@@ -19,9 +19,9 @@ export { BOARD_TOP_K, placement, qualifies, judge, admitted, lessDecimal, lessAb
 export const COMMENT_MAX = 4000
 
 // Columns every curve list reads: the landing and progress plots need the id,
-// rank and metrics (PlotCurve); the /curves table and a profile's curve list
+// rank, metrics and torsion (PlotCurve); the /curves table and a profile's curve list
 // also need the equation (TableCurve).
-const PLOT_COLUMNS = 'id, rank_lower_bound, naive_height, faltings_height, conductor, discriminant'
+const PLOT_COLUMNS = 'id, rank_lower_bound, naive_height, faltings_height, conductor, discriminant, torsion'
 const TABLE_COLUMNS = `${PLOT_COLUMNS}, ainvs`
 
 // Every curve with its metrics, in submission (id) order, for the landing and
