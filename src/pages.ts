@@ -826,6 +826,7 @@ export function curveTablePage(
       <h2 id="table-title">${heading}</h2>
       <p class="page-subtitle">Click a column header to sort; click again to reverse. Curves missing a
       value (no primes of bad reduction supplied yet) sort last.</p>
+      <p class="table-download"><a href="/database.json" download>Download the database (JSON) &darr;</a></p>
       <form class="table-controls" method="get" action="/curves">
         <label class="rank-filter">rank lower bound
           <select id="rank-op" name="rankmode" aria-label="rank lower bound comparison">
@@ -844,7 +845,6 @@ export function curveTablePage(
         }
         <noscript><button type="submit">apply</button></noscript>
         <span class="muted">showing <span id="curve-count">${shown}</span> of ${curves.length} curves</span>
-        <a href="/database.json" download>Download the database (JSON) &darr;</a>
       </form>
       <div class="table-scroll">
       <table class="curves-table" id="curves-table">
