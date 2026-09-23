@@ -194,8 +194,17 @@ app.post('/curve/:id/primes', async (c) => {
   // "Compute automatically" attempts bounded trial division; otherwise use the
   // primes the submitter typed.
   const mode = String(form.mode ?? '') === 'auto' ? 'auto' : 'manual'
+  // The primes field is free text; a malformed token (e.g. a bracket inside a
+  // number) is a rejection to report on the form, not a server error.
+  let primes: string[]
+  try {
+    primes = parseTokens(String(form.primes ?? ''))
+  } catch (e) {
+    const error = e instanceof Error ? e.message : String(e)
+    return c.redirect(`/curve/${id}?primes_error=${encodeURIComponent(error)}#bad-primes`, 303)
+  }
   const gp = await getGp()
-  const outcome = await backfillPrimes(c.env, gp, user.id, id, mode, parseTokens(String(form.primes ?? '')))
+  const outcome = await backfillPrimes(c.env, gp, user.id, id, mode, primes)
   if (outcome.status === 'no-curve') return c.html(notFoundPage(user), 404)
   // Recorded or already-recorded: back to the curve page (Post/Redirect/Get). A
   // fresh backfill may have made the curve a conductor/Faltings record.
@@ -374,6 +383,9 @@ app.post('/api/submit', async (c) => {
   } catch {
     return c.json({ ok: false, errors: ['request body must be JSON'] }, 400)
   }
+  // `null`, an array, a string or a number parse as JSON but are not a
+  // submission object; reading `.commentary` off `null` would throw.
+  if (!isJsonObject(body)) return c.json({ ok: false, errors: ['request body must be a JSON object'] }, 400)
   // Optional initial commentary; recorded only for curves with none yet.
   const commentary =
     typeof body.commentary === 'string' ? body.commentary.slice(0, COMMENT_MAX) : undefined
@@ -407,6 +419,7 @@ app.post('/api/curve/:id/primes', async (c) => {
   } catch {
     return c.json({ ok: false, errors: ['request body must be JSON'] }, 400)
   }
+  if (!isJsonObject(body)) return c.json({ ok: false, errors: ['request body must be a JSON object'] }, 400)
   const gp = await getGp()
   // "auto" attempts bounded trial division; otherwise use the supplied list.
   const mode = body.mode === 'auto' ? 'auto' : 'manual'
@@ -587,7 +600,12 @@ function listTokens(env: Bindings, userId: number): Promise<TokenRow[]> {
     .then((r) => r.results)
 }
 
-// Split free-form text into integer/rational tokens (commas or whitespace).
+// A parsed JSON body that is a plain object (not null, an array, or a scalar).
+function isJsonObject(body: unknown): body is Record<string, unknown> {
+  return typeof body === 'object' && body !== null && !Array.isArray(body)
+}
+
+// Reject oversized submissions up front from the declared Content-Length.
 function submissionBodyTooLarge(req: Request): boolean {
   const length = Number(req.headers.get('content-length') ?? '')
   return Number.isFinite(length) && length > MAX_SUBMISSION_BODY_BYTES

@@ -90,13 +90,22 @@ function isHttps(req: Request): boolean {
 }
 
 // Reduce a candidate post-login destination to a safe same-site path. Rejects
-// absolute URLs, protocol-relative `//host` (open-redirect vectors), and the
-// /auth/* routes themselves (to avoid login loops). Returns null if unusable.
-function safeReturnPath(raw: string | null | undefined): string | null {
-  if (!raw) return null
-  if (!raw.startsWith('/') || raw.startsWith('//')) return null
-  if (raw.startsWith('/auth/')) return null
-  return raw
+// absolute URLs, protocol-relative `//host`, and the /auth/* routes themselves
+// (to avoid login loops). Rather than pattern-match the string, resolve it the
+// way a browser will resolve the Location header and require the result to
+// stay on this origin: browsers treat `\` as `/`, so `/\evil.com` is an
+// open-redirect vector that a plain `//` check misses. Returns null if unusable.
+export function safeReturnPath(raw: string | null | undefined): string | null {
+  if (!raw || !raw.startsWith('/')) return null
+  let resolved: URL
+  try {
+    resolved = new URL(raw, 'https://elliptic-rank.invalid')
+  } catch {
+    return null
+  }
+  if (resolved.origin !== 'https://elliptic-rank.invalid') return null
+  if (resolved.pathname.startsWith('/auth/')) return null
+  return resolved.pathname + resolved.search + resolved.hash
 }
 
 // The path+query of the Referer, but only when it is same-origin as the current

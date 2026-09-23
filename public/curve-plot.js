@@ -186,11 +186,14 @@
     });
     svg.innerHTML = out.join('');
     var n = plot.points.length, m = plot.inside.length;
+    var locus = 'Real locus (' + (plot.components === 2 ? 'two components' : 'one component') + ')';
     var cap =
-      'Real locus (' + (plot.components === 2 ? 'two components' : 'one component') + ') with ' +
-      (m === n ? (n === 1 ? 'its witness point' : n === 2 ? 'both witness points' : 'all ' + n + ' witness points') : m + ' of the ' + n + ' witness points') +
-      (m < n ? '; the other ' + (n - m === 1 ? 'one lies' : n - m + ' lie') + ' outside the plotted range' : '') +
-      '.';
+      n === 0
+        ? locus + '; no witness points (rank \u2265 0).'
+        : locus + ' with ' +
+          (m === n ? (n === 1 ? 'its witness point' : n === 2 ? 'both witness points' : 'all ' + n + ' witness points') : m + ' of the ' + n + ' witness points') +
+          (m < n ? '; the other ' + (n - m === 1 ? 'one lies' : n - m + ' lie') + ' outside the plotted range' : '') +
+          '.';
     fig.querySelector('figcaption').textContent = cap;
     fig.hidden = false;
   }
