@@ -297,6 +297,7 @@ export interface RecordCandidate {
   faltings_height: number | null
   conductor: string | null
   discriminant: string
+  torsion?: string | null
 }
 
 // One curve's id, rank and metrics (null if there is no such curve), enough to
@@ -323,6 +324,29 @@ export async function recordFlags(
     .bind(curve.rank_lower_bound, curve.id)
     .all<Metrics>()
   return recordsAmong(curve, rivals, strict)
+}
+
+// The curve page's badges: records overall (as recordFlags) and within the
+// curve's torsion subgroup, both among curves of rank ≥ its own and with ties
+// shared. The torsion pool is a subset of the overall one, so every overall
+// record is also a torsion record; the page shows the torsion badge only where
+// there is no overall one. `torsion` is null when the curve's torsion is not
+// recorded.
+export async function recordBadges(
+  env: Bindings,
+  curve: RecordCandidate,
+): Promise<{ overall: RecordFlags; torsion: RecordFlags | null }> {
+  const { results: rivals } = await env.DB.prepare(
+    `SELECT naive_height, faltings_height, conductor, discriminant, torsion FROM curves
+       WHERE rank_lower_bound >= ? AND id != ?`,
+  )
+    .bind(curve.rank_lower_bound, curve.id)
+    .all<Metrics>()
+  const t = curve.torsion ?? null
+  return {
+    overall: recordsAmong(curve, rivals),
+    torsion: t == null ? null : recordsAmong(curve, rivals.filter((o) => o.torsion === t)),
+  }
 }
 
 // Record flags for many curves at once — e.g. everything attributed to one

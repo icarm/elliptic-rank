@@ -688,7 +688,17 @@ export interface TableCurve extends PlotCurve {
 // shares the same markup and simply ignores them.
 type MetricRecords = Partial<Record<'conductor' | 'naive' | 'faltings' | 'disc', boolean>>
 
-function curveTableRow(c: TableCurve, hidden = false, records: MetricRecords = {}): string {
+// On /curves, `groupRecords` are the records within the row's own torsion
+// subgroup: each metric cell carries both flags (data-rec, data-trec) so the
+// inline script can highlight whichever set the torsion filter calls for, and
+// `useGroup` picks the set rendered initially.
+function curveTableRow(
+  c: TableCurve,
+  hidden = false,
+  records: MetricRecords = {},
+  groupRecords: MetricRecords | null = null,
+  useGroup = false,
+): string {
   const unknown = '<span class="muted">?</span>'
   let ainvs: string[] = []
   try {
@@ -699,9 +709,19 @@ function curveTableRow(c: TableCurve, hidden = false, records: MetricRecords = {
   const logCond = c.conductor != null ? logBigInt(c.conductor) : null
   const logDisc = logBigInt(c.discriminant)
   // A record cell (smallest value among curves of equal or higher rank — the
-  // same rule as the curve page's ★ badge) gets a highlight class.
-  const metricTd = (isRecord: boolean | undefined, content: string): string =>
-    `<td class="num${isRecord ? ' record' : ''}"${isRecord ? ` title="record: smallest among curves of rank &ge; ${c.rank_lower_bound}"` : ''}>${content}</td>`
+  // same rule as the curve page's ★ badge — or, with `useGroup`, among those
+  // with the same torsion subgroup) gets a highlight class. curves.js builds
+  // the same titles.
+  const metricTd = (metric: keyof MetricRecords, content: string): string => {
+    const overall = !!records[metric]
+    const group = !!groupRecords?.[metric]
+    const on = useGroup ? group : overall
+    const title = useGroup
+      ? `record for this torsion subgroup: smallest among curves of rank &ge; ${c.rank_lower_bound} with this torsion`
+      : `record: smallest among curves of rank &ge; ${c.rank_lower_bound}`
+    const flags = groupRecords ? ` data-rec="${overall ? 1 : 0}" data-trec="${group ? 1 : 0}"` : ''
+    return `<td class="num${on ? ' record' : ''}"${flags}${on ? ` title="${title}"` : ''}>${content}</td>`
+  }
   const tKey = c.torsion != null ? torsionKey(c.torsion) : null
   const tHtml = c.torsion != null ? torsionGroupHtml(c.torsion) : null
   return `<tr${hidden ? ' hidden' : ''} data-id="${c.id}" data-rank="${c.rank_lower_bound}" data-torsion="${tKey ?? ''}" data-naive="${c.naive_height}" data-faltings="${c.faltings_height ?? ''}" data-conductor="${logCond ?? ''}" data-disc="${logDisc}">
@@ -709,10 +729,10 @@ function curveTableRow(c: TableCurve, hidden = false, records: MetricRecords = {
             <td><code>[${ainvs.map((a) => escapeHtml(clip(a, 14))).join(', ')}]</code></td>
             <td class="num"><a class="rank-link" href="/curves?minrank=${c.rank_lower_bound}&amp;rankmode=eq" title="show only curves with rank lower bound = ${c.rank_lower_bound}">&ge; ${c.rank_lower_bound}</a></td>
             <td class="torsion">${tKey != null && tHtml != null ? `<a class="torsion-link" href="/curves?torsion=${tKey}" title="show only curves with this torsion subgroup">${tHtml}</a>` : unknown}</td>
-            ${metricTd(records.conductor, logCond != null ? logCond.toFixed(2) : unknown)}
-            ${metricTd(records.naive, c.naive_height.toFixed(2))}
-            ${metricTd(records.faltings, c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown)}
-            ${metricTd(records.disc, logDisc.toFixed(2))}
+            ${metricTd('conductor', logCond != null ? logCond.toFixed(2) : unknown)}
+            ${metricTd('naive', c.naive_height.toFixed(2))}
+            ${metricTd('faltings', c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown)}
+            ${metricTd('disc', logDisc.toFixed(2))}
           </tr>`
 }
 
@@ -774,8 +794,14 @@ export function curveTablePage(
   // or higher rank has a strictly smaller value (ties share it) — the same
   // Pareto rule as store.recordFlags and the curve page's ★ badge, computed
   // for all rows in one rank-descending sweep with exact decimal comparisons.
-  const byRankDesc = [...curves].sort((a, b) => b.rank_lower_bound - a.rank_lower_bound)
-  const recordIds = <T,>(get: (c: TableCurve) => T | null, less: (a: T, b: T) => boolean): Set<number> => {
+  // The same sweep within each torsion subgroup gives the records shown when a
+  // torsion filter is selected.
+  const recordIds = <T,>(
+    list: TableCurve[],
+    get: (c: TableCurve) => T | null,
+    less: (a: T, b: T) => boolean,
+  ): Set<number> => {
+    const byRankDesc = [...list].sort((a, b) => b.rank_lower_bound - a.rank_lower_bound)
     const recs = new Set<number>()
     let frontier: T | null = null // smallest value at any rank ≥ the current group's
     for (let i = 0; i < byRankDesc.length; ) {
@@ -792,21 +818,34 @@ export function curveTablePage(
     }
     return recs
   }
-  const records = {
-    conductor: recordIds((c) => c.conductor, lessDecimal),
-    naive: recordIds((c): number | null => c.naive_height, (a, b) => a < b),
-    faltings: recordIds((c) => c.faltings_height, (a, b) => a < b),
-    disc: recordIds((c): string | null => c.discriminant, lessAbsDecimal),
+  const metricRecords = (list: TableCurve[]) => ({
+    conductor: recordIds(list, (c) => c.conductor, lessDecimal),
+    naive: recordIds(list, (c): number | null => c.naive_height, (a, b) => a < b),
+    faltings: recordIds(list, (c) => c.faltings_height, (a, b) => a < b),
+    disc: recordIds(list, (c): string | null => c.discriminant, lessAbsDecimal),
+  })
+  const records = metricRecords(curves)
+  const byGroup = new Map<string, TableCurve[]>()
+  for (const c of curves) {
+    const k = c.torsion != null ? torsionKey(c.torsion) : null
+    if (k == null) continue
+    const g = byGroup.get(k)
+    if (g) g.push(c)
+    else byGroup.set(k, [c])
   }
+  const groupRecords = { conductor: new Set<number>(), naive: new Set<number>(), faltings: new Set<number>(), disc: new Set<number>() }
+  for (const list of byGroup.values()) {
+    const r = metricRecords(list)
+    for (const m of ['conductor', 'naive', 'faltings', 'disc'] as const) for (const id of r[m]) groupRecords[m].add(id)
+  }
+  const flagsFor = (sets: typeof records, id: number): MetricRecords => ({
+    conductor: sets.conductor.has(id),
+    naive: sets.naive.has(id),
+    faltings: sets.faltings.has(id),
+    disc: sets.disc.has(id),
+  })
   const rows = sorted
-    .map((c) =>
-      curveTableRow(c, rowHidden(c), {
-        conductor: records.conductor.has(c.id),
-        naive: records.naive.has(c.id),
-        faltings: records.faltings.has(c.id),
-        disc: records.disc.has(c.id),
-      }),
-    )
+    .map((c) => curveTableRow(c, rowHidden(c), flagsFor(records, c.id), flagsFor(groupRecords, c.id), torsionGroup != null))
     .join('\n')
   // Query string for the state where `key` is the sort column — clicking the
   // active column reverses it, a new column gets its default direction; the
@@ -975,7 +1014,18 @@ function torsionGroups(curves: PlotCurve[]): { key: string; label: string }[] {
 // by the metric, so the curve appears at the top among its rivals.
 function badge(isRecord: boolean, rank: number, sort: string): string {
   if (!isRecord) return ''
-  return ` <a class="record-badge" href="/curves?sort=${sort}&minrank=${rank}" title="smallest on the board among curves of rank &ge; ${rank}">&#9733; record for rank &ge; ${rank}</a>`
+  return ` <a class="record-badge" href="/curves?sort=${sort}&amp;minrank=${rank}" title="smallest on the board among curves of rank &ge; ${rank}">&#9733; record for rank &ge; ${rank}</a>`
+}
+
+// The lighter badge for a record within the curve's torsion subgroup, shown
+// only where the curve has no overall record (which would imply it). Links to
+// the table filtered to that rank and subgroup.
+function torsionBadge(isRecord: boolean, rank: number, sort: string, torsion: string): string {
+  const key = torsionKey(torsion)
+  const group = torsionGroupHtml(torsion)
+  if (!isRecord || key == null || group == null) return ''
+  const name = key === 'trivial' ? 'trivial torsion' : `${group} torsion`
+  return ` <a class="record-badge torsion-badge" href="/curves?sort=${sort}&amp;minrank=${rank}&amp;torsion=${key}" title="smallest on the board among curves of rank &ge; ${rank} with this torsion subgroup">&#9734; record for ${name}, rank &ge; ${rank}</a>`
 }
 
 // Escape commentary, turning `curve#<id>` tokens into links to that curve.
@@ -1065,7 +1115,10 @@ export function curveDetailPage(
   curve: CurveRow,
   comment: CommentView | null = null,
   user: User | null = null,
-  records: RecordFlags = { naive: false, faltings: false, conductor: false, discriminant: false },
+  records: { overall: RecordFlags; torsion: RecordFlags | null } = {
+    overall: { naive: false, faltings: false, conductor: false, discriminant: false },
+    torsion: null,
+  },
   primesError: string | null = null,
   // Later contributions (rank improvements, primes recorded), oldest first.
   events: CurveEvent[] = [],
@@ -1082,6 +1135,13 @@ export function curveDetailPage(
   }
   const eq = weierstrassEq(ainvs)
   const torsionHtml = curve.torsion != null ? torsionGroupHtml(curve.torsion) : null
+  // Per metric: the overall ★ badge, else the torsion-subgroup ☆ badge.
+  const badges = (metric: keyof RecordFlags, sort: string): string =>
+    records.overall[metric]
+      ? badge(true, curve.rank_lower_bound, sort)
+      : curve.torsion != null && records.torsion
+        ? torsionBadge(records.torsion[metric], curve.rank_lower_bound, sort, curve.torsion)
+        : ''
   const pointList = points
     .map(([x, y]) => `<li><code>(${escapeHtml(x)}, ${escapeHtml(y)})</code></li>`)
     .join('\n          ')
@@ -1106,10 +1166,10 @@ export function curveDetailPage(
         <dt>a-invariants</dt><dd><code>[${ainvs.map(escapeHtml).join(', ')}]</code></dd>
         <dt>rank (lower bound)</dt><dd><a href="/curves?sort=conductor&amp;minrank=${curve.rank_lower_bound}&amp;rankmode=eq" title="all curves with rank lower bound = ${curve.rank_lower_bound}, by increasing conductor">&ge; ${curve.rank_lower_bound}</a></dd>
         ${torsionHtml ? `<dt>torsion subgroup</dt><dd>${torsionHtml}</dd>` : ''}
-        ${curve.conductor ? `<dt>conductor (N)</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code>${badge(records.conductor, curve.rank_lower_bound, 'conductor')}</dd>` : ''}
-        <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badge(records.naive, curve.rank_lower_bound, 'naive')}</dd>
-        ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}${badge(records.faltings, curve.rank_lower_bound, 'faltings')}</dd>` : ''}
-        <dt>discriminant (&Delta;)</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code>${badge(records.discriminant, curve.rank_lower_bound, 'disc')}</dd>
+        ${curve.conductor ? `<dt>conductor (N)</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code>${badges('conductor', 'conductor')}</dd>` : ''}
+        <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badges('naive', 'naive')}</dd>
+        ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}${badges('faltings', 'faltings')}</dd>` : ''}
+        <dt>discriminant (&Delta;)</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code>${badges('discriminant', 'disc')}</dd>
         ${badPrimes.length ? `<dt>primes of bad reduction</dt><dd><code class="break">${badPrimes.map(escapeHtml).join(', ')}</code></dd>` : ''}
         <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
         <dt>submitted by</dt><dd>${submitter}</dd>

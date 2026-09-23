@@ -26,7 +26,7 @@ import {
   type SubmitInfo,
   type CurveRow,
 } from './pages'
-import { plotCurves, tableCurves, userCurves, loadWitness, recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordFlags, recordFlagsForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
+import { plotCurves, tableCurves, userCurves, loadWitness, recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordBadges, recordFlagsForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
 import { notifyRecord, notifyBackfillRecord } from './zulip'
 import { parsePoints, parseTokens } from './input'
 import {
@@ -174,7 +174,7 @@ app.get('/curve/:id', async (c) => {
   // A failed bad-primes submission redirects back here with the reason in the
   // query (and a #bad-primes fragment) so the page scrolls to the form.
   const primesError = c.req.query('primes_error') ?? null
-  const [records, events] = await Promise.all([recordFlags(c.env, row), curveEvents(c.env, id)])
+  const [records, events] = await Promise.all([recordBadges(c.env, row), curveEvents(c.env, id)])
   return c.html(curveDetailPage(row, comment, c.get('user'), records, primesError, events))
 })
 

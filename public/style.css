@@ -837,6 +837,13 @@ a.record-badge:hover {
   color: #fff;
 }
 
+/* Record within the curve's torsion subgroup (shown only without an overall
+   record): the same pill, outlined rather than filled. */
+.record-badge.torsion-badge {
+  background: transparent;
+  font-weight: 500;
+}
+
 .witness h3 {
   display: flex;
   align-items: baseline;

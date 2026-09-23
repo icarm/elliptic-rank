@@ -13,6 +13,7 @@
   var buttons = document.querySelectorAll('a.sort');
   var sortKey = 'conductor';
   var sortDir = 1; // 1 = ascending, -1 = descending; default: smallest conductor first
+  var lastTorsion = null; // the torsion filter the record highlights were last set for
 
   var params = new URLSearchParams(location.search);
   if (KEYS.indexOf(params.get('sort')) >= 0) {
@@ -49,6 +50,26 @@
       tbody.appendChild(r);
     });
     count.textContent = shown;
+    // With a torsion subgroup selected, highlight records within the subgroup
+    // (each row's data-trec) instead of overall records (data-rec). Titles
+    // match curveTableRow's.
+    if (torsion !== lastTorsion) {
+      lastTorsion = torsion;
+      rows.forEach(function (r) {
+        var rank = r.dataset.rank;
+        Array.prototype.forEach.call(r.querySelectorAll('td[data-rec]'), function (td) {
+          var on = (torsion !== '' ? td.dataset.trec : td.dataset.rec) === '1';
+          td.classList.toggle('record', on);
+          if (on) {
+            td.title = torsion !== ''
+              ? 'record for this torsion subgroup: smallest among curves of rank \u2265 ' + rank + ' with this torsion'
+              : 'record: smallest among curves of rank \u2265 ' + rank;
+          } else {
+            td.removeAttribute('title');
+          }
+        });
+      });
+    }
     buttons.forEach(function (b) {
       b.className = 'sort' + (b.dataset.key === sortKey ? (sortDir === 1 ? ' asc' : ' desc') : '');
     });
