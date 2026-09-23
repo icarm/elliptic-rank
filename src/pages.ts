@@ -1247,7 +1247,7 @@ export function activityPage(
   const entry = (a: ActivityItem): string => {
     const link = `<a href="/curve/${a.curve_id}">curve #${a.curve_id}</a>`
     const meta = `<p class="activity-meta">${utcTime(a.ts)} &middot; ${userLink(a.user_id, a.user)}</p>`
-    const context = `log |&Delta;| ${logBigInt(a.discriminant).toFixed(2)}${activityRecordBadge(records.get(a.curve_id), a.rank)}`
+    const context = `log |&Delta;| = ${logBigInt(a.discriminant).toFixed(2)}${activityRecordBadge(records.get(a.curve_id), a.rank)}`
     if (a.kind === 'submission') {
       return `<li>
           ${meta}
