@@ -26,7 +26,7 @@ import {
   type SubmitInfo,
   type CurveRow,
 } from './pages'
-import { plotCurves, tableCurves, userCurves, loadWitness, recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordBadges, recordFlagsForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
+import { plotCurves, tableCurves, userCurves, loadWitness, recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordBadges, recordFlagsForCurves, recordBadgesForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
 import { notifyRecord, notifyBackfillRecord } from './zulip'
 import { parsePoints, parseTokens } from './input'
 import {
@@ -78,7 +78,7 @@ app.get('/curves', async (c) => {
 app.get('/recent', async (c) => {
   const p = Math.max(0, Math.floor(Number(c.req.query('p')) || 0))
   const { items, page, hasOlder } = await recentActivity(c.env, p)
-  const records = await recordFlagsForCurves(
+  const records = await recordBadgesForCurves(
     c.env,
     items.map((a) => ({ ...a, id: a.curve_id, rank_lower_bound: a.rank })),
   )

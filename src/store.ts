@@ -197,6 +197,7 @@ export interface ActivityItem {
   faltings_height: number | null
   conductor: string | null
   discriminant: string
+  torsion: string | null
   user: string | null
   user_id: number | null
   content: string | null
@@ -215,15 +216,15 @@ export async function recentActivity(
 ): Promise<{ items: ActivityItem[]; page: number; hasOlder: boolean }> {
   const size = ACTIVITY_PAGE_SIZE
   const { results } = await env.DB.prepare(
-    `SELECT kind, ts, curve_id, rank, naive_height, faltings_height, conductor, discriminant, user, user_id, content, old_rank, new_rank FROM (
+    `SELECT kind, ts, curve_id, rank, naive_height, faltings_height, conductor, discriminant, torsion, user, user_id, content, old_rank, new_rank FROM (
          SELECT 'submission' AS kind, c.created_at AS ts, c.id AS curve_id,
-                c.rank_lower_bound AS rank, c.naive_height, c.faltings_height, c.conductor, c.discriminant,
+                c.rank_lower_bound AS rank, c.naive_height, c.faltings_height, c.conductor, c.discriminant, c.torsion,
                 u.display_name AS user, u.id AS user_id, NULL AS content,
                 NULL AS old_rank, NULL AS new_rank
            FROM curves c LEFT JOIN users u ON u.id = c.submitter_user_id
          UNION ALL
          SELECT 'comment' AS kind, cl.created_at AS ts, cl.curve_id AS curve_id,
-                cv.rank_lower_bound AS rank, cv.naive_height, cv.faltings_height, cv.conductor, cv.discriminant,
+                cv.rank_lower_bound AS rank, cv.naive_height, cv.faltings_height, cv.conductor, cv.discriminant, cv.torsion,
                 cu.display_name AS user, cu.id AS user_id, cl.content AS content,
                 NULL AS old_rank, NULL AS new_rank
            FROM comments_log cl
@@ -231,7 +232,7 @@ export async function recentActivity(
            JOIN curves cv ON cv.id = cl.curve_id
          UNION ALL
          SELECT e.kind AS kind, e.created_at AS ts, e.curve_id AS curve_id,
-                ce.rank_lower_bound AS rank, ce.naive_height, ce.faltings_height, ce.conductor, ce.discriminant,
+                ce.rank_lower_bound AS rank, ce.naive_height, ce.faltings_height, ce.conductor, ce.discriminant, ce.torsion,
                 eu.display_name AS user, eu.id AS user_id, NULL AS content,
                 e.old_rank, e.new_rank
            FROM curve_events e
@@ -355,22 +356,55 @@ export async function recordBadges(
 
 // Record flags for many curves at once — e.g. everything attributed to one
 // user — judged against the whole board, not just the given subset. One query
-// loads the metrics of every curve at rank ≥ the lowest rank in the batch; a
-// rank-descending sweep then tracks, per metric, the smallest value seen at
-// any rank ≥ the current one (the Pareto frontier), and a curve is a record
-// when its value is not exceeded by that frontier (ties share it). Same rule
-// as recordFlags and the /curves table.
+// loads the metrics of every curve at rank ≥ the lowest rank in the batch (see
+// boardRecords for the rule). Same rule as recordFlags and the /curves table.
 export async function recordFlagsForCurves(env: Bindings, curves: RecordCandidate[]): Promise<Map<number, RecordFlags>> {
-  const flags = new Map<number, RecordFlags>()
-  if (curves.length === 0) return flags
+  if (curves.length === 0) return new Map()
+  const board = await loadBoard(env, curves)
+  return boardRecords(board, new Set(curves.map((c) => c.id)))
+}
+
+// As recordFlagsForCurves, plus each curve's records within its torsion
+// subgroup (as recordBadges, but for a batch, from the same one query). A
+// curve with no recorded torsion has no entry in `torsion`.
+export async function recordBadgesForCurves(
+  env: Bindings,
+  curves: RecordCandidate[],
+): Promise<{ overall: Map<number, RecordFlags>; torsion: Map<number, RecordFlags> }> {
+  if (curves.length === 0) return { overall: new Map(), torsion: new Map() }
+  const board = await loadBoard(env, curves)
+  const wanted = new Set(curves.map((c) => c.id))
+  const byTorsion = new Map<string, RecordCandidate[]>()
+  for (const c of board) {
+    if (c.torsion == null) continue
+    const g = byTorsion.get(c.torsion)
+    if (g) g.push(c)
+    else byTorsion.set(c.torsion, [c])
+  }
+  const torsion = new Map<number, RecordFlags>()
+  for (const group of byTorsion.values()) {
+    for (const [id, f] of boardRecords(group, wanted)) torsion.set(id, f)
+  }
+  return { overall: boardRecords(board, wanted), torsion }
+}
+
+// Every curve at rank ≥ the lowest rank among `curves`, rank descending.
+async function loadBoard(env: Bindings, curves: RecordCandidate[]): Promise<RecordCandidate[]> {
   const minRank = Math.min(...curves.map((c) => c.rank_lower_bound))
-  const { results: board } = await env.DB.prepare(
+  const { results } = await env.DB.prepare(
     `SELECT ${PLOT_COLUMNS} FROM curves
        WHERE rank_lower_bound >= ? ORDER BY rank_lower_bound DESC`,
   )
     .bind(minRank)
     .all<RecordCandidate>()
-  const wanted = new Set(curves.map((c) => c.id))
+  return results
+}
+
+// Record flags for the `wanted` curves among `board` (rank descending). A
+// rank-descending sweep tracks, per metric, the smallest value seen at any
+// rank ≥ the current one (the Pareto frontier), and a curve is a record when
+// its value is not exceeded by that frontier (ties share it).
+function boardRecords(board: RecordCandidate[], wanted: Set<number>): Map<number, RecordFlags> {
   const isRecord = <T,>(get: (c: RecordCandidate) => T | null, less: (a: T, b: T) => boolean): Set<number> => {
     const recs = new Set<number>()
     let frontier: T | null = null
@@ -392,6 +426,7 @@ export async function recordFlagsForCurves(env: Bindings, curves: RecordCandidat
   const faltings = isRecord((c) => c.faltings_height, (a, b) => a < b)
   const conductor = isRecord((c) => c.conductor, lessDecimal)
   const discriminant = isRecord((c): string | null => c.discriminant, lessAbsDecimal)
+  const flags = new Map<number, RecordFlags>()
   for (const c of board) {
     if (!wanted.has(c.id)) continue
     flags.set(c.id, {

@@ -1221,30 +1221,47 @@ export function commentHistoryPage(
   return layout('Commentary history — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
-// A feed entry's compact record badge: which metrics the curve currently holds
-// overall records for at its rank (same rule as the curve page's ★ badges),
-// each linking to the table filtered to that rank and sorted by the metric.
-function activityRecordBadge(r: RecordFlags | undefined, rank: number): string {
-  if (!r) return ''
-  const metrics: [keyof RecordFlags, string, string][] = [
-    ['discriminant', 'disc', 'discriminant'],
-    ['conductor', 'conductor', 'conductor'],
-    ['faltings', 'faltings', 'Faltings height'],
-    ['naive', 'naive', 'naive height'],
-  ]
-  const held = metrics
-    .filter(([m]) => r[m])
-    .map(([, sort, name]) => `<a href="/curves?sort=${sort}&amp;minrank=${rank}">${name}</a>`)
-  if (held.length === 0) return ''
-  return ` <span class="record-badge activity-badge" title="smallest on the board among curves of rank &ge; ${rank}">&#9733; record for rank &ge; ${rank}: ${held.join(', ')}</span>`
+// A feed entry's compact record badges: which metrics the curve currently
+// holds overall records for at its rank (★, same rule as the curve page's
+// badges), then those it holds only within its torsion subgroup (☆, as the
+// curve page's torsion badges). Each metric links to the table filtered to
+// that rank (and subgroup) and sorted by the metric.
+const ACTIVITY_METRICS: [keyof RecordFlags, string, string][] = [
+  ['discriminant', 'disc', 'discriminant'],
+  ['conductor', 'conductor', 'conductor'],
+  ['faltings', 'faltings', 'Faltings height'],
+  ['naive', 'naive', 'naive height'],
+]
+
+function activityRecordBadges(
+  overall: RecordFlags | undefined,
+  inGroup: RecordFlags | undefined,
+  rank: number,
+  torsion: string | null,
+): string {
+  let out = ''
+  const held = ACTIVITY_METRICS.filter(([m]) => overall?.[m])
+  if (held.length > 0) {
+    const links = held.map(([, sort, name]) => `<a href="/curves?sort=${sort}&amp;minrank=${rank}">${name}</a>`)
+    out += ` <span class="record-badge activity-badge" title="smallest on the board among curves of rank &ge; ${rank}">&#9733; record for rank &ge; ${rank}: ${links.join(', ')}</span>`
+  }
+  const key = torsion != null ? torsionKey(torsion) : null
+  const group = torsion != null ? torsionGroupHtml(torsion) : null
+  const groupOnly = ACTIVITY_METRICS.filter(([m]) => inGroup?.[m] && !overall?.[m])
+  if (key != null && group != null && groupOnly.length > 0) {
+    const name = key === 'trivial' ? 'trivial torsion' : `${group} torsion`
+    const links = groupOnly.map(([, sort, n]) => `<a href="/curves?sort=${sort}&amp;minrank=${rank}&amp;torsion=${key}">${n}</a>`)
+    out += ` <span class="record-badge torsion-badge activity-badge" title="smallest on the board among curves of rank &ge; ${rank} with this torsion subgroup">&#9734; record for ${name}, rank &ge; ${rank}: ${links.join(', ')}</span>`
+  }
+  return out
 }
 
 // Recent-activity feed: submissions, later contributions, and commentary
-// edits, newest first. `records` holds each curve's current overall record
-// flags, keyed by curve id.
+// edits, newest first. `records` holds each curve's current record flags,
+// overall and within its torsion subgroup, keyed by curve id.
 export function activityPage(
   items: ActivityItem[],
-  records: Map<number, RecordFlags>,
+  records: { overall: Map<number, RecordFlags>; torsion: Map<number, RecordFlags> },
   page: number,
   hasOlder: boolean,
   user: User | null = null,
@@ -1252,7 +1269,7 @@ export function activityPage(
   const entry = (a: ActivityItem): string => {
     const link = `<a href="/curve/${a.curve_id}">curve #${a.curve_id}</a>`
     const meta = `<p class="activity-meta">${utcTime(a.ts)} &middot; ${userLink(a.user_id, a.user)}</p>`
-    const context = `log |&Delta;| = ${logBigInt(a.discriminant).toFixed(2)}${activityRecordBadge(records.get(a.curve_id), a.rank)}`
+    const context = `log |&Delta;| = ${logBigInt(a.discriminant).toFixed(2)}${activityRecordBadges(records.overall.get(a.curve_id), records.torsion.get(a.curve_id), a.rank, a.torsion)}`
     if (a.kind === 'submission') {
       return `<li>
           ${meta}
