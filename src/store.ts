@@ -185,14 +185,18 @@ export function userContributions(env: Bindings, userId: number): Promise<Contri
 
 // One row in the recent-activity feed: a curve submission (its creation), a
 // commentary edit, or a later contribution (rank improvement / primes
-// recorded). All carry the curve's current rank/height for context; old_rank
-// and new_rank are set only for 'rank_improved'.
+// recorded). All carry the curve's current rank and metrics, for context and
+// for judging its records; old_rank and new_rank are set only for
+// 'rank_improved'.
 export interface ActivityItem {
   kind: 'submission' | 'comment' | CurveEventKind
   ts: string
   curve_id: number
   rank: number
-  height: number
+  naive_height: number
+  faltings_height: number | null
+  conductor: string | null
+  discriminant: string
   user: string | null
   user_id: number | null
   content: string | null
@@ -211,15 +215,15 @@ export async function recentActivity(
 ): Promise<{ items: ActivityItem[]; page: number; hasOlder: boolean }> {
   const size = ACTIVITY_PAGE_SIZE
   const { results } = await env.DB.prepare(
-    `SELECT kind, ts, curve_id, rank, height, user, user_id, content, old_rank, new_rank FROM (
+    `SELECT kind, ts, curve_id, rank, naive_height, faltings_height, conductor, discriminant, user, user_id, content, old_rank, new_rank FROM (
          SELECT 'submission' AS kind, c.created_at AS ts, c.id AS curve_id,
-                c.rank_lower_bound AS rank, c.naive_height AS height,
+                c.rank_lower_bound AS rank, c.naive_height, c.faltings_height, c.conductor, c.discriminant,
                 u.display_name AS user, u.id AS user_id, NULL AS content,
                 NULL AS old_rank, NULL AS new_rank
            FROM curves c LEFT JOIN users u ON u.id = c.submitter_user_id
          UNION ALL
          SELECT 'comment' AS kind, cl.created_at AS ts, cl.curve_id AS curve_id,
-                cv.rank_lower_bound AS rank, cv.naive_height AS height,
+                cv.rank_lower_bound AS rank, cv.naive_height, cv.faltings_height, cv.conductor, cv.discriminant,
                 cu.display_name AS user, cu.id AS user_id, cl.content AS content,
                 NULL AS old_rank, NULL AS new_rank
            FROM comments_log cl
@@ -227,7 +231,7 @@ export async function recentActivity(
            JOIN curves cv ON cv.id = cl.curve_id
          UNION ALL
          SELECT e.kind AS kind, e.created_at AS ts, e.curve_id AS curve_id,
-                ce.rank_lower_bound AS rank, ce.naive_height AS height,
+                ce.rank_lower_bound AS rank, ce.naive_height, ce.faltings_height, ce.conductor, ce.discriminant,
                 eu.display_name AS user, eu.id AS user_id, NULL AS content,
                 e.old_rank, e.new_rank
            FROM curve_events e

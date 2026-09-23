@@ -78,7 +78,11 @@ app.get('/curves', async (c) => {
 app.get('/recent', async (c) => {
   const p = Math.max(0, Math.floor(Number(c.req.query('p')) || 0))
   const { items, page, hasOlder } = await recentActivity(c.env, p)
-  return c.html(activityPage(items, page, hasOlder, c.get('user')))
+  const records = await recordFlagsForCurves(
+    c.env,
+    items.map((a) => ({ ...a, id: a.curve_id, rank_lower_bound: a.rank })),
+  )
+  return c.html(activityPage(items, records, page, hasOlder, c.get('user')))
 })
 
 app.get('/progress', async (c) => {

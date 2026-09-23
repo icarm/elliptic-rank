@@ -1216,10 +1216,30 @@ export function commentHistoryPage(
   return layout('Commentary history — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
+// A feed entry's compact record badge: which metrics the curve currently holds
+// overall records for at its rank (same rule as the curve page's ★ badges),
+// each linking to the table filtered to that rank and sorted by the metric.
+function activityRecordBadge(r: RecordFlags | undefined, rank: number): string {
+  if (!r) return ''
+  const metrics: [keyof RecordFlags, string, string][] = [
+    ['discriminant', 'disc', 'discriminant'],
+    ['conductor', 'conductor', 'conductor'],
+    ['faltings', 'faltings', 'Faltings height'],
+    ['naive', 'naive', 'naive height'],
+  ]
+  const held = metrics
+    .filter(([m]) => r[m])
+    .map(([, sort, name]) => `<a href="/curves?sort=${sort}&amp;minrank=${rank}">${name}</a>`)
+  if (held.length === 0) return ''
+  return ` <span class="record-badge activity-badge" title="smallest on the board among curves of rank &ge; ${rank}">&#9733; record for rank &ge; ${rank}: ${held.join(', ')}</span>`
+}
+
 // Recent-activity feed: submissions, later contributions, and commentary
-// edits, newest first.
+// edits, newest first. `records` holds each curve's current overall record
+// flags, keyed by curve id.
 export function activityPage(
   items: ActivityItem[],
+  records: Map<number, RecordFlags>,
   page: number,
   hasOlder: boolean,
   user: User | null = null,
@@ -1227,22 +1247,23 @@ export function activityPage(
   const entry = (a: ActivityItem): string => {
     const link = `<a href="/curve/${a.curve_id}">curve #${a.curve_id}</a>`
     const meta = `<p class="activity-meta">${utcTime(a.ts)} &middot; ${userLink(a.user_id, a.user)}</p>`
+    const context = `log |&Delta;| ${logBigInt(a.discriminant).toFixed(2)}${activityRecordBadge(records.get(a.curve_id), a.rank)}`
     if (a.kind === 'submission') {
       return `<li>
           ${meta}
-          <p class="activity-line">submitted ${link} &mdash; rank &ge; ${a.rank}, naive height ${a.height.toFixed(2)}</p>
+          <p class="activity-line">submitted ${link} &mdash; rank &ge; ${a.rank}, ${context}</p>
         </li>`
     }
     if (a.kind === 'rank_improved') {
       return `<li>
           ${meta}
-          <p class="activity-line">improved ${link} from rank &ge; ${a.old_rank} to rank &ge; ${a.new_rank} &mdash; naive height ${a.height.toFixed(2)}</p>
+          <p class="activity-line">improved ${link} from rank &ge; ${a.old_rank} to rank &ge; ${a.new_rank} &mdash; ${context}</p>
         </li>`
     }
     if (a.kind === 'primes_recorded') {
       return `<li>
           ${meta}
-          <p class="activity-line">recorded the primes of bad reduction of ${link} &mdash; rank &ge; ${a.rank}, naive height ${a.height.toFixed(2)}</p>
+          <p class="activity-line">recorded the primes of bad reduction of ${link} &mdash; rank &ge; ${a.rank}, ${context}</p>
         </li>`
     }
     const cleared = !a.content || a.content.length === 0
