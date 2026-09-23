@@ -72,11 +72,14 @@ export function placement(candidate: Metrics, rivals: Metrics[]): Placement {
 // `strict`, a tie doesn't count: the curve must be strictly smaller than every
 // rival, i.e. the sole holder — what the Zulip notifiers announce as a new
 // record. A missing value is never a record.
-export function recordsAmong(
-  candidate: Metrics,
-  rivals: Metrics[],
-  strict = false,
-): { naive: boolean; faltings: boolean; conductor: boolean; discriminant: boolean } {
+export interface Records {
+  naive: boolean
+  faltings: boolean
+  conductor: boolean
+  discriminant: boolean
+}
+
+export function recordsAmong(candidate: Metrics, rivals: Metrics[], strict = false): Records {
   const isRecord = <T,>(get: (c: Metrics) => T | null, less: (a: T, b: T) => boolean): boolean => {
     const v = get(candidate)
     if (v == null) return false
@@ -93,6 +96,47 @@ export function recordsAmong(
     conductor: isRecord((c) => c.conductor, lessDecimal),
     discriminant: isRecord((c): string | null => c.discriminant, lessAbsDecimal),
   }
+}
+
+// Records for every curve on `board` at once: the batch form of recordsAmong
+// (non-strict), each curve judged against every other curve of rank ≥ its own
+// on `board`, keyed by id. Instead of comparing all pairs, a rank-descending
+// sweep tracks, per metric, the smallest value at any rank ≥ the current one
+// (the Pareto frontier); a curve is a record when the frontier does not beat
+// its value (ties share it).
+export function boardRecords(board: (Metrics & { id: number; rank_lower_bound: number })[]): Map<number, Records> {
+  const byRankDesc = [...board].sort((a, b) => b.rank_lower_bound - a.rank_lower_bound)
+  const isRecord = <T,>(get: (c: Metrics) => T | null, less: (a: T, b: T) => boolean): Set<number> => {
+    const recs = new Set<number>()
+    let frontier: T | null = null
+    for (let i = 0; i < byRankDesc.length; ) {
+      let j = i
+      for (; j < byRankDesc.length && byRankDesc[j].rank_lower_bound === byRankDesc[i].rank_lower_bound; j++) {
+        const v = get(byRankDesc[j])
+        if (v != null && (frontier == null || less(v, frontier))) frontier = v
+      }
+      for (let k = i; k < j; k++) {
+        const v = get(byRankDesc[k])
+        if (v != null && frontier != null && !less(frontier, v)) recs.add(byRankDesc[k].id)
+      }
+      i = j
+    }
+    return recs
+  }
+  const naive = isRecord((c): number | null => c.naive_height, (a, b) => a < b)
+  const faltings = isRecord((c) => c.faltings_height, (a, b) => a < b)
+  const conductor = isRecord((c) => c.conductor, lessDecimal)
+  const discriminant = isRecord((c): string | null => c.discriminant, lessAbsDecimal)
+  const out = new Map<number, Records>()
+  for (const c of board) {
+    out.set(c.id, {
+      naive: naive.has(c.id),
+      faltings: faltings.has(c.id),
+      conductor: conductor.has(c.id),
+      discriminant: discriminant.has(c.id),
+    })
+  }
+  return out
 }
 
 // Whether a placement earns a spot on the board: top `limit` on some metric.

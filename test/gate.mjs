@@ -1,4 +1,4 @@
-import { placement, qualifies, judge, admitted, recordsAmong, BOARD_TOP_K } from '../src/gate.ts'
+import { placement, qualifies, judge, admitted, recordsAmong, boardRecords, BOARD_TOP_K } from '../src/gate.ts'
 
 let failures = 0
 function check(name, cond, detail = '') {
@@ -89,6 +89,38 @@ check('sole holder is a strict record', flags(recordsAmong(c11a3, [c11a2], true)
 check('strictly smaller everywhere', flags(recordsAmong(c11a3, [{ ...c11a2, conductor: '14', discriminant: '28' }], true)) === '1111')
 check('missing value is never a record', !recordsAmong({ ...c11a3, conductor: null, faltings_height: null }, [], true).conductor)
 check('empty board: every recorded metric is a strict record', flags(recordsAmong(c11a3, [], true)) === '1111')
+
+// boardRecords (the batch sweep behind /curves, /recent and user pages) must
+// agree with recordsAmong (the per-curve rule behind curve pages and the gate)
+// on every curve: each judged against every other curve of rank ≥ its own.
+// Random boards with few distinct values, so ties, equal ranks and missing
+// metrics are all common; discriminant signs vary to exercise magnitude order.
+let seed = 12345
+const rand = (n) => ((seed = (seed * 1103515245 + 12345) % 2147483648) % n)
+let mismatches = 0
+for (let trial = 0; trial < 300; trial++) {
+  const n = 1 + rand(25)
+  const curves = Array.from({ length: n }, (_, id) => ({
+    id,
+    rank_lower_bound: rand(5),
+    naive_height: rand(8),
+    faltings_height: rand(4) === 0 ? null : rand(8) / 2,
+    conductor: rand(3) === 0 ? null : String(1 + rand(12) * 7),
+    discriminant: (rand(2) ? '-' : '') + String(1 + rand(12) * 13),
+  }))
+  const batch = boardRecords(curves)
+  for (const c of curves) {
+    const rivals = curves.filter((o) => o.id !== c.id && o.rank_lower_bound >= c.rank_lower_bound)
+    const want = flags(recordsAmong(c, rivals))
+    const got = flags(batch.get(c.id))
+    if (want !== got) {
+      mismatches++
+      if (mismatches <= 3) console.log(`  trial ${trial} curve ${c.id}: boardRecords ${got}, recordsAmong ${want}`)
+    }
+  }
+}
+check('boardRecords agrees with recordsAmong on 300 random boards', mismatches === 0, `${mismatches} mismatches`)
+check('boardRecords on an empty board', boardRecords([]).size === 0)
 
 if (failures) {
   console.error(`\n${failures} check(s) failed`)

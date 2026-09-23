@@ -4,7 +4,7 @@
 
 import type { VerifyResult } from './verify'
 import { COMMENT_MAX, type CommentView, type ActivityItem, type CurveEvent, type Contribution, type RecordStatus } from './store'
-import { BOARD_TOP_K, lessDecimal, lessAbsDecimal, type Placement } from './gate'
+import { BOARD_TOP_K, boardRecords, type Placement, type Records } from './gate'
 
 export const ABOUT_MAX = 1000
 
@@ -801,39 +801,10 @@ export function curveTablePage(
     .join('')
   // Record cells: for each metric, a curve is a record when no curve of equal
   // or higher rank has a strictly smaller value (ties share it) — the same
-  // Pareto rule as store.recordFlags and the curve page's ★ badge, computed
-  // for all rows in one rank-descending sweep with exact decimal comparisons.
-  // The same sweep within each torsion subgroup gives the records shown when a
-  // torsion filter is selected.
-  const recordIds = <T,>(
-    list: TableCurve[],
-    get: (c: TableCurve) => T | null,
-    less: (a: T, b: T) => boolean,
-  ): Set<number> => {
-    const byRankDesc = [...list].sort((a, b) => b.rank_lower_bound - a.rank_lower_bound)
-    const recs = new Set<number>()
-    let frontier: T | null = null // smallest value at any rank ≥ the current group's
-    for (let i = 0; i < byRankDesc.length; ) {
-      let j = i
-      for (; j < byRankDesc.length && byRankDesc[j].rank_lower_bound === byRankDesc[i].rank_lower_bound; j++) {
-        const v = get(byRankDesc[j])
-        if (v != null && (frontier == null || less(v, frontier))) frontier = v
-      }
-      for (let k = i; k < j; k++) {
-        const v = get(byRankDesc[k])
-        if (v != null && frontier != null && !less(frontier, v)) recs.add(byRankDesc[k].id)
-      }
-      i = j
-    }
-    return recs
-  }
-  const metricRecords = (list: TableCurve[]) => ({
-    conductor: recordIds(list, (c) => c.conductor, lessDecimal),
-    naive: recordIds(list, (c): number | null => c.naive_height, (a, b) => a < b),
-    faltings: recordIds(list, (c) => c.faltings_height, (a, b) => a < b),
-    disc: recordIds(list, (c): string | null => c.discriminant, lessAbsDecimal),
-  })
-  const records = metricRecords(curves)
+  // rule as store.recordFlags and the curve page's ★ badge, computed for all
+  // rows at once by gate.boardRecords. The same within each torsion subgroup
+  // gives the records shown when a torsion filter is selected.
+  const records = boardRecords(curves)
   const byGroup = new Map<string, TableCurve[]>()
   for (const c of curves) {
     const k = c.torsion != null ? torsionKey(c.torsion) : null
@@ -842,17 +813,14 @@ export function curveTablePage(
     if (g) g.push(c)
     else byGroup.set(k, [c])
   }
-  const groupRecords = { conductor: new Set<number>(), naive: new Set<number>(), faltings: new Set<number>(), disc: new Set<number>() }
+  const groupRecords = new Map<number, Records>()
   for (const list of byGroup.values()) {
-    const r = metricRecords(list)
-    for (const m of ['conductor', 'naive', 'faltings', 'disc'] as const) for (const id of r[m]) groupRecords[m].add(id)
+    for (const [id, f] of boardRecords(list)) groupRecords.set(id, f)
   }
-  const flagsFor = (sets: typeof records, id: number): MetricRecords => ({
-    conductor: sets.conductor.has(id),
-    naive: sets.naive.has(id),
-    faltings: sets.faltings.has(id),
-    disc: sets.disc.has(id),
-  })
+  const flagsFor = (map: Map<number, Records>, id: number): MetricRecords => {
+    const f = map.get(id)
+    return f ? { conductor: f.conductor, naive: f.naive, faltings: f.faltings, disc: f.discriminant } : {}
+  }
   const rows = sorted
     .map((c) => curveTableRow(c, rowHidden(c), flagsFor(records, c.id), flagsFor(groupRecords, c.id), torsionGroup != null))
     .join('\n')

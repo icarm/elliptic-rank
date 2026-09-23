@@ -10,7 +10,7 @@ import type { Bindings } from './auth'
 import { verifyPrimes, autoPrimes, type VerifyResult, type PrimesResult } from './verify'
 import type { Gp } from './pari'
 import type { RecordFlags, PlotCurve, TableCurve } from './pages'
-import { BOARD_TOP_K, placement, qualifies, judge, admitted, recordsAmong, lessDecimal, lessAbsDecimal, type Metrics, type Placement } from './gate'
+import { BOARD_TOP_K, placement, qualifies, judge, admitted, recordsAmong, boardRecords, lessDecimal, lessAbsDecimal, type Metrics, type Placement } from './gate'
 
 // The entry gate and the decimal comparators live in ./gate (dependency-free
 // so they can be unit-tested without the verifier); re-exported for callers.
@@ -356,12 +356,13 @@ export async function recordBadges(
 
 // Record flags for many curves at once — e.g. everything attributed to one
 // user — judged against the whole board, not just the given subset. One query
-// loads the metrics of every curve at rank ≥ the lowest rank in the batch (see
-// boardRecords for the rule). Same rule as recordFlags and the /curves table.
+// loads the metrics of every curve at rank ≥ the lowest rank in the batch, and
+// gate.boardRecords judges them: the same rule as recordFlags and the /curves
+// table.
 export async function recordFlagsForCurves(env: Bindings, curves: RecordCandidate[]): Promise<Map<number, RecordFlags>> {
   if (curves.length === 0) return new Map()
   const board = await loadBoard(env, curves)
-  return boardRecords(board, new Set(curves.map((c) => c.id)))
+  return recordsFor(board, new Set(curves.map((c) => c.id)))
 }
 
 // As recordFlagsForCurves, plus each curve's records within its torsion
@@ -383,59 +384,27 @@ export async function recordBadgesForCurves(
   }
   const torsion = new Map<number, RecordFlags>()
   for (const group of byTorsion.values()) {
-    for (const [id, f] of boardRecords(group, wanted)) torsion.set(id, f)
+    for (const [id, f] of recordsFor(group, wanted)) torsion.set(id, f)
   }
-  return { overall: boardRecords(board, wanted), torsion }
+  return { overall: recordsFor(board, wanted), torsion }
 }
 
-// Every curve at rank ≥ the lowest rank among `curves`, rank descending.
+// Every curve at rank ≥ the lowest rank among `curves`.
 async function loadBoard(env: Bindings, curves: RecordCandidate[]): Promise<RecordCandidate[]> {
   const minRank = Math.min(...curves.map((c) => c.rank_lower_bound))
   const { results } = await env.DB.prepare(
     `SELECT ${PLOT_COLUMNS} FROM curves
-       WHERE rank_lower_bound >= ? ORDER BY rank_lower_bound DESC`,
+       WHERE rank_lower_bound >= ?`,
   )
     .bind(minRank)
     .all<RecordCandidate>()
   return results
 }
 
-// Record flags for the `wanted` curves among `board` (rank descending). A
-// rank-descending sweep tracks, per metric, the smallest value seen at any
-// rank ≥ the current one (the Pareto frontier), and a curve is a record when
-// its value is not exceeded by that frontier (ties share it).
-function boardRecords(board: RecordCandidate[], wanted: Set<number>): Map<number, RecordFlags> {
-  const isRecord = <T,>(get: (c: RecordCandidate) => T | null, less: (a: T, b: T) => boolean): Set<number> => {
-    const recs = new Set<number>()
-    let frontier: T | null = null
-    for (let i = 0; i < board.length; ) {
-      let j = i
-      for (; j < board.length && board[j].rank_lower_bound === board[i].rank_lower_bound; j++) {
-        const v = get(board[j])
-        if (v != null && (frontier == null || less(v, frontier))) frontier = v
-      }
-      for (let k = i; k < j; k++) {
-        const v = get(board[k])
-        if (v != null && frontier != null && !less(frontier, v)) recs.add(board[k].id)
-      }
-      i = j
-    }
-    return recs
-  }
-  const naive = isRecord((c): number | null => c.naive_height, (a, b) => a < b)
-  const faltings = isRecord((c) => c.faltings_height, (a, b) => a < b)
-  const conductor = isRecord((c) => c.conductor, lessDecimal)
-  const discriminant = isRecord((c): string | null => c.discriminant, lessAbsDecimal)
+// The `wanted` curves' entries of gate.boardRecords(board).
+function recordsFor(board: RecordCandidate[], wanted: Set<number>): Map<number, RecordFlags> {
   const flags = new Map<number, RecordFlags>()
-  for (const c of board) {
-    if (!wanted.has(c.id)) continue
-    flags.set(c.id, {
-      naive: naive.has(c.id),
-      faltings: faltings.has(c.id),
-      conductor: conductor.has(c.id),
-      discriminant: discriminant.has(c.id),
-    })
-  }
+  for (const [id, f] of boardRecords(board)) if (wanted.has(id)) flags.set(id, f)
   return flags
 }
 
