@@ -703,7 +703,7 @@ function curveTableRow(c: TableCurve, hidden = false, records: MetricRecords = {
             <td><a href="/curve/${c.id}">#${c.id}</a></td>
             <td><code>[${ainvs.map((a) => escapeHtml(clip(a, 14))).join(', ')}]</code></td>
             <td class="num"><a class="rank-link" href="/curves?minrank=${c.rank_lower_bound}&amp;rankmode=eq" title="show only curves with rank lower bound = ${c.rank_lower_bound}">&ge; ${c.rank_lower_bound}</a></td>
-            <td>${tKey != null && tHtml != null ? `<a class="torsion-link" href="/curves?torsion=${tKey}" title="show only curves with this torsion subgroup">${tHtml}</a>` : unknown}</td>
+            <td class="torsion">${tKey != null && tHtml != null ? `<a class="torsion-link" href="/curves?torsion=${tKey}" title="show only curves with this torsion subgroup">${tHtml}</a>` : unknown}</td>
             ${metricTd(records.conductor, logCond != null ? logCond.toFixed(2) : unknown)}
             ${metricTd(records.naive, c.naive_height.toFixed(2))}
             ${metricTd(records.faltings, c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown)}
@@ -853,11 +853,11 @@ export function curveTablePage(
             ${sortHeader('id', 'curve', '')}
             <th>a-invariants</th>
             ${sortHeader('rank', 'rank')}
-            <th>torsion</th>
+            <th class="torsion">torsion</th>
             ${sortHeader('conductor', 'log N', 'num', 'log conductor')}
             ${sortHeader('naive', 'naive height')}
             ${sortHeader('faltings', 'Faltings height')}
-            ${sortHeader('disc', 'log |&Delta;|')}
+            ${sortHeader('disc', '<span class="nowrap">log |&Delta;|</span>')}
           </tr>
         </thead>
         <tbody>
@@ -1496,11 +1496,11 @@ function submittedCurvesSection(curves: TableCurve[], records: Map<number, Recor
               <th>curve</th>
               <th>a-invariants</th>
               <th class="num">rank</th>
-              <th>torsion</th>
+              <th class="torsion">torsion</th>
               <th class="num" title="log conductor">log N</th>
               <th class="num">naive height</th>
               <th class="num">Faltings height</th>
-              <th class="num">log |&Delta;|</th>
+              <th class="num"><span class="nowrap">log |&Delta;|</span></th>
             </tr>
           </thead>
           <tbody>

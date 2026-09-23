@@ -1269,9 +1269,12 @@ a.external::after {
   .browse-cta .cta-sep { display: none; }
   /* Drop the wide a-invariants column (2nd) — the curve link has the details. */
   .curves-table th:nth-child(2), .curves-table td:nth-child(2) { display: none; }
+  /* Likewise the torsion column; the torsion filter above still works. */
+  .curves-table th.torsion, .curves-table td.torsion { display: none; }
   .curves-table { font-size: 0.85rem; }
   .curves-table th, .curves-table td { padding: 0.35rem 0.4rem; }
   .curves-table th.num { white-space: normal; } /* let "Faltings height" wrap */
+  .curves-table th .nowrap { white-space: nowrap; } /* but keep "log |Δ|" whole */
   /* No room for the ★ on narrow screens — the highlight alone marks records. */
   .curves-table td.record::before { content: none; }
   .eq { font-size: 1rem; word-break: break-word; }
