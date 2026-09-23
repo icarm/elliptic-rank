@@ -467,7 +467,14 @@ pre code {
   display: none;
 }
 
-.plot-metrics label span {
+.plot-metrics .short { display: none; }
+
+@media (max-width: 600px) {
+  .plot-metrics .long { display: none; }
+  .plot-metrics .short { display: inline; }
+}
+
+.plot-metrics label > span {
   display: inline-block;
   padding: 0.45rem 0.9rem;
   margin-bottom: -1px; /* overlap the container's bottom border */
@@ -476,7 +483,7 @@ pre code {
   cursor: pointer;
 }
 
-.plot-metrics label:hover span {
+.plot-metrics label:hover > span {
   color: var(--accent);
 }
 
@@ -1268,6 +1275,20 @@ a.external::after {
   .browse-cta a { display: block; margin: 0.35rem 0; }
   .browse-cta .cta-sep { display: none; }
   /* Drop the wide a-invariants column (2nd) — the curve link has the details. */
+  /* Plot switcher: short metric labels so the four tabs fit one row, and the
+     torsion/best-only controls on their own line below the tab underline. */
+  .plot-tabs { border-bottom: none; }
+  .plot-tabs .plot-metrics {
+    display: flex;
+    flex-basis: 100%;
+    border-bottom: 1px solid var(--border);
+  }
+  .plot-metrics label > span { padding: 0.45rem 0.6rem; }
+  .plot-controls {
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: space-between;
+  }
   .curves-table th:nth-child(2), .curves-table td:nth-child(2) { display: none; }
   /* Likewise the torsion column; the torsion filter above still works. */
   .curves-table th.torsion, .curves-table td.torsion { display: none; }

@@ -553,7 +553,7 @@ export function landingPage(
   const torsionSel = groups.some((g) => g.key === torsion) ? torsion! : null
   if (torsionSel != null) curves = curves.filter((c) => c.torsion != null && torsionKey(c.torsion) === torsionSel)
   const torsionOptions = [`<option value=""${torsionSel == null ? ' selected' : ''}>any</option>`]
-    .concat(groups.map((g) => `<option value="${g.key}"${g.key === torsionSel ? ' selected' : ''}>${g.label} (${g.count})</option>`))
+    .concat(groups.map((g) => `<option value="${g.key}"${g.key === torsionSel ? ' selected' : ''}>${g.label}</option>`))
     .join('')
   const inner = `
       <section class="hero">
@@ -562,9 +562,9 @@ export function landingPage(
       <section class="board${showAll ? '' : ' best-only'}">
         <div class="plot-tabs">
           <span class="plot-metrics" role="radiogroup" aria-label="plot measure">
-            <label title="Natural log of the conductor. Recorded when a submission supplies the primes of bad reduction."><input type="radio" name="plot-metric" value="conductor"${sel === 'conductor' ? ' checked' : ''} /><span>log conductor</span></label>
-            <label title="log max(|c4|^3, |c6|^2) of the global minimal model. Recorded for every curve."><input type="radio" name="plot-metric" value="naive"${sel === 'naive' ? ' checked' : ''} /><span>naive height</span></label>
-            <label title="Stable Faltings height (LMFDB normalization). Recorded for every curve."><input type="radio" name="plot-metric" value="faltings"${sel === 'faltings' ? ' checked' : ''} /><span>Faltings height</span></label>
+            <label title="Natural log of the conductor. Recorded when a submission supplies the primes of bad reduction."><input type="radio" name="plot-metric" value="conductor"${sel === 'conductor' ? ' checked' : ''} /><span><span class="long">log conductor</span><span class="short">log N</span></span></label>
+            <label title="log max(|c4|^3, |c6|^2) of the global minimal model. Recorded for every curve."><input type="radio" name="plot-metric" value="naive"${sel === 'naive' ? ' checked' : ''} /><span><span class="long">naive height</span><span class="short">naive</span></span></label>
+            <label title="Stable Faltings height (LMFDB normalization). Recorded for every curve."><input type="radio" name="plot-metric" value="faltings"${sel === 'faltings' ? ' checked' : ''} /><span><span class="long">Faltings height</span><span class="short">Faltings</span></span></label>
             <label title="Natural log of the absolute discriminant of the global minimal model. Recorded for every curve."><input type="radio" name="plot-metric" value="disc"${sel === 'disc' ? ' checked' : ''} /><span>log |&Delta;|</span></label>
           </span>
           <form class="plot-controls" method="get" action="/">
@@ -763,7 +763,7 @@ export function curveTablePage(
   const pageTitle = rankPhrase || torsionPhrase ? `Curves with ${[rankPhrase, torsionPhrase].filter((x) => x != null).join(' and ')}` : 'All curves'
   const heading = escapeHtml(pageTitle)
   const torsionOptions = [`<option value="">any</option>`]
-    .concat(groups.map((g) => `<option value="${g.key}" data-label="${g.label}"${g === torsionGroup ? ' selected' : ''}>${g.label} (${g.count})</option>`))
+    .concat(groups.map((g) => `<option value="${g.key}" data-label="${g.label}"${g === torsionGroup ? ' selected' : ''}>${g.label}</option>`))
     .join('')
   // Record cells: for each metric, a curve is a record when no curve of equal
   // or higher rank has a strictly smaller value (ties share it) — the same
@@ -943,25 +943,21 @@ function torsionFactors(torsion: string): number[] | null {
   return factors as number[]
 }
 
-// The torsion subgroups present among `curves`, with how many curves have
-// each, in Mazur's order: trivial, then cyclic by order, then Z/2 x Z/2n.
-// Labels are plain text (for <option>), e.g. "ℤ/2ℤ × ℤ/4ℤ".
-function torsionGroups(curves: PlotCurve[]): { key: string; label: string; count: number }[] {
-  const byKey = new Map<string, { factors: number[]; count: number }>()
+// The torsion subgroups present among `curves`, in Mazur's order: trivial,
+// then cyclic by order, then Z/2 x Z/2n. Labels are plain text (for
+// <option>), e.g. "ℤ/2ℤ × ℤ/4ℤ".
+function torsionGroups(curves: PlotCurve[]): { key: string; label: string }[] {
+  const byKey = new Map<string, number[]>()
   for (const c of curves) {
     const factors = c.torsion == null ? null : torsionFactors(c.torsion)
     if (factors == null) continue
-    const key = factors.length === 0 ? 'trivial' : factors.join('x')
-    const g = byKey.get(key)
-    if (g) g.count++
-    else byKey.set(key, { factors, count: 1 })
+    byKey.set(factors.length === 0 ? 'trivial' : factors.join('x'), factors)
   }
   return [...byKey.entries()]
-    .sort(([, a], [, b]) => a.factors.length - b.factors.length || (a.factors.at(-1) ?? 0) - (b.factors.at(-1) ?? 0))
-    .map(([key, { factors, count }]) => ({
+    .sort(([, a], [, b]) => a.length - b.length || (a.at(-1) ?? 0) - (b.at(-1) ?? 0))
+    .map(([key, factors]) => ({
       key,
       label: factors.length === 0 ? 'trivial' : factors.map((n) => `\u2124/${n}\u2124`).join(' \u00d7 '),
-      count,
     }))
 }
 
