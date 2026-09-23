@@ -59,7 +59,7 @@ app.get('/', async (c) => {
   const from = Number(c.req.query('from'))
   const [curves, prefill] = await Promise.all([
     plotCurves(c.env),
-    Number.isInteger(from) && from > 0 ? loadWitness(c.env, from) : Promise.resolve(null),
+    Number.isInteger(from) && from >= 0 ? loadWitness(c.env, from) : Promise.resolve(null),
   ])
   return c.html(landingPage(c.get('user'), curves, c.req.query('metric'), c.req.query('show'), prefill, c.req.query('torsion')))
 })

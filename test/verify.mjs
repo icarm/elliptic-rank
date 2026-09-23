@@ -373,3 +373,44 @@ if (!manyPrimes.errors.some((e) => e.includes('too many primes'))) {
 } else {
   console.log('oversized prime list rejected OK')
 }
+
+// Zero points: a rank >= 0 submission. Nothing to certify, but every invariant
+// is still computed. 11a3 is the curve migrations/0013 seeds as #0, so these
+// are the values that migration hard-codes.
+const r11a3 = verify(gp, { ainvs: ['0', '-1', '1', '0', '0'], points: [] })
+const r11a3Expected = {
+  ok: true,
+  rank: 0,
+  key: '16:-152',
+  disc: '-11',
+  conductor: '11',
+  torsion: '[5]',
+  regulator: '1',
+  naive: 10.047761041692553,
+  faltings: -1.1127287973354532,
+}
+const r11a3Got = {
+  ok: r11a3.ok,
+  rank: r11a3.independence?.rankLowerBound,
+  key: r11a3.canonical?.key,
+  disc: r11a3.curve?.discriminant,
+  conductor: r11a3.conductor,
+  torsion: r11a3.torsion,
+  regulator: r11a3.independence?.regulator,
+  naive: Number(r11a3.height?.naiveLogHeight),
+  faltings: Number(r11a3.faltingsHeight),
+}
+if (JSON.stringify(r11a3Got) !== JSON.stringify(r11a3Expected)) {
+  console.error(`FAIL: zero-point 11a3: got ${JSON.stringify(r11a3Got)}`)
+  process.exitCode = 1
+} else {
+  console.log('zero-point submission OK: 11a3 at rank >= 0, torsion [5]')
+}
+
+const noPointsKey = verify(gp, { ainvs: ['0', '-1', '1', '0', '0'] })
+if (!noPointsKey.errors.some((e) => e.includes('points must be a list'))) {
+  console.error('FAIL: a body without a points list should be rejected')
+  process.exitCode = 1
+} else {
+  console.log('missing points list rejected OK')
+}

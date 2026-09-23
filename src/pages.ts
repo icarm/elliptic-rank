@@ -160,6 +160,11 @@ interface PlotPoint {
   x: number
 }
 
+// Empty rank-width on the left of the rank axis, so rank-0 dots sit inside
+// the plot rather than on the vertical axis. progress.js reads it from the
+// page's geometry.
+const RANK_PAD = 0.5
+
 // The values that set a plot's vertical scale: those of the curves that place
 // in the top BOARD_TOP_K among curves of rank >= their own, i.e. the rule of
 // the entry gate. Scaling to these (rather than to every curve) keeps a
@@ -240,7 +245,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   qmin -= qpad
   qmax += qpad
   const rankMax = Math.max(...pts.map((p) => p.rank)) + 1
-  const X = (r: number) => L + (r / rankMax) * plotW
+  const X = (r: number) => L + ((r + RANK_PAD) / (rankMax + RANK_PAD)) * plotW
   const Y = (q: number) => T + plotH - ((q - qmin) / (qmax - qmin)) * plotH
 
   let grid = ''
@@ -248,7 +253,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   // integer rank is clickable: labeled ranks use their number as the target,
   // unlabeled ones get a small tick mark, and each owns a full-width hit column.
   const rStep = rankMax <= 16 ? 1 : Math.ceil(rankMax / 12)
-  const dx = plotW / rankMax // x-distance between adjacent integer ranks
+  const dx = plotW / (rankMax + RANK_PAD) // x-distance between adjacent integer ranks
   for (let r = 0; r <= rankMax; r++) {
     const x = X(r)
     const labeled = r % rStep === 0
@@ -258,11 +263,10 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
     const label = labeled
       ? `<text class="tick" x="${x.toFixed(1)}" y="${T + plotH + 18}" text-anchor="middle">${r}</text>`
       : ''
-    // r = 0 is the axis origin (rank ≥ 0 = everything) and rankMax is empty
-    // padding past the data, so link only the real ranks 1..rankMax-1. Every
-    // rank gets a tick mark: a short one under the numbered ranks, a taller one
-    // for the in-between ranks that have no label.
-    if (r >= 1 && r < rankMax) {
+    // rankMax is empty padding past the data, so link only the real ranks
+    // 0..rankMax-1. Every rank gets a tick mark: a short one under the numbered
+    // ranks, a taller one for the in-between ranks that have no label.
+    if (r < rankMax) {
       const tickLen = labeled ? 5 : 10
       const mark = `<line class="tick-mark" x1="${x.toFixed(1)}" y1="${T + plotH}" x2="${x.toFixed(1)}" y2="${T + plotH + tickLen}"/>`
       const hit = `<rect class="tick-hit" x="${(x - dx / 2).toFixed(1)}" y="${T + plotH}" width="${dx.toFixed(1)}" height="22"/>`
@@ -360,7 +364,7 @@ export function progressPage(
   const W = 900, H = 540, L = 68, R = 28, T = 22, B = 54
   const plotW = W - L - R, plotH = H - T - B
   const rankMax = Math.max(...pts.map((p) => p.rank)) + 1
-  const X = (r: number) => L + (r / rankMax) * plotW
+  const X = (r: number) => L + ((r + RANK_PAD) / (rankMax + RANK_PAD)) * plotW
   const scaleForMetric = (metric: ProgressMetric): { qmin: number; qmax: number } => {
     // Scale to the curves in the top BOARD_TOP_K among rank >= their own, like
     // the home-page plots (see scaleValues); progress.js mirrors this, so keep
@@ -454,7 +458,7 @@ export function progressPage(
   const progressData = JSON.stringify({
     points: pts,
     referenceCurves: referenceCurves.map(({ key, c, label, equation }) => ({ key, c, label, equation })),
-    geometry: { T, plotH, L, rankMax, plotW, plotRight: W - R, topK: BOARD_TOP_K },
+    geometry: { T, plotH, L, rankMax, rankPad: RANK_PAD, plotW, plotRight: W - R, topK: BOARD_TOP_K },
   }).replace(/</g, '\\u003c')
   const metricControls = (['conductor', 'naive', 'faltings', 'disc'] as const)
     .map((key) => `<label><input type="radio" name="progress-metric" value="${key}"${key === selectedMetric ? ' checked' : ''} /><span>${metricLabels[key]}</span></label>`)
@@ -628,8 +632,8 @@ export function landingPage(
         <h2>Submit a curve</h2>
         ${
           prefill
-            ? `<p class="prefill-note">Prefilled with the equation and the ${prefill.points.length}-point witness of
-        <a href="/curve/${prefill.id}">curve #${prefill.id}</a>. Add your new point(s) below the existing ones and submit
+            ? `<p class="prefill-note">Prefilled with the equation${prefill.points.length ? ` and the ${prefill.points.length}-point witness` : ''} of
+        <a href="/curve/${prefill.id}">curve #${prefill.id}</a>. Add your new point(s)${prefill.points.length ? ' below the existing ones' : ''} and submit
         to improve its rank bound.</p>`
             : ''
         }
@@ -638,7 +642,8 @@ export function landingPage(
         computation (quadratic characters at good primes, after
         <a href="https://johncremona.github.io/papers/filter.pdf">Cremona</a>/Brumer) &mdash; the points
         are proven independent in <span class="eqi">E(&#8474;)</span> modulo torsion, so
-        rank &ge; the number of points, with no floating-point arithmetic in the decision. Supplying the
+        rank &ge; the number of points, with no floating-point arithmetic in the decision. With no points,
+        the curve is recorded at rank &ge; 0. Supplying the
         primes of bad reduction additionally records its conductor.</p>
         <div class="eq-line">
           <span class="eq">y<sup>2</sup> + a<sub>1</sub>xy + a<sub>3</sub>y = x<sup>3</sup> + a<sub>2</sub>x<sup>2</sup> + a<sub>4</sub>x + a<sub>6</sub></span>
@@ -651,8 +656,8 @@ export function landingPage(
             } />
           </label>
           <label class="field">
-            <span>points <span class="muted">&mdash; one per line, <code>x, y</code> (integers or rationals like <code>3/16</code>); bracketed forms such as <code>(x, y)</code> from a curve page or a PARI vector <code>[[x, y], ...]</code> are accepted too</span></span>
-            <textarea name="points" rows="12" ${user ? 'required' : 'disabled'} placeholder="${escapeHtml(SAMPLE_POINTS)}">${
+            <span>points <span class="muted">&mdash; leave empty for rank &ge; 0; one per line, <code>x, y</code> (integers or rationals like <code>3/16</code>); bracketed forms such as <code>(x, y)</code> from a curve page or a PARI vector <code>[[x, y], ...]</code> are accepted too</span></span>
+            <textarea name="points" rows="12" ${user ? '' : 'disabled'} placeholder="${escapeHtml(SAMPLE_POINTS)}">${
               prefill ? escapeHtml(prefill.points.map(([x, y]) => `${x}, ${y}`).join('\n')) : ''
             }</textarea>
           </label>
@@ -755,7 +760,7 @@ export function curveTablePage(
     (hasFilter && (eq ? c.rank_lower_bound !== n : c.rank_lower_bound < n)) ||
     (torsionGroup != null && (c.torsion == null || torsionKey(c.torsion) !== torsionGroup.key))
   const shown = sorted.filter((c) => !rowHidden(c)).length
-  const restricted = hasFilter && (eq || n > 1)
+  const restricted = hasFilter && (eq || n > 0)
   // Plain text (curves.js builds the same string): e.g. "Curves with rank
   // lower bound ≥ 5 and torsion ℤ/2ℤ", "Curves with trivial torsion".
   const torsionPhrase = torsionGroup == null ? null : torsionGroup.key === 'trivial' ? 'trivial torsion' : `torsion ${torsionGroup.label}`
@@ -833,7 +838,7 @@ export function curveTablePage(
             <option value="gte">&ge;</option>
             <option value="eq"${eq ? ' selected' : ''}>=</option>
           </select>
-          <input id="rank-filter" name="minrank" type="number" min="1" step="1" placeholder="${eq ? 'any' : '1'}" value="${hasFilter ? n : ''}" />
+          <input id="rank-filter" name="minrank" type="number" min="0" step="1" placeholder="${eq ? 'any' : '0'}" value="${hasFilter ? n : ''}" />
         </label>
         <label class="rank-filter">torsion
           <select id="torsion-filter" name="torsion" aria-label="torsion subgroup">${torsionOptions}</select>
@@ -1112,7 +1117,7 @@ export function curveDetailPage(
         ${historyRow}
       </dl>
       <section class="witness">
-        <h3>Witness: ${points.length} independent points
+        <h3>Witness: ${points.length ? `${points.length} independent point${points.length === 1 ? '' : 's'}` : 'no points (rank &ge; 0 needs none)'}
           ${
             user
               ? `<a class="improve-link" href="/?from=${curve.id}#submit" title="open the submission form prefilled with this curve and its witness points">add more points &rarr;</a>`
@@ -1290,7 +1295,7 @@ export function submitResultPage(
         <h2>&#10003; ${wrote ? 'Accepted' : 'Verified'}: rank &ge; ${ind.rankLowerBound}</h2>
         ${declined ? leaderboardStatus(submit) : ''}
         <dl class="result-meta">
-          <dt>points</dt><dd>${result.points.length}, all on the curve and independent</dd>
+          <dt>points</dt><dd>${result.points.length ? `${result.points.length}, all on the curve and independent` : 'none (rank &ge; 0)'}</dd>
           ${
             ind.certificate
               ? `<dt>certificate</dt><dd>quadratic characters at ${ind.certificate.primes.length} good primes (2-descent, exact)</dd>`
@@ -1394,7 +1399,8 @@ export function apiDocsPage(user: User | null = null): string {
       original submitter's credit in place (the improvement is credited to you in the curve's
       history and on your public page). Accepted curves and
       witness points are stored in the curve's global minimal model. Body:
-      <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>.</p>
+      <code>{ ainvs, points }</code>, where <code>points</code> is a list of <code>[x, y]</code>
+      (an empty list submits the curve at rank &ge; 0).</p>
       <p>The <strong>discriminant</strong> and <strong>Faltings height</strong> are recorded for every
       curve (neither needs the primes). Optionally include <code>primes</code>: the primes of bad
       reduction, equivalently the primes dividing the minimal discriminant. If they check out, the

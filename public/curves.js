@@ -37,8 +37,8 @@
     var hasFilter = /^[0-9]+$/.test(rankInput.value);
     var n = Number(rankInput.value);
     var eq = rankOp.value === 'eq';
-    // "=" with an empty box means no filter (any rank); ">=" defaults to 1.
-    rankInput.placeholder = eq ? 'any' : '1';
+    // "=" with an empty box means no filter (any rank); ">=" defaults to 0.
+    rankInput.placeholder = eq ? 'any' : '0';
     var torsion = torsionSel.value;
     var shown = 0;
     rows.forEach(function (r) {
@@ -53,9 +53,9 @@
       b.className = 'sort' + (b.dataset.key === sortKey ? (sortDir === 1 ? ' asc' : ' desc') : '');
     });
     // The heading names the current view: "All curves" when unfiltered
-    // (including ">= 1", which every curve satisfies), the rank and torsion
+    // (including ">= 0", which every curve satisfies), the rank and torsion
     // restrictions otherwise — same condition as the query string below.
-    var restricted = hasFilter && (eq || n > 1);
+    var restricted = hasFilter && (eq || n > 0);
     var phrases = [];
     if (restricted) phrases.push('rank lower bound ' + (eq ? '= ' : '\u2265 ') + n);
     if (torsion === 'trivial') phrases.push('trivial torsion');
@@ -68,7 +68,7 @@
       q.set('sort', sortKey);
       if (sortDir === -1) q.set('dir', 'desc');
     }
-    // Persist the value whenever it filters: any value in "=" mode, or >1 in ">=" mode.
+    // Persist the value whenever it filters: any value in "=" mode, or >0 in ">=" mode.
     if (restricted) q.set('minrank', String(n));
     if (eq) q.set('rankmode', 'eq');
     if (torsion !== '') q.set('torsion', torsion);

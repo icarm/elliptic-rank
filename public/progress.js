@@ -14,7 +14,7 @@
     faltings: { label: 'Faltings height', format: (v) => v.toFixed(2) },
     disc: { label: 'log |discriminant|', format: (v) => v.toFixed(0) },
   };
-  const { T, plotH, L, rankMax: RANK_MAX, plotW: PLOT_W, plotRight: PLOT_RIGHT, topK: TOP_K } = data.geometry;
+  const { T, plotH, L, rankMax: RANK_MAX, rankPad: RANK_PAD, plotW: PLOT_W, plotRight: PLOT_RIGHT, topK: TOP_K } = data.geometry;
   const startSlider = document.getElementById('progress-start');
   const startCurrent = document.getElementById('progress-start-current');
   const slider = document.getElementById('progress-id');
@@ -88,7 +88,7 @@
   }
 
   function xForRank(rank) {
-    return L + (rank / RANK_MAX) * PLOT_W;
+    return L + ((rank + RANK_PAD) / (RANK_MAX + RANK_PAD)) * PLOT_W;
   }
 
   function referenceGeometry(c, scale) {

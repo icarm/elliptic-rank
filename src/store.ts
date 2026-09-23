@@ -476,7 +476,7 @@ export async function recordCurve(
   const faltings = result.faltingsHeight != null ? toFloat(result.faltingsHeight) : null
   // Torsion structure (JSON array string) — intrinsic to the curve, write-once.
   // Computed in the certificate stage, which every verified submission passes
-  // through (a submission needs at least one point), so it is always present.
+  // through (a zero-point one included), so it is always present.
   if (result.torsion == null) throw new Error('internal: verified curve without torsion structure')
   const torsion: string = result.torsion
 

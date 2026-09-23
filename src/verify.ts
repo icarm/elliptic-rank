@@ -613,8 +613,10 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
   let primes: string[]
   try {
     ainvs = normalizeAinvs(input.ainvs ?? [])
-    const rawPts = input.points ?? []
-    if (!Array.isArray(rawPts) || rawPts.length === 0) throw new InputError('no points provided')
+    // An empty list is a rank >= 0 submission: nothing to certify, but the
+    // curve's invariants (torsion included) are still computed and recorded.
+    const rawPts = input.points
+    if (!Array.isArray(rawPts)) throw new InputError('points must be a list of [x, y] (empty for rank ≥ 0)')
     if (rawPts.length > MAX_POINTS) throw new InputError(`too many points (max ${MAX_POINTS})`)
     pts = rawPts.map((p, i) => {
       if (!Array.isArray(p) || p.length !== 2) throw new InputError(`point[${i}] must be [x,y]`)
@@ -759,7 +761,9 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
         : null,
       regulator,
       precisionDigits: prec,
-      method: independent
+      method: n === 0
+        ? 'no points submitted: rank ≥ 0 needs no certificate (torsion computed exactly)'
+        : independent
         ? `exact 2-descent certificate (Cremona/Brumer): quadratic-character images at ` +
           `${certPrimes.length} good primes give an F_2 matrix of rank ${matrixRank} ` +
           `(torsion rows: rank ${torsionRank}), proving the ${n} points independent modulo ` +
