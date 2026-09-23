@@ -978,6 +978,23 @@ function torsionGroupHtml(torsion: string): string | null {
   return `<span class="eqi">${factors.map((n) => `&#8484;/${n}&#8484;`).join(' &times; ')}</span>`
 }
 
+// A stored torsion structure's URL key, display HTML, and name as a record
+// ("trivial torsion", "ℤ/5ℤ torsion"), for badges and links. Null when the
+// value is missing or doesn't parse.
+interface TorsionLabel {
+  key: string
+  html: string
+  recordName: string
+}
+
+function torsionLabel(torsion: string | null | undefined): TorsionLabel | null {
+  if (torsion == null) return null
+  const key = torsionKey(torsion)
+  const html = torsionGroupHtml(torsion)
+  if (key == null || html == null) return null
+  return { key, html, recordName: key === 'trivial' ? 'trivial torsion' : `${html} torsion` }
+}
+
 // URL key for a stored torsion structure: "trivial", or the invariant factors
 // joined by "x" (e.g. "2x4"). Null when the stored value doesn't parse.
 function torsionKey(torsion: string): string | null {
@@ -1029,14 +1046,12 @@ function badge(isRecord: boolean, rank: number, sort: string): string {
 // The badge for a record within the curve's torsion subgroup, shown only where
 // the curve has no overall record (which would imply it). Styled like the
 // overall badge but with a hollow star (☆ vs ★), the lesser record; the text
-// says which record it is. Links to the table filtered
-// to that rank and subgroup.
+// says which record it is. Links to the table filtered to that rank and
+// subgroup.
 function torsionBadge(isRecord: boolean, rank: number, sort: string, torsion: string): string {
-  const key = torsionKey(torsion)
-  const group = torsionGroupHtml(torsion)
-  if (!isRecord || key == null || group == null) return ''
-  const name = key === 'trivial' ? 'trivial torsion' : `${group} torsion`
-  return ` <a class="record-badge torsion-badge" href="/curves?sort=${sort}&amp;minrank=${rank}&amp;torsion=${key}" title="smallest on the board among curves of rank &ge; ${rank} with this torsion subgroup">&#9734; record for ${name}, rank &ge; ${rank}</a>`
+  const t = torsionLabel(torsion)
+  if (!isRecord || t == null) return ''
+  return ` <a class="record-badge torsion-badge" href="/curves?sort=${sort}&amp;minrank=${rank}&amp;torsion=${t.key}" title="smallest on the board among curves of rank &ge; ${rank} with this torsion subgroup">&#9734; record for ${t.recordName}, rank &ge; ${rank}</a>`
 }
 
 // Escape commentary, turning `curve#<id>` tokens into links to that curve.
@@ -1242,7 +1257,7 @@ function activityRecordBadges(
   overall: RecordFlags | undefined,
   inGroup: RecordFlags | undefined,
   rank: number,
-  torsion: string | null,
+  t: TorsionLabel | null,
 ): string {
   let out = ''
   const held = ACTIVITY_METRICS.filter(([m]) => overall?.[m])
@@ -1250,13 +1265,10 @@ function activityRecordBadges(
     const links = held.map(([, sort, name]) => `<a href="/curves?sort=${sort}&amp;minrank=${rank}">${name}</a>`)
     out += ` <span class="record-badge activity-badge" title="smallest on the board among curves of rank &ge; ${rank}">&#9733; record for rank &ge; ${rank}: ${links.join(', ')}</span>`
   }
-  const key = torsion != null ? torsionKey(torsion) : null
-  const group = torsion != null ? torsionGroupHtml(torsion) : null
   const groupOnly = ACTIVITY_METRICS.filter(([m]) => inGroup?.[m] && !overall?.[m])
-  if (key != null && group != null && groupOnly.length > 0) {
-    const name = key === 'trivial' ? 'trivial torsion' : `${group} torsion`
-    const links = groupOnly.map(([, sort, n]) => `<a href="/curves?sort=${sort}&amp;minrank=${rank}&amp;torsion=${key}">${n}</a>`)
-    out += ` <span class="record-badge torsion-badge activity-badge" title="smallest on the board among curves of rank &ge; ${rank} with this torsion subgroup">&#9734; record for ${name}, rank &ge; ${rank}: ${links.join(', ')}</span>`
+  if (t != null && groupOnly.length > 0) {
+    const links = groupOnly.map(([, sort, name]) => `<a href="/curves?sort=${sort}&amp;minrank=${rank}&amp;torsion=${t.key}">${name}</a>`)
+    out += ` <span class="record-badge torsion-badge activity-badge" title="smallest on the board among curves of rank &ge; ${rank} with this torsion subgroup">&#9734; record for ${t.recordName}, rank &ge; ${rank}: ${links.join(', ')}</span>`
   }
   return out
 }
@@ -1276,12 +1288,11 @@ export function activityPage(
     const meta = `<p class="activity-meta">${utcTime(a.ts)} &middot; ${userLink(a.user_id, a.user)}</p>`
     // Nontrivial torsion (trivial or unrecorded shows nothing), linking to the
     // table filtered to that subgroup.
-    const tKey = a.torsion != null ? torsionKey(a.torsion) : null
-    const tHtml = a.torsion != null ? torsionGroupHtml(a.torsion) : null
-    const tors = tKey != null && tKey !== 'trivial' && tHtml != null
-      ? `torsion <a href="/curves?torsion=${tKey}" title="show only curves with this torsion subgroup">${tHtml}</a>, `
+    const t = torsionLabel(a.torsion)
+    const tors = t != null && t.key !== 'trivial'
+      ? `torsion <a href="/curves?torsion=${t.key}" title="show only curves with this torsion subgroup">${t.html}</a>, `
       : ''
-    const context = `${tors}log |&Delta;| = ${logBigInt(a.discriminant).toFixed(2)}${activityRecordBadges(records.overall.get(a.curve_id), records.torsion.get(a.curve_id), a.rank, a.torsion)}`
+    const context = `${tors}log |&Delta;| = ${logBigInt(a.discriminant).toFixed(2)}${activityRecordBadges(records.overall.get(a.curve_id), records.torsion.get(a.curve_id), a.rank, t)}`
     if (a.kind === 'submission') {
       return `<li>
           ${meta}
