@@ -1305,6 +1305,9 @@ a.external::after {
   }
   /* Drop the torsion column too; the torsion filter above still works. */
   .curves-table th.torsion, .curves-table td.torsion { display: none; }
+  /* and compact further so the six remaining columns fit a 390px phone */
+  .curves-table { font-size: 0.8rem; }
+  .curves-table th, .curves-table td { padding: 0.35rem 0.25rem; }
   /* No room for the ★ on narrow screens — the highlight alone marks records. */
   .curves-table td.record::before, .curves-table td.torsion-record::before { content: none; }
   .eq { font-size: 1rem; word-break: break-word; }
