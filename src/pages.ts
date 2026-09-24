@@ -761,8 +761,11 @@ export function curveTablePage(
 ): string {
   const KEYS = ['id', 'rank', 'naive', 'faltings', 'conductor', 'disc'] as const
   type SortKey = (typeof KEYS)[number]
-  const sortKey: SortKey = (KEYS as readonly string[]).includes(query.sort ?? '') ? (query.sort as SortKey) : 'conductor'
-  const sortDir = query.dir === 'desc' ? -1 : 1
+  // Default: highest rank first. An explicit ?sort= is ascending unless
+  // ?dir=desc.
+  const explicitSort = (KEYS as readonly string[]).includes(query.sort ?? '')
+  const sortKey: SortKey = explicitSort ? (query.sort as SortKey) : 'rank'
+  const sortDir = !explicitSort || query.dir === 'desc' ? -1 : 1
   // Numeric sort values, matching the rows' data attributes that the inline
   // script sorts by; null = missing, sorts last in either direction.
   const sortVal = (c: TableCurve): number | null => {
@@ -775,12 +778,17 @@ export function curveTablePage(
       case 'disc': return logBigInt(c.discriminant)
     }
   }
-  const sorted = [...curves].sort((a, b) => {
-    const av = sortVal(a), bv = sortVal(b)
+  // Missing values last either way; ties (common for rank) by increasing
+  // conductor, then id. curves.js sorts the same way.
+  const byNullsLast = (av: number | null, bv: number | null, dir: number): number => {
     if (av == null) return bv == null ? 0 : 1
     if (bv == null) return -1
-    return (av - bv) * sortDir
-  })
+    return (av - bv) * dir
+  }
+  const sorted = curves
+    .map((c) => ({ c, v: sortVal(c), lc: c.conductor != null ? logBigInt(c.conductor) : null }))
+    .sort((a, b) => byNullsLast(a.v, b.v, sortDir) || byNullsLast(a.lc, b.lc, 1) || a.c.id - b.c.id)
+    .map((x) => x.c)
   const hasFilter = /^[0-9]+$/.test(query.minrank ?? '')
   const n = Number(query.minrank)
   const eq = query.rankmode === 'eq'
@@ -833,7 +841,7 @@ export function curveTablePage(
   const headerHref = (key: string): string => {
     const dir = key === sortKey ? -sortDir : key === 'rank' ? -1 : 1
     const q = new URLSearchParams()
-    if (key !== 'conductor' || dir !== 1) {
+    if (key !== 'rank' || dir !== -1) {
       q.set('sort', key)
       if (dir === -1) q.set('dir', 'desc')
     }
@@ -862,7 +870,7 @@ export function curveTablePage(
         <label class="rank-filter">torsion
           <select id="torsion-filter" name="torsion" aria-label="torsion subgroup">${torsionOptions}</select>
         </label>${
-          sortKey !== 'conductor' || sortDir !== 1
+          sortKey !== 'rank' || sortDir !== -1
             ? `
         <input type="hidden" name="sort" value="${sortKey}" />${sortDir === -1 ? '\n        <input type="hidden" name="dir" value="desc" />' : ''}`
             : ''

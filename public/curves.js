@@ -11,8 +11,8 @@
   var count = document.getElementById('curve-count');
   var heading = document.getElementById('table-title');
   var buttons = document.querySelectorAll('a.sort');
-  var sortKey = 'conductor';
-  var sortDir = 1; // 1 = ascending, -1 = descending; default: smallest conductor first
+  var sortKey = 'rank';
+  var sortDir = -1; // 1 = ascending, -1 = descending; default: highest rank first
   var lastTorsion = null; // the torsion filter the record highlights were last set for
 
   var params = new URLSearchParams(location.search);
@@ -26,12 +26,19 @@
   if (params.get('torsion')) torsionSel.value = params.get('torsion');
   if (torsionSel.selectedIndex < 0) torsionSel.value = '';
 
+  function compare(av, bv, dir) {
+    if (av === '') return bv === '' ? 0 : 1; // missing values last either way
+    if (bv === '') return -1;
+    return (Number(av) - Number(bv)) * dir;
+  }
+
   function apply() {
+    // Ties (common for rank) by increasing conductor, then id, so the order
+    // does not depend on earlier sorts; same as curveTablePage.
     rows.sort(function (a, b) {
-      var av = a.dataset[sortKey], bv = b.dataset[sortKey];
-      if (av === '') return bv === '' ? 0 : 1; // missing values last either way
-      if (bv === '') return -1;
-      return (Number(av) - Number(bv)) * sortDir;
+      return compare(a.dataset[sortKey], b.dataset[sortKey], sortDir) ||
+        compare(a.dataset.conductor, b.dataset.conductor, 1) ||
+        Number(a.dataset.id) - Number(b.dataset.id);
     });
     // Rank values are proven lower bounds. Empty input = no filter;
     // otherwise restrict to lower bound == n ("=") or lower bound >= n (">=").
@@ -88,7 +95,7 @@
     heading.textContent = title;
     document.title = title + ' \u2014 Elliptic Curve Rank Leaderboard';
     var q = new URLSearchParams();
-    if (sortKey !== 'conductor' || sortDir !== 1) {
+    if (sortKey !== 'rank' || sortDir !== -1) {
       q.set('sort', sortKey);
       if (sortDir === -1) q.set('dir', 'desc');
     }

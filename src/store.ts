@@ -32,10 +32,10 @@ export function plotCurves(env: Bindings): Promise<PlotCurve[]> {
     .then((r) => r.results)
 }
 
-// Every curve for the /curves table. Default order matches the table's JS
-// default: increasing conductor, curves with no recorded conductor last.
-// Conductor is a big-integer decimal string, so numeric order = (length, then
-// lexicographic).
+// Every curve for the /curves table, by increasing conductor (the table's
+// tiebreak; curveTablePage re-sorts by the chosen column), curves with no
+// recorded conductor last. Conductor is a big-integer decimal string, so
+// numeric order = (length, then lexicographic).
 export function tableCurves(env: Bindings): Promise<TableCurve[]> {
   return env.DB.prepare(
     `SELECT ${TABLE_COLUMNS} FROM curves
