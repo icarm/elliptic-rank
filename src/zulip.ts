@@ -65,12 +65,16 @@ function torsionOnly(overall: RecordFlags, torsion: RecordFlags): RecordFlags {
   }
 }
 
-// "with trivial torsion" or "with torsion ℤ/5ℤ". Null when the curve's torsion
-// is not recorded or doesn't parse.
-function withTorsion(curve: RecordCandidate): string | null {
+// The curve's torsion subgroup as a record's name — "ℤ/5ℤ torsion" or
+// "trivial torsion", as on the site's ☆ badges — and as a qualifier on the
+// curves it is judged among ("with torsion ℤ/5ℤ", "with trivial torsion").
+// Null when the curve's torsion is not recorded or doesn't parse.
+function torsionGroup(curve: RecordCandidate): { name: string; among: string } | null {
   const t = curve.torsion == null ? null : torsionText(curve.torsion)
   if (t == null) return null
-  return t === 'trivial' ? 'with trivial torsion' : `with torsion ${t}`
+  return t === 'trivial'
+    ? { name: 'trivial torsion', among: 'with trivial torsion' }
+    : { name: `${t} torsion`, among: `with torsion ${t}` }
 }
 
 // "a", "a and b", or "a, b, and c".
@@ -87,9 +91,10 @@ function joinRecords(parts: string[]): string {
 //
 // A record overall gets a ★ message, which also mentions any further records
 // the curve holds within its torsion subgroup. Otherwise, a record within the
-// torsion subgroup gets a ☆ message. A curve that is the first on the board
-// with its torsion subgroup at its rank trivially holds every record in that
-// pool, so its ☆ message says just that. No-op when the webhook is
+// torsion subgroup gets a ☆ message naming the subgroup up front. A curve that
+// is the first on the board with its torsion subgroup at its rank trivially
+// holds every record in that pool, so its ☆ message says just that. No-op
+// when the webhook is
 // unconfigured or the curve holds no record for its rank.
 //
 // Intended to be called via `ctx.waitUntil(...)` so delivery does not block the
@@ -118,7 +123,7 @@ export async function notifyRecord(
   const all: Metric[] = ['naive', 'faltings', 'conductor', 'disc']
   const rank = curve.rank_lower_bound
   const overall = recordPhrases(curve, flags.overall, all)
-  const group = withTorsion(curve)
+  const group = torsionGroup(curve)
   const first = group != null && flags.torsion != null && flags.torsionRivals === 0
   const inGroup =
     group == null || flags.torsion == null
@@ -126,23 +131,22 @@ export async function notifyRecord(
       : recordPhrases(curve, torsionOnly(flags.overall, flags.torsion), all)
   if (overall.length === 0 && !first && inGroup.length === 0) return
 
-  const link = `${baseUrl}/curve/${curve.id}`
+  const link = `[#${curve.id}](${baseUrl}/curve/${curve.id})`
   const who = submitter ? ` by ${submitter}` : ''
   const verb = status.status === 'created' ? 'New curve' : 'Improved curve'
-  const lines = [
-    `${overall.length > 0 ? '★' : '☆'} **New record!** ${verb} [#${curve.id}](${link}) at rank ≥ ${rank}` +
-      `, submitted${who}.`,
-  ]
+  const lines: string[] = []
   if (overall.length > 0) {
+    lines.push(`★ **New record!** ${verb} ${link} at rank ≥ ${rank}, submitted${who}.`)
     lines.push(`Now holds the record for ${joinRecords(overall)} among curves of rank ≥ ${rank}.`)
-    if (first) lines.push(`It is also the first curve on the board of rank ≥ ${rank} ${group}.`)
+    if (first) lines.push(`It is also the first curve on the board of rank ≥ ${rank} ${group.among}.`)
     else if (inGroup.length > 0) {
-      lines.push(`It also holds the record for ${joinRecords(inGroup)} among curves of rank ≥ ${rank} ${group}.`)
+      lines.push(`It also holds the record for ${joinRecords(inGroup)} among curves of rank ≥ ${rank} ${group!.among}.`)
     }
   } else if (first) {
-    lines.push(`It is the first curve on the board of rank ≥ ${rank} ${group}.`)
+    lines.push(`☆ **First curve with ${group.name} at rank ≥ ${rank}!** ${verb} ${link}, submitted${who}.`)
   } else {
-    lines.push(`Now holds the record for ${joinRecords(inGroup)} among curves of rank ≥ ${rank} ${group}.`)
+    lines.push(`☆ **New record for ${group!.name}!** ${verb} ${link} at rank ≥ ${rank}, submitted${who}.`)
+    lines.push(`Now holds the record for ${joinRecords(inGroup)} among curves of rank ≥ ${rank} ${group!.among}.`)
   }
 
   await send(url, lines.join('\n'))
@@ -172,19 +176,21 @@ export async function notifyBackfillRecord(
   const flags = await announcedRecords(env, curve)
   const rank = curve.rank_lower_bound
   const overall = recordPhrases(curve, flags.overall, ['conductor'])
-  const group = withTorsion(curve)
+  const group = torsionGroup(curve)
   const inGroup =
     group == null || flags.torsion == null || flags.torsionRivals === 0
       ? []
       : recordPhrases(curve, flags.torsion, ['conductor'])
-  const [star, held, among] =
-    overall.length > 0 ? ['★', overall, `rank ≥ ${rank}`] : ['☆', inGroup, `rank ≥ ${rank} ${group}`]
+  const [headline, held, among] =
+    overall.length > 0
+      ? ['★ **New record!**', overall, `rank ≥ ${rank}`]
+      : [`☆ **New record for ${group?.name}!**`, inGroup, `rank ≥ ${rank} ${group?.among}`]
   if (held.length === 0) return
 
   const link = `${baseUrl}/curve/${curve.id}`
   const who = submitter ? ` by ${submitter}` : ''
   const text =
-    `${star} **New record!** Curve [#${curve.id}](${link}) at rank ≥ ${rank} ` +
+    `${headline} Curve [#${curve.id}](${link}) at rank ≥ ${rank} ` +
     `now holds the record for ${joinRecords(held)} among curves of ${among} — after its conductor was recorded${who}.`
 
   await send(url, text)
