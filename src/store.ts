@@ -317,18 +317,20 @@ export function loadRecordCandidate(env: Bindings, curveId: number): Promise<Rec
 // against every other curve of equal or higher rank (see gate.recordsAmong),
 // both overall and within its torsion subgroup. Unlike the ★/☆ badges, these
 // are strict: a tie doesn't count, the curve must be the sole holder.
-// `torsion` is null when the curve's torsion is not recorded; `torsionRivals`
-// counts the other curves of rank ≥ its own with its torsion subgroup, so 0
-// means it is the first such curve on the board.
+// `rivals` counts the other curves of rank ≥ its own, so 0 means it is the
+// first curve on the board of its rank. `torsion` is null when the curve's
+// torsion is not recorded; `torsionRivals` counts the rivals with its torsion
+// subgroup, so 0 means it is the first such curve on the board.
 export async function announcedRecords(
   env: Bindings,
   curve: RecordCandidate,
-): Promise<{ overall: RecordFlags; torsion: RecordFlags | null; torsionRivals: number }> {
+): Promise<{ overall: RecordFlags; rivals: number; torsion: RecordFlags | null; torsionRivals: number }> {
   const rivals = await rivalsOf(env, curve)
   const t = curve.torsion ?? null
   const pool = t == null ? [] : rivals.filter((o) => o.torsion === t)
   return {
     overall: recordsAmong(curve, rivals, true),
+    rivals: rivals.length,
     torsion: t == null ? null : recordsAmong(curve, pool, true),
     torsionRivals: pool.length,
   }

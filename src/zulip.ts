@@ -93,9 +93,10 @@ function joinRecords(parts: string[]): string {
 // the curve holds within its torsion subgroup. Otherwise, a record within the
 // torsion subgroup gets a ☆ message naming the subgroup up front. A curve that
 // is the first on the board with its torsion subgroup at its rank trivially
-// holds every record in that pool, so its ☆ message says just that. No-op
-// when the webhook is
-// unconfigured or the curve holds no record for its rank.
+// holds every record in that pool, so its ☆ message says just that. The first
+// curve on the board of its rank at all gets a ★ message saying so, with no
+// torsion line (being first with its subgroup goes without saying). No-op
+// when the webhook is unconfigured or the curve holds no record for its rank.
 //
 // Intended to be called via `ctx.waitUntil(...)` so delivery does not block the
 // response to the submitter.
@@ -135,7 +136,10 @@ export async function notifyRecord(
   const who = submitter ? ` by ${submitter}` : ''
   const verb = status.status === 'created' ? 'New curve' : 'Improved curve'
   const lines: string[] = []
-  if (overall.length > 0) {
+  if (flags.rivals === 0) {
+    lines.push(`★ **First curve of rank ≥ ${rank}!** ${verb} ${link}, submitted${who}.`)
+    lines.push(`Now holds the record for ${joinRecords(overall)} among curves of rank ≥ ${rank}.`)
+  } else if (overall.length > 0) {
     lines.push(`★ **New record!** ${verb} ${link} at rank ≥ ${rank}, submitted${who}.`)
     lines.push(`Now holds the record for ${joinRecords(overall)} among curves of rank ≥ ${rank}.`)
     if (first) lines.push(`It is also the first curve on the board of rank ≥ ${rank} ${group.among}.`)
@@ -157,8 +161,9 @@ export async function notifyRecord(
 // Faltings height are all fixed at submission), so only a new smallest-conductor
 // record can result, and as above only a strict one (not a tie) is announced:
 // with ★ if overall, else with ☆ if within the curve's torsion subgroup. A
-// curve alone in its torsion pool is skipped there: its record is trivial, and
-// being first was news at submission, not now. No-op when the webhook is
+// curve alone at its rank is skipped, and one alone in its torsion pool is
+// skipped there: its record is trivial, and being first was news at
+// submission, not now. No-op when the webhook is
 // unconfigured or it isn't a record.
 //
 // Intended to be called via `ctx.waitUntil(...)` after a successful backfill.
@@ -174,6 +179,7 @@ export async function notifyBackfillRecord(
   const curve = await loadRecordCandidate(env, curveId)
   if (!curve) return
   const flags = await announcedRecords(env, curve)
+  if (flags.rivals === 0) return
   const rank = curve.rank_lower_bound
   const overall = recordPhrases(curve, flags.overall, ['conductor'])
   const group = torsionGroup(curve)
