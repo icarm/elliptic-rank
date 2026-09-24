@@ -33,23 +33,23 @@ async function send(url: string, text: string): Promise<boolean> {
   }
 }
 
-type Metric = 'naive' | 'faltings' | 'conductor' | 'disc'
+type Metric = 'conductor' | 'disc' | 'faltings' | 'naive'
 
 // "smallest **X** (value)" phrases for the curve's metrics that are records,
 // limited to the metrics in `consider`.
 function recordPhrases(curve: RecordCandidate, flags: RecordFlags, consider: Metric[]): string[] {
   const out: string[] = []
-  if (consider.includes('naive') && flags.naive) {
-    out.push(`smallest **naive height** (${curve.naive_height.toFixed(4)})`)
-  }
-  if (consider.includes('faltings') && flags.faltings && curve.faltings_height != null) {
-    out.push(`smallest **Faltings height** (${curve.faltings_height.toFixed(4)})`)
-  }
   if (consider.includes('conductor') && flags.conductor && curve.conductor != null) {
     out.push(`smallest **log conductor** (${logBigInt(curve.conductor).toFixed(4)})`)
   }
   if (consider.includes('disc') && flags.discriminant) {
     out.push(`smallest **log |Δ|** (${logBigInt(curve.discriminant).toFixed(4)})`)
+  }
+  if (consider.includes('faltings') && flags.faltings && curve.faltings_height != null) {
+    out.push(`smallest **Faltings height** (${curve.faltings_height.toFixed(4)})`)
+  }
+  if (consider.includes('naive') && flags.naive) {
+    out.push(`smallest **naive height** (${curve.naive_height.toFixed(4)})`)
   }
   return out
 }
@@ -120,7 +120,7 @@ export async function notifyRecord(
   const curve = await loadRecordCandidate(env, status.id)
   if (!curve) return
   const flags = await announcedRecords(env, curve)
-  const all: Metric[] = ['naive', 'faltings', 'conductor', 'disc']
+  const all: Metric[] = ['conductor', 'disc', 'faltings', 'naive']
   const rank = curve.rank_lower_bound
   const overall = recordPhrases(curve, flags.overall, all)
   const group = torsionGroup(curve)

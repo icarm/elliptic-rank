@@ -67,7 +67,7 @@ function authNav(user: User | null): string {
 export const SITE_ORIGIN = 'https://elliptic-rank.icarm.cloud'
 const SITE_DESCRIPTION =
   'Can we find small elliptic curves of high rank? A leaderboard of certified ' +
-  'Mordell–Weil rank lower bounds, ordered by naive height, Faltings height, and conductor.'
+  'Mordell–Weil rank lower bounds, ordered by conductor, discriminant, Faltings height, and naive height.'
 
 export function layout(title: string, bodyInner: string, user: User | null = null): string {
   return `<!doctype html>
@@ -465,7 +465,7 @@ export function progressPage(
     referenceCurves: referenceCurves.map(({ key, c, label, equation }) => ({ key, c, label, equation })),
     geometry: { T, plotH, L, rankMax, rankPad: RANK_PAD, plotW, plotRight: W - R, topK: BOARD_TOP_K },
   }).replace(/</g, '\\u003c')
-  const metricControls = (['conductor', 'naive', 'faltings', 'disc'] as const)
+  const metricControls = (['conductor', 'disc', 'faltings', 'naive'] as const)
     .map((key) => `<label><input type="radio" name="progress-metric" value="${key}"${key === selectedMetric ? ' checked' : ''} /><span>${metricLabels[key]}</span></label>`)
     .join('\n')
   const referenceControls = referenceCurves
@@ -572,9 +572,9 @@ export function landingPage(
         <div class="plot-tabs">
           <span class="plot-metrics" role="radiogroup" aria-label="plot measure">
             <label title="Natural log of the conductor. Recorded when a submission supplies the primes of bad reduction."><input type="radio" name="plot-metric" value="conductor"${sel === 'conductor' ? ' checked' : ''} /><span><span class="long">log conductor</span><span class="short">log N</span></span></label>
-            <label title="log max(|c4|^3, |c6|^2) of the global minimal model. Recorded for every curve."><input type="radio" name="plot-metric" value="naive"${sel === 'naive' ? ' checked' : ''} /><span><span class="long">naive height</span><span class="short">naive</span></span></label>
-            <label title="Stable Faltings height (LMFDB normalization). Recorded for every curve."><input type="radio" name="plot-metric" value="faltings"${sel === 'faltings' ? ' checked' : ''} /><span><span class="long">Faltings height</span><span class="short">Faltings</span></span></label>
             <label title="Natural log of the absolute discriminant of the global minimal model. Recorded for every curve."><input type="radio" name="plot-metric" value="disc"${sel === 'disc' ? ' checked' : ''} /><span>log |&Delta;|</span></label>
+            <label title="Stable Faltings height (LMFDB normalization). Recorded for every curve."><input type="radio" name="plot-metric" value="faltings"${sel === 'faltings' ? ' checked' : ''} /><span><span class="long">Faltings height</span><span class="short">Faltings</span></span></label>
+            <label title="log max(|c4|^3, |c6|^2) of the global minimal model. Recorded for every curve."><input type="radio" name="plot-metric" value="naive"${sel === 'naive' ? ' checked' : ''} /><span><span class="long">naive height</span><span class="short">naive</span></span></label>
           </span>
           <form class="plot-controls" method="get" action="/">
             <input type="hidden" name="metric" value="${sel}" />${showAll ? '<input type="hidden" name="show" value="all" />' : ''}
@@ -592,12 +592,12 @@ export function landingPage(
             torsionSel,
           )}
         </div>
-        <div class="plot-panel" data-metric="naive"${sel === 'naive' ? '' : ' hidden'}>
+        <div class="plot-panel" data-metric="disc"${sel === 'disc' ? '' : ' hidden'}>
           ${scatterPlot(
-            curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
-            'naive height',
+            curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.discriminant) })),
+            'log |Δ|',
             (v) => v.toFixed(0),
-            'naive',
+            'disc',
             torsionSel,
           )}
         </div>
@@ -610,12 +610,12 @@ export function landingPage(
             torsionSel,
           )}
         </div>
-        <div class="plot-panel" data-metric="disc"${sel === 'disc' ? '' : ' hidden'}>
+        <div class="plot-panel" data-metric="naive"${sel === 'naive' ? '' : ' hidden'}>
           ${scatterPlot(
-            curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.discriminant) })),
-            'log |Δ|',
+            curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
+            'naive height',
             (v) => v.toFixed(0),
-            'disc',
+            'naive',
             torsionSel,
           )}
         </div>
@@ -742,9 +742,9 @@ function curveTableRow(
             <td class="num"><a class="rank-link" href="/curves?minrank=${c.rank_lower_bound}&amp;rankmode=eq" title="show only curves with rank lower bound = ${c.rank_lower_bound}">&ge; ${c.rank_lower_bound}</a></td>
             <td class="torsion">${tKey != null && tHtml != null ? `<a class="torsion-link" href="/curves?torsion=${tKey}" title="show only curves with this torsion subgroup">${tHtml}</a>` : unknown}</td>
             ${metricTd('conductor', logCond != null ? logCond.toFixed(2) : unknown)}
-            ${metricTd('naive', c.naive_height.toFixed(2))}
-            ${metricTd('faltings', c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown)}
             ${metricTd('disc', logDisc.toFixed(2))}
+            ${metricTd('faltings', c.faltings_height != null ? c.faltings_height.toFixed(2) : unknown)}
+            ${metricTd('naive', c.naive_height.toFixed(2))}
           </tr>`
 }
 
@@ -879,9 +879,9 @@ export function curveTablePage(
             ${sortHeader('rank', 'rank')}
             <th class="torsion">torsion</th>
             ${sortHeader('conductor', 'log N', 'num', 'log conductor')}
-            ${sortHeader('naive', 'naive height')}
-            ${sortHeader('faltings', 'Faltings height')}
             ${sortHeader('disc', '<span class="nowrap">log |&Delta;|</span>')}
+            ${sortHeader('faltings', 'Faltings height')}
+            ${sortHeader('naive', 'naive height')}
           </tr>
         </thead>
         <tbody>
@@ -1173,9 +1173,9 @@ export function curveDetailPage(
         <dt>rank (lower bound)</dt><dd><a href="/curves?sort=conductor&amp;minrank=${curve.rank_lower_bound}&amp;rankmode=eq" title="all curves with rank lower bound = ${curve.rank_lower_bound}, by increasing conductor">&ge; ${curve.rank_lower_bound}</a></dd>
         ${torsionHtml ? `<dt>torsion subgroup</dt><dd>${torsionHtml}</dd>` : ''}
         ${curve.conductor ? `<dt>conductor (N)</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code>${badges('conductor', 'conductor')}</dd>` : ''}
-        <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badges('naive', 'naive')}</dd>
-        ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}${badges('faltings', 'faltings')}</dd>` : ''}
         <dt>discriminant (&Delta;)</dt><dd><code class="break">${escapeHtml(curve.discriminant)}</code>${badges('discriminant', 'disc')}</dd>
+        ${curve.faltings_height != null ? `<dt>Faltings height</dt><dd>${curve.faltings_height.toFixed(4)}${badges('faltings', 'faltings')}</dd>` : ''}
+        <dt>naive height</dt><dd>${curve.naive_height.toFixed(4)}${badges('naive', 'naive')}</dd>
         ${badPrimes.length ? `<dt>primes of bad reduction</dt><dd><code class="break">${badPrimes.map(escapeHtml).join(', ')}</code></dd>` : ''}
         <dt>regulator</dt><dd><code>${escapeHtml(curve.regulator)}</code></dd>
         <dt>submitted by</dt><dd>${submitter}</dd>
@@ -1227,8 +1227,8 @@ export function commentHistoryPage(
 // curve page's torsion badges). Each metric links to the table filtered to
 // that rank (and subgroup) and sorted by the metric.
 const ACTIVITY_METRICS: [keyof RecordFlags, string, string][] = [
-  ['discriminant', 'disc', 'discriminant'],
   ['conductor', 'conductor', 'conductor'],
+  ['discriminant', 'disc', 'discriminant'],
   ['faltings', 'faltings', 'Faltings height'],
   ['naive', 'naive', 'naive height'],
 ]
@@ -1410,10 +1410,10 @@ export function submitResultPage(
               : ''
           }
           <dt>regulator</dt><dd><code>${escapeHtml(clip(ind.regulator))}</code></dd>
-          <dt>naive height</dt><dd><code>${escapeHtml(clip(result.height!.naiveLogHeight))}</code></dd>
-          ${result.faltingsHeight ? `<dt>Faltings height</dt><dd><code>${escapeHtml(clip(result.faltingsHeight))}</code></dd>` : ''}
-          <dt>minimal discriminant</dt><dd><code>${escapeHtml(clip(c.discriminant, 80))}</code></dd>
           ${result.conductor ? `<dt>conductor</dt><dd><code>${escapeHtml(clip(result.conductor, 80))}</code></dd>` : ''}
+          <dt>minimal discriminant</dt><dd><code>${escapeHtml(clip(c.discriminant, 80))}</code></dd>
+          ${result.faltingsHeight ? `<dt>Faltings height</dt><dd><code>${escapeHtml(clip(result.faltingsHeight))}</code></dd>` : ''}
+          <dt>naive height</dt><dd><code>${escapeHtml(clip(result.height!.naiveLogHeight))}</code></dd>
         </dl>
         <p class="result-method">${escapeHtml(ind.method)}.</p>
         ${result.conductorNote ? `<p class="muted">Conductor not recorded: ${escapeHtml(result.conductorNote)}.</p>` : ''}
@@ -1618,9 +1618,9 @@ function submittedCurvesSection(
               <th class="num">rank</th>
               <th class="torsion">torsion</th>
               <th class="num" title="log conductor">log N</th>
-              <th class="num">naive height</th>
-              <th class="num">Faltings height</th>
               <th class="num"><span class="nowrap">log |&Delta;|</span></th>
+              <th class="num">Faltings height</th>
+              <th class="num">naive height</th>
             </tr>
           </thead>
           <tbody>
