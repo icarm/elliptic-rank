@@ -671,7 +671,7 @@ export function landingPage(
             <input type="text" name="primes" ${user ? '' : 'disabled'} />
           </label>
           <label class="field">
-            <span>commentary <span class="muted">&mdash; optional; how the curve was found, references, etc.</span></span>
+            <span>commentary <span class="muted">&mdash; optional; how the curve was found, references, etc. Plain text; <code>curve#123</code> links to curve 123.</span></span>
             <textarea name="commentary" rows="3" ${user ? '' : 'disabled'}></textarea>
           </label>
           <div class="submit-row">${
@@ -1067,7 +1067,7 @@ function commentSection(curveId: number, comment: CommentView | null, user: User
           <summary>edit</summary>
           <form method="post" action="/curve/${curveId}/commentary">
             <textarea name="content" rows="6" maxlength="${COMMENT_MAX}">${escapeHtml(comment?.content ?? '')}</textarea>
-            <div><button type="submit">save</button> <span class="muted">submit empty to clear</span></div>
+            <div><button type="submit">save</button> <span class="muted">plain text; <code>curve#123</code> links to curve 123; submit empty to clear</span></div>
           </form>
         </details>`
     : `<p class="muted"><a href="/auth/github">Log in</a> to ${hasContent ? 'edit' : 'add'} commentary.</p>`
@@ -1528,7 +1528,8 @@ export function apiDocsPage(user: User | null = null): string {
       commentary, attributed to you. It is applied only when the curve has no commentary yet
       &mdash; if the curve already exists and already has commentary, this field is
       <strong>ignored</strong> (use <code>POST /curve/:id/commentary</code> to edit existing
-      commentary).</p>
+      commentary). Commentary is plain text, with <code>curve#123</code> links as described
+      there.</p>
       <pre><code>${escapeHtml(verifyReq)}</code></pre>
       <p>Returns <code>200</code> with the result below, <code>422</code> if the submission is
       invalid (singular curve, point off curve, or not independent), <code>401</code> without a valid
@@ -1587,6 +1588,8 @@ export function apiDocsPage(user: User | null = null): string {
       <h3>POST <code>/curve/:id/commentary</code></h3>
       <p>Edit a curve's commentary. Form-encoded <code>content</code>; an empty value clears it. Each
       edit is kept in the curve's commentary history.</p>
+      <p>Commentary is plain text (HTML is shown literally), except that <code>curve#123</code>
+      &mdash; no space &mdash; is displayed as a link to curve 123.</p>
       <pre><code>${escapeHtml(commentReq)}</code></pre>`
   return layout('API — Elliptic Curve Rank Leaderboard', inner, user)
 }
