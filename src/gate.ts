@@ -46,7 +46,7 @@ export interface Metrics {
 
 // Where a candidate would place among `rivals` (every curve of rank ≥ the
 // candidate's; the candidate itself must not be among them). Same "strictly
-// smaller" comparison as recordFlags, so place 1 is exactly a record.
+// smaller" comparison as recordsAmong, so place 1 is exactly a record.
 export function placement(candidate: Metrics, rivals: Metrics[]): Placement {
   const count = <T,>(get: (c: Metrics) => T | null, less: (a: T, b: T) => boolean): number | null => {
     const v = get(candidate)

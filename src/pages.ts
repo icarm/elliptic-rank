@@ -801,7 +801,7 @@ export function curveTablePage(
     .join('')
   // Record cells: for each metric, a curve is a record when no curve of equal
   // or higher rank has a strictly smaller value (ties share it) — the same
-  // rule as store.recordFlags and the curve page's ★ badge, computed for all
+  // rule as store.recordBadges and the curve page's ★ badge, computed for all
   // rows at once by gate.boardRecords. The same within each torsion subgroup
   // gives the records shown when a torsion filter is selected.
   const records = boardRecords(curves)
@@ -997,10 +997,19 @@ function torsionGroups(curves: PlotCurve[]): { key: string; label: string }[] {
   }
   return [...byKey.entries()]
     .sort(([, a], [, b]) => a.length - b.length || (a.at(-1) ?? 0) - (b.at(-1) ?? 0))
-    .map(([key, factors]) => ({
-      key,
-      label: factors.length === 0 ? 'trivial' : factors.map((n) => `\u2124/${n}\u2124`).join(' \u00d7 '),
-    }))
+    .map(([key, factors]) => ({ key, label: factorsText(factors) }))
+}
+
+// A stored torsion structure as plain text, e.g. "ℤ/2ℤ × ℤ/4ℤ", or "trivial"
+// for "[]" (for Zulip messages). Null when the stored value doesn't parse.
+export function torsionText(torsion: string): string | null {
+  const factors = torsionFactors(torsion)
+  return factors == null ? null : factorsText(factors)
+}
+
+// Invariant factors (smallest first) as plain text; see torsionText.
+function factorsText(factors: number[]): string {
+  return factors.length === 0 ? 'trivial' : factors.map((n) => `\u2124/${n}\u2124`).join(' \u00d7 ')
 }
 
 // Record badge for a curve-page metric: shown when no curve of equal or higher

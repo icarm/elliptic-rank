@@ -306,34 +306,48 @@ export interface RecordCandidate {
 }
 
 // One curve's id, rank and metrics (null if there is no such curve), enough to
-// judge it with recordFlags.
+// judge it with recordBadges or announcedRecords.
 export function loadRecordCandidate(env: Bindings, curveId: number): Promise<RecordCandidate | null> {
   return env.DB.prepare(`SELECT ${PLOT_COLUMNS} FROM curves WHERE id = ?`)
     .bind(curveId)
     .first<RecordCandidate>()
 }
 
-// Which of the curve's metrics are records for its rank, judged against every
-// other curve of equal or higher rank (see gate.recordsAmong): ties share a
-// record, as for the ★ badge, unless `strict`, which needs the curve to be the
-// sole holder — what the Zulip notifiers announce.
-export async function recordFlags(
+// What the Zulip notifiers announce: the curve's records for its rank, judged
+// against every other curve of equal or higher rank (see gate.recordsAmong),
+// both overall and within its torsion subgroup. Unlike the ★/☆ badges, these
+// are strict: a tie doesn't count, the curve must be the sole holder.
+// `torsion` is null when the curve's torsion is not recorded; `torsionRivals`
+// counts the other curves of rank ≥ its own with its torsion subgroup, so 0
+// means it is the first such curve on the board.
+export async function announcedRecords(
   env: Bindings,
   curve: RecordCandidate,
-  { strict = false }: { strict?: boolean } = {},
-): Promise<RecordFlags> {
-  const { results: rivals } = await env.DB.prepare(
-    `SELECT naive_height, faltings_height, conductor, discriminant FROM curves
+): Promise<{ overall: RecordFlags; torsion: RecordFlags | null; torsionRivals: number }> {
+  const rivals = await rivalsOf(env, curve)
+  const t = curve.torsion ?? null
+  const pool = t == null ? [] : rivals.filter((o) => o.torsion === t)
+  return {
+    overall: recordsAmong(curve, rivals, true),
+    torsion: t == null ? null : recordsAmong(curve, pool, true),
+    torsionRivals: pool.length,
+  }
+}
+
+// The metrics and torsion of every other curve of rank ≥ the curve's own: the
+// rivals its records are judged against.
+async function rivalsOf(env: Bindings, curve: RecordCandidate): Promise<Metrics[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT naive_height, faltings_height, conductor, discriminant, torsion FROM curves
        WHERE rank_lower_bound >= ? AND id != ?`,
   )
     .bind(curve.rank_lower_bound, curve.id)
     .all<Metrics>()
-  return recordsAmong(curve, rivals, strict)
+  return results
 }
 
-// The curve page's badges: records overall (as recordFlags) and within the
-// curve's torsion subgroup, both among curves of rank ≥ its own and with ties
-// shared. The torsion pool is a subset of the overall one, so every overall
+// The curve page's badges: records overall and within the curve's torsion
+// subgroup, both among curves of rank ≥ its own and with ties shared. The torsion pool is a subset of the overall one, so every overall
 // record is also a torsion record; the page shows the torsion badge only where
 // there is no overall one. `torsion` is null when the curve's torsion is not
 // recorded.
@@ -341,12 +355,7 @@ export async function recordBadges(
   env: Bindings,
   curve: RecordCandidate,
 ): Promise<{ overall: RecordFlags; torsion: RecordFlags | null }> {
-  const { results: rivals } = await env.DB.prepare(
-    `SELECT naive_height, faltings_height, conductor, discriminant, torsion FROM curves
-       WHERE rank_lower_bound >= ? AND id != ?`,
-  )
-    .bind(curve.rank_lower_bound, curve.id)
-    .all<Metrics>()
+  const rivals = await rivalsOf(env, curve)
   const t = curve.torsion ?? null
   return {
     overall: recordsAmong(curve, rivals),
@@ -357,7 +366,7 @@ export async function recordBadges(
 // Record flags for many curves at once — e.g. everything attributed to one
 // user — judged against the whole board, not just the given subset. One query
 // loads the metrics of every curve at rank ≥ the lowest rank in the batch, and
-// gate.boardRecords judges them: the same rule as recordFlags and the /curves
+// gate.boardRecords judges them: the same rule as recordBadges and the /curves
 // table.
 export async function recordFlagsForCurves(env: Bindings, curves: RecordCandidate[]): Promise<Map<number, RecordFlags>> {
   if (curves.length === 0) return new Map()
