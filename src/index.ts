@@ -26,7 +26,7 @@ import {
   type SubmitInfo,
   type CurveRow,
 } from './pages'
-import { plotCurves, tableCurves, userCurves, loadWitness, recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordBadges, recordFlagsForCurves, recordBadgesForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
+import { plotCurves, tableCurves, userCurves, loadWitness, recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordBadges, recordBadgesForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
 import { notifyRecord, notifyBackfillRecord } from './zulip'
 import { parsePoints, parseTokens } from './input'
 import {
@@ -523,7 +523,7 @@ app.get('/user/:id', async (c) => {
     .first<PublicUser>()
   if (!profile) return c.html(notFoundPage(c.get('user')), 404)
   const [curves, contributions] = await Promise.all([userCurves(c.env, id), userContributions(c.env, id)])
-  const records = await recordFlagsForCurves(c.env, curves)
+  const records = await recordBadgesForCurves(c.env, curves)
   return c.html(userPage(profile, curves, records, contributions, c.get('user')))
 })
 

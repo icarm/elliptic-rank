@@ -364,19 +364,12 @@ export async function recordBadges(
 }
 
 // Record flags for many curves at once — e.g. everything attributed to one
-// user — judged against the whole board, not just the given subset. One query
-// loads the metrics of every curve at rank ≥ the lowest rank in the batch, and
-// gate.boardRecords judges them: the same rule as recordBadges and the /curves
-// table.
-export async function recordFlagsForCurves(env: Bindings, curves: RecordCandidate[]): Promise<Map<number, RecordFlags>> {
-  if (curves.length === 0) return new Map()
-  const board = await loadBoard(env, curves)
-  return recordsFor(board, new Set(curves.map((c) => c.id)))
-}
-
-// As recordFlagsForCurves, plus each curve's records within its torsion
-// subgroup (as recordBadges, but for a batch, from the same one query). A
-// curve with no recorded torsion has no entry in `torsion`.
+// user, or in recent activity — judged against the whole board, not just the
+// given subset: overall, and within each curve's torsion subgroup (as
+// recordBadges, but for a batch). One query loads the metrics of every curve
+// at rank ≥ the lowest rank in the batch, and gate.boardRecords judges them:
+// the same rule as recordBadges and the /curves table. A curve with no
+// recorded torsion has no entry in `torsion`.
 export async function recordBadgesForCurves(
   env: Bindings,
   curves: RecordCandidate[],

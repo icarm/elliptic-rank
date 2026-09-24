@@ -693,10 +693,11 @@ export interface TableCurve extends PlotCurve {
 // shares the same markup and simply ignores them.
 type MetricRecords = Partial<Record<'conductor' | 'naive' | 'faltings' | 'disc', boolean>>
 
-// On /curves, `groupRecords` are the records within the row's own torsion
-// subgroup: each metric cell carries both flags (data-rec, data-trec) so the
-// inline script can highlight whichever set the torsion filter calls for, and
-// `useGroup` picks the set rendered initially.
+// `groupRecords` are the records within the row's own torsion subgroup, and
+// `useGroup` highlights them too (a record only there gets ☆). On /curves each
+// metric cell carries both flags (data-rec, data-trec) so the inline script
+// can highlight whichever set the torsion filter calls for, and `useGroup`
+// picks the set rendered initially; the profile list always uses both.
 function curveTableRow(
   c: TableCurve,
   hidden = false,
@@ -722,7 +723,9 @@ function curveTableRow(
   const metricTd = (metric: keyof MetricRecords, content: string): string => {
     const overall = !!records[metric]
     const group = !!groupRecords?.[metric]
-    const on = useGroup ? group : overall
+    // Every overall record is also one within its subgroup, except for a curve
+    // whose torsion is not recorded, which has no subgroup records at all.
+    const on = useGroup ? group || overall : overall
     const torsionOnly = on && !overall
     const title = torsionOnly
       ? `record for this torsion subgroup: smallest among curves of rank &ge; ${c.rank_lower_bound} with this torsion`
@@ -1584,7 +1587,10 @@ export function apiDocsPage(user: User | null = null): string {
 // each curve; later rank improvements by others leave that credit in place).
 // Best rank first, so a contributor's strongest results lead. A static table —
 // no client-side sorting needed here.
-function submittedCurvesSection(curves: TableCurve[], records: Map<number, RecordFlags>): string {
+function submittedCurvesSection(
+  curves: TableCurve[],
+  records: { overall: Map<number, RecordFlags>; torsion: Map<number, RecordFlags> },
+): string {
   const heading = `<h3>Curves <span class="muted">(${curves.length})</span></h3>`
   if (curves.length === 0) {
     return `<section class="my-curves">
@@ -1592,11 +1598,14 @@ function submittedCurvesSection(curves: TableCurve[], records: Map<number, Recor
         <p class="muted">No curves currently attributed to this user.</p>
       </section>`
   }
+  // Records overall (★) and those held only within the curve's torsion
+  // subgroup (☆), as on the curve page and in recent activity.
+  const flagsFor = (map: Map<number, RecordFlags>, id: number): MetricRecords => {
+    const r = map.get(id)
+    return r ? { conductor: r.conductor, naive: r.naive, faltings: r.faltings, disc: r.discriminant } : {}
+  }
   const rows = curves
-    .map((c) => {
-      const r = records.get(c.id)
-      return curveTableRow(c, false, r && { conductor: r.conductor, naive: r.naive, faltings: r.faltings, disc: r.discriminant })
-    })
+    .map((c) => curveTableRow(c, false, flagsFor(records.overall, c.id), flagsFor(records.torsion, c.id), true))
     .join('\n')
   return `<section class="my-curves">
         ${heading}
@@ -1749,7 +1758,7 @@ export interface PublicUser {
 export function userPage(
   profile: PublicUser,
   curves: TableCurve[],
-  records: Map<number, RecordFlags>,
+  records: { overall: Map<number, RecordFlags>; torsion: Map<number, RecordFlags> },
   contributions: Contribution[] = [],
   viewer: User | null = null,
 ): string {
