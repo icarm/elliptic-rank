@@ -5,13 +5,6 @@
   var KEYS = ['id', 'rank', 'naive', 'faltings', 'conductor', 'disc'];
   var tbody = document.getElementById('curves-table').tBodies[0];
   var rows = Array.prototype.slice.call(tbody.rows);
-  // Drop the whitespace text nodes between the server-rendered rows. Otherwise
-  // the first re-sort piles them all up before the rows, and every later
-  // appendChild of a row walks past thousands of them in Chrome, which made each
-  // sort or filter change take over a second with ~3000 curves.
-  Array.prototype.slice.call(tbody.childNodes).forEach(function (n) {
-    if (n.nodeType !== 1) tbody.removeChild(n);
-  });
   var rankInput = document.getElementById('rank-filter');
   var rankOp = document.getElementById('rank-op');
   var torsionSel = document.getElementById('torsion-filter');
@@ -61,8 +54,11 @@
       r.hidden = (hasFilter && (eq ? rk !== n : rk < n)) ||
         (torsion !== '' && r.dataset.torsion !== torsion);
       if (!r.hidden) shown++;
-      tbody.appendChild(r);
     });
+    // One call sets the new order. Appending the rows one at a time left the
+    // whitespace between the server-rendered rows piled up in front of them,
+    // and Chrome then took over a second per re-sort.
+    tbody.replaceChildren.apply(tbody, rows);
     count.textContent = shown;
     // With a torsion subgroup selected, highlight records within the subgroup
     // (each row's data-trec) instead of overall records (data-rec); those that
