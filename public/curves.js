@@ -5,6 +5,13 @@
   var KEYS = ['id', 'rank', 'naive', 'faltings', 'conductor', 'disc'];
   var tbody = document.getElementById('curves-table').tBodies[0];
   var rows = Array.prototype.slice.call(tbody.rows);
+  // Drop the whitespace text nodes between the server-rendered rows. Otherwise
+  // the first re-sort piles them all up before the rows, and every later
+  // appendChild of a row walks past thousands of them in Chrome, which made each
+  // sort or filter change take over a second with ~3000 curves.
+  Array.prototype.slice.call(tbody.childNodes).forEach(function (n) {
+    if (n.nodeType !== 1) tbody.removeChild(n);
+  });
   var rankInput = document.getElementById('rank-filter');
   var rankOp = document.getElementById('rank-op');
   var torsionSel = document.getElementById('torsion-filter');
