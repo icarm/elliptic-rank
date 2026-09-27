@@ -1581,6 +1581,11 @@ export function apiDocsPage(user: User | null = null): string {
       <code>"rank_improved"</code> (also carrying <code>old_rank</code> and <code>new_rank</code>)
       or <code>"primes_recorded"</code>. No auth required.</p>
 
+      <h3>GET <code>/curves_without_primes.json</code></h3>
+      <p>Returns the IDs and discriminants of curves whose primes of bad reduction have not been
+      recorded: <code>{ "curves": [{ "id": 12345, "discriminant": "76582385085647565163089..." }] }</code>.
+      No auth required.</p>
+
       <h3>GET <code>/curve/:id.json</code></h3>
       <p>A single curve as JSON &mdash; the same shape as one entry of the
       <code>database.json</code> <code>curves</code> array. No auth required.</p>

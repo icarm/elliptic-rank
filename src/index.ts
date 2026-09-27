@@ -105,6 +105,14 @@ app.get('/curve/:file{[0-9]+\\.json}', async (c) => {
   return jsonDownload(c.req.raw, JSON.stringify(curveJson(row, history), null, 2), `elliptic-rank-curve-${id}.json`)
 })
 
+app.get('/curves_without_primes.json', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    'SELECT id, discriminant FROM curves WHERE bad_primes IS NULL ORDER BY id',
+  ).all<{ id: number; discriminant: string }>()
+  const payload = JSON.stringify({ curves: results }, null, 2)
+  return jsonDownload(c.req.raw, payload, 'elliptic-rank-curves-without-primes.json')
+})
+
 // A JSON attachment response with a strong ETag over the exact body, so
 // clients can revalidate cheaply. no-cache = clients may store but must
 // revalidate every time; paired with the ETag, a fresh request returns 304
