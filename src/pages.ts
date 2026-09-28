@@ -1568,6 +1568,13 @@ export function apiDocsPage(user: User | null = null): string {
       large, or <code>400</code> if the body isn't JSON or the id isn't an integer.</p>
       <pre><code>${escapeHtml(primesResp)}</code></pre>
 
+      <h3>GET <code>/api/curves/missing-primes</code></h3>
+      <p>The curves whose primes of bad reduction (and so conductor) are not yet recorded, by id:
+      <code>{ "curves": [{ "id": 12345, "discriminant": "76582385085647565163089..." }] }</code>.
+      Each <code>discriminant</code> is the minimal discriminant, so its prime divisors (ignoring the
+      sign) are exactly the primes to send to <code>/api/curve/:id/primes</code> above. No auth
+      required.</p>
+
       <h3>GET <code>/database.json</code></h3>
       <p>The entire database as one JSON download. The top level carries attribution metadata
       (<code>source</code>, <code>url</code>, <code>maintainer</code>, <code>acknowledgement</code>,
@@ -1580,11 +1587,6 @@ export function apiDocsPage(user: User | null = null): string {
       other users, oldest first, each <code>{ kind, user, at }</code> with <code>kind</code> either
       <code>"rank_improved"</code> (also carrying <code>old_rank</code> and <code>new_rank</code>)
       or <code>"primes_recorded"</code>. No auth required.</p>
-
-      <h3>GET <code>/curves_without_primes.json</code></h3>
-      <p>Returns the IDs and discriminants of curves whose primes of bad reduction have not been
-      recorded: <code>{ "curves": [{ "id": 12345, "discriminant": "76582385085647565163089..." }] }</code>.
-      No auth required.</p>
 
       <h3>GET <code>/curve/:id.json</code></h3>
       <p>A single curve as JSON &mdash; the same shape as one entry of the

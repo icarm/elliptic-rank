@@ -105,19 +105,13 @@ app.get('/curve/:file{[0-9]+\\.json}', async (c) => {
   return jsonDownload(c.req.raw, JSON.stringify(curveJson(row, history), null, 2), `elliptic-rank-curve-${id}.json`)
 })
 
-app.get('/curves_without_primes.json', async (c) => {
-  const { results } = await c.env.DB.prepare(
-    'SELECT id, discriminant FROM curves WHERE bad_primes IS NULL ORDER BY id',
-  ).all<{ id: number; discriminant: string }>()
-  const payload = JSON.stringify({ curves: results }, null, 2)
-  return jsonDownload(c.req.raw, payload, 'elliptic-rank-curves-without-primes.json')
-})
-
-// A JSON attachment response with a strong ETag over the exact body, so
-// clients can revalidate cheaply. no-cache = clients may store but must
-// revalidate every time; paired with the ETag, a fresh request returns 304
-// (no body) when nothing changed — the body only changes when a submission does.
-async function jsonDownload(req: Request, payload: string, filename: string): Promise<Response> {
+// A JSON response with a strong ETag over the exact body, so clients can
+// revalidate cheaply. no-cache = clients may store but must revalidate every
+// time; paired with the ETag, a fresh request returns 304 (no body) when
+// nothing changed — the body only changes when a submission does. With a
+// filename it is served as an attachment (the downloadable .json files);
+// without one, inline (API queries).
+async function jsonDownload(req: Request, payload: string, filename?: string): Promise<Response> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(payload))
   const etag =
     '"' +
@@ -126,12 +120,12 @@ async function jsonDownload(req: Request, payload: string, filename: string): Pr
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('') +
     '"'
-  const headers = {
+  const headers: Record<string, string> = {
     'content-type': 'application/json; charset=UTF-8',
-    'content-disposition': `attachment; filename="${filename}"`,
     'cache-control': 'no-cache',
     etag,
   }
+  if (filename) headers['content-disposition'] = `attachment; filename="${filename}"`
   if (req.headers.get('if-none-match') === etag) return new Response(null, { status: 304, headers })
   return new Response(payload, { status: 200, headers })
 }
@@ -457,6 +451,16 @@ app.post('/api/curve/:id/primes', async (c) => {
       return c.json({ ok: false, id, errors, note: res.note }, 422)
     }
   }
+})
+
+// JSON API: the curves whose primes of bad reduction (hence conductor) are not
+// yet recorded, with their minimal discriminants — the numbers to factor before
+// POSTing to /api/curve/:id/primes. No auth.
+app.get('/api/curves/missing-primes', async (c) => {
+  const { results } = await c.env.DB.prepare(
+    'SELECT id, discriminant FROM curves WHERE bad_primes IS NULL ORDER BY id',
+  ).all<{ id: number; discriminant: string }>()
+  return jsonDownload(c.req.raw, JSON.stringify({ curves: results }, null, 2))
 })
 
 // HTML form on the landing page posts here; requires login, records, and
