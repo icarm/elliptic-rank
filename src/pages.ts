@@ -1319,7 +1319,6 @@ export function activityPage(
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>Recent activity</h2>
-      <p class="page-subtitle">New submissions, rank improvements, recorded primes of bad reduction, and commentary edits, newest first.</p>
       ${list}
       <nav class="pager">${newer} <span class="muted">page ${page + 1}</span> ${older}</nav>
       <script src="/relative-time.js" defer></script>`
