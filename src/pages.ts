@@ -1178,6 +1178,7 @@ export function curveDetailPage(
       <script src="/curve-plot.js" defer></script>
       <dl class="result-meta curve-meta">
         <dt>a-invariants</dt><dd><code>[${ainvs.map(escapeHtml).join(', ')}]</code></dd>
+        <dt>c-invariants</dt><dd><code class="break">[${escapeHtml(curve.c4)}, ${escapeHtml(curve.c6)}]</code></dd>
         <dt>rank (lower bound)</dt><dd><a href="/curves?sort=conductor&amp;minrank=${curve.rank_lower_bound}&amp;rankmode=eq" title="all curves with rank lower bound = ${curve.rank_lower_bound}, by increasing conductor">&ge; ${curve.rank_lower_bound}</a></dd>
         ${torsionHtml ? `<dt>torsion subgroup</dt><dd>${torsionHtml}</dd>` : ''}
         ${curve.conductor ? `<dt>conductor (N)</dt><dd><code class="break">${escapeHtml(curve.conductor)}</code>${badges('conductor', 'conductor')}</dd>` : ''}
