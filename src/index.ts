@@ -342,7 +342,7 @@ app.get('/database.json', async (c) => {
       'The Institute for Computer-Aided Reasoning in Mathematics (ICARM), supported by U.S. National Science Foundation Grant DMS 2425401',
     acknowledgement:
       'Please acknowledge ICARM and NSF Grant DMS 2425401 in related publications, projects, or other scholarly work, for example: ' +
-      '"This research made use of the Elliptic Curve Rank Leaderboard, maintained by the Institute for Computer-Aided Reasoning (ICARM) under NSF Grant DMS 2425401." ' +
+      '"This research made use of the Elliptic Curve Rank Leaderboard, maintained by the Institute for Computer-Aided Reasoning in Mathematics (ICARM) under NSF Grant DMS 2425401." ' +
       `See ${SITE_ORIGIN}/acknowledge.`,
     documentation: `${SITE_ORIGIN}/api`,
   }
