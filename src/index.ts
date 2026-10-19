@@ -61,7 +61,11 @@ app.get('/', async (c) => {
     plotCurves(c.env),
     Number.isInteger(from) && from >= 0 ? loadWitness(c.env, from) : Promise.resolve(null),
   ])
-  return c.html(landingPage(c.get('user'), curves, c.req.query('metric'), c.req.query('show'), prefill, c.req.query('torsion')))
+  return c.html(landingPage(c.get('user'), curves, c.req.query('metric'), c.req.query('show'), prefill, {
+    subset: c.req.query('subset'),
+    torsion: c.req.query('torsion'),
+    family: c.req.query('family'),
+  }))
 })
 
 app.get('/curves', async (c) => {
@@ -71,7 +75,9 @@ app.get('/curves', async (c) => {
     dir: c.req.query('dir'),
     minrank: c.req.query('minrank'),
     rankmode: c.req.query('rankmode'),
+    subset: c.req.query('subset'),
     torsion: c.req.query('torsion'),
+    family: c.req.query('family'),
   }))
 })
 

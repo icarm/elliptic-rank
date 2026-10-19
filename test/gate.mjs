@@ -78,6 +78,17 @@ check('rivals with unknown torsion are not in any torsion pool', j4.torsion?.nai
 // Anything qualifying overall is admitted regardless of torsion.
 check('overall qualifier admitted', admitted(judge({ ...rival(5), torsion: '[3]' }, trivial)))
 
+// Families: a third pool, alongside torsion. A curve in no family has no
+// family placement; one in a family is judged among that family's rivals only.
+check('no family -> no family placement', judge({ ...worst, torsion: '[]' }, trivial).family === null)
+const mordellBoard = board.map((r) => ({ ...r, torsion: '[]', family: 'mordell' }))
+const jf0 = judge({ ...worst, torsion: '[]', family: 'congruent' }, mordellBoard)
+check('first of its family: family place 1', jf0.family?.naive === 1 && jf0.torsion.naive === 21 && admitted(jf0), JSON.stringify(jf0))
+const jf1 = judge({ ...worst, torsion: '[]', family: 'mordell' }, mordellBoard)
+check('21st within a full family pool is out', jf1.family?.naive === 21 && !admitted(jf1), JSON.stringify(jf1))
+const jf2 = judge({ ...worst, torsion: '[]', family: 'mordell' }, [...trivial, ...mordellBoard.slice(0, 5)])
+check('admitted via family alone', jf2.family?.naive === 6 && !qualifies(jf2.torsion) && admitted(jf2), JSON.stringify(jf2))
+
 // Records: ties share the ★ badge, but a strict (Zulip-announced) record needs
 // the sole holder. Curve #0 (11a3) and 11a2 tie on conductor 11 and |Δ| = 11.
 const c11a3 = { naive_height: 10.048, faltings_height: -1.113, conductor: '11', discriminant: '-11' }

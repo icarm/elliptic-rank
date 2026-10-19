@@ -1,5 +1,6 @@
 // Client side of the curve table (curveTablePage in src/pages.ts): live
-// sorting, the rank and torsion filters and the query-string round trip. Without JS the
+// sorting, the rank and subset (torsion subgroup or family) filters and the
+// query-string round trip. Without JS the
 // sort links and the controls form still work server-side.
 (function () {
   var KEYS = ['id', 'rank', 'naive', 'faltings', 'conductor', 'disc'];
@@ -7,13 +8,13 @@
   var rows = Array.prototype.slice.call(tbody.rows);
   var rankInput = document.getElementById('rank-filter');
   var rankOp = document.getElementById('rank-op');
-  var torsionSel = document.getElementById('torsion-filter');
+  var subsetSel = document.getElementById('subset-filter');
   var count = document.getElementById('curve-count');
   var heading = document.getElementById('table-title');
   var buttons = document.querySelectorAll('a.sort');
   var sortKey = 'rank';
   var sortDir = -1; // 1 = ascending, -1 = descending; default: highest rank first
-  var lastTorsion = null; // the torsion filter the record highlights were last set for
+  var lastSubset = null; // the subset filter the record highlights were last set for
 
   var params = new URLSearchParams(location.search);
   if (KEYS.indexOf(params.get('sort')) >= 0) {
@@ -22,9 +23,12 @@
   }
   if (/^[0-9]+$/.test(params.get('minrank') || '')) rankInput.value = params.get('minrank');
   if (params.get('rankmode') === 'eq') rankOp.value = 'eq';
-  // Only offered groups are selectable; anything else leaves "any".
-  if (params.get('torsion')) torsionSel.value = params.get('torsion');
-  if (torsionSel.selectedIndex < 0) torsionSel.value = '';
+  // Only offered subsets are selectable; anything else leaves all curves. Same
+  // precedence as pickSubset in pages.ts.
+  if (params.get('subset')) subsetSel.value = params.get('subset');
+  else if (params.get('family')) subsetSel.value = 'family:' + params.get('family');
+  else if (params.get('torsion')) subsetSel.value = 'torsion:' + params.get('torsion');
+  if (subsetSel.selectedIndex < 0) subsetSel.value = '';
 
   function compare(av, bv, dir) {
     if (av === '') return bv === '' ? 0 : 1; // missing values last either way
@@ -47,12 +51,17 @@
     var eq = rankOp.value === 'eq';
     // "=" with an empty box means no filter (any rank); ">=" defaults to 0.
     rankInput.placeholder = eq ? 'any' : '0';
-    var torsion = torsionSel.value;
+    // "torsion:2x4" or "family:mordell" (the row's data-torsion or
+    // data-family), or '' for all curves.
+    var subset = subsetSel.value;
+    var kind = subset.split(':')[0];
+    var key = subset.slice(kind.length + 1);
+    var option = subsetSel.selectedOptions[0];
     var shown = 0;
     rows.forEach(function (r) {
       var rk = Number(r.dataset.rank);
       r.hidden = (hasFilter && (eq ? rk !== n : rk < n)) ||
-        (torsion !== '' && r.dataset.torsion !== torsion);
+        (subset !== '' && r.dataset[kind] !== key);
       if (!r.hidden) shown++;
     });
     // One call sets the new order. Appending the rows one at a time left the
@@ -60,23 +69,26 @@
     // and Chrome then took over a second per re-sort.
     tbody.replaceChildren.apply(tbody, rows);
     count.textContent = shown;
-    // With a torsion subgroup selected, highlight records within the subgroup
-    // (each row's data-trec) instead of overall records (data-rec); those that
+    // With a subset selected, highlight records within it too (each row's
+    // data-trec or data-frec) besides overall records (data-rec); those that
     // are not also overall records get the hollow star. Classes and titles
     // match curveTableRow's.
-    if (torsion !== lastTorsion) {
-      lastTorsion = torsion;
+    if (subset !== lastSubset) {
+      lastSubset = subset;
       rows.forEach(function (r) {
         var rank = r.dataset.rank;
         Array.prototype.forEach.call(r.querySelectorAll('td[data-rec]'), function (td) {
-          var on = (torsion !== '' ? td.dataset.trec : td.dataset.rec) === '1';
-          var torsionOnly = on && td.dataset.rec !== '1';
+          var overall = td.dataset.rec === '1';
+          var on = overall || (kind === 'torsion' && td.dataset.trec === '1') || (kind === 'family' && td.dataset.frec === '1');
+          var subsetOnly = on && !overall;
           td.classList.toggle('record', on);
-          td.classList.toggle('torsion-record', torsionOnly);
+          td.classList.toggle('subset-record', subsetOnly);
           if (on) {
-            td.title = torsionOnly
-              ? 'record for this torsion subgroup: smallest among curves of rank \u2265 ' + rank + ' with this torsion'
-              : 'record: smallest among curves of rank \u2265 ' + rank;
+            td.title = !subsetOnly
+              ? 'record: smallest among curves of rank \u2265 ' + rank
+              : kind === 'family'
+                ? 'record for ' + option.dataset.name + ': smallest among ' + option.dataset.name + ' of rank \u2265 ' + rank
+                : 'record for this torsion subgroup: smallest among curves of rank \u2265 ' + rank + ' with this torsion';
           } else {
             td.removeAttribute('title');
           }
@@ -87,14 +99,15 @@
       b.className = 'sort' + (b.dataset.key === sortKey ? (sortDir === 1 ? ' asc' : ' desc') : '');
     });
     // The heading names the current view: "All curves" when unfiltered
-    // (including ">= 0", which every curve satisfies), the rank and torsion
+    // (including ">= 0", which every curve satisfies), the rank and subset
     // restrictions otherwise — same condition as the query string below.
     var restricted = hasFilter && (eq || n > 0);
     var phrases = [];
     if (restricted) phrases.push('rank lower bound ' + (eq ? '= ' : '\u2265 ') + n);
-    if (torsion === 'trivial') phrases.push('trivial torsion');
-    else if (torsion !== '') phrases.push('torsion ' + torsionSel.selectedOptions[0].dataset.label);
-    var title = phrases.length ? 'Curves with ' + phrases.join(' and ') : 'All curves';
+    if (option.dataset.phrase) phrases.push(option.dataset.phrase);
+    var title = phrases.length || subset !== ''
+      ? (option.dataset.noun || 'Curves') + (phrases.length ? ' with ' + phrases.join(' and ') : '')
+      : 'All curves';
     heading.textContent = title;
     document.title = title + ' \u2014 Elliptic Curve Rank Leaderboard';
     var q = new URLSearchParams();
@@ -105,7 +118,7 @@
     // Persist the value whenever it filters: any value in "=" mode, or >0 in ">=" mode.
     if (restricted) q.set('minrank', String(n));
     if (eq) q.set('rankmode', 'eq');
-    if (torsion !== '') q.set('torsion', torsion);
+    if (subset !== '') q.set(kind, key);
     var qs = q.toString();
     history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
   }
@@ -127,7 +140,7 @@
   });
   rankInput.addEventListener('input', apply);
   rankOp.addEventListener('change', apply);
-  torsionSel.addEventListener('change', apply);
+  subsetSel.addEventListener('change', apply);
   // The controls form is the no-JS fallback; here everything is already
   // applied live, so Enter in the rank box must not reload the page.
   document.querySelector('form.table-controls').addEventListener('submit', function (e) {
@@ -145,7 +158,7 @@
       rankInput.value = a.closest('tr').dataset.rank;
       rankOp.value = 'eq';
     } else {
-      torsionSel.value = a.closest('tr').dataset.torsion;
+      subsetSel.value = 'torsion:' + a.closest('tr').dataset.torsion;
     }
     apply();
   });

@@ -419,9 +419,10 @@ pre code {
   pointer-events: none;
 }
 
-/* Torsion selector and "best only" toggle, right-aligned after the metric
-   tabs. best-per-rank is the default; unchecking reveals the remaining dots
-   (.best-only below hides all but the best per rank column). */
+/* Subset (torsion subgroup or family) selector and "best only" toggle,
+   right-aligned after the metric tabs. best-per-rank is the default;
+   unchecking reveals the remaining dots (.best-only below hides all but the
+   best per rank column). */
 .plot-controls {
   margin-left: auto;
   display: inline-flex;
@@ -430,7 +431,7 @@ pre code {
   gap: 1rem;
 }
 
-.plot-torsion {
+.plot-subset {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -438,7 +439,7 @@ pre code {
   font-size: 0.9rem;
 }
 
-.plot-torsion select,
+.plot-subset select,
 .plot-controls button {
   padding: 0.2rem 0.4rem;
   border: 1px solid var(--border);
@@ -1080,7 +1081,7 @@ a.record-badge:hover {
 
 /* Record only within the selected torsion subgroup: hollow star, as on the
    curve page's torsion badge. */
-.curves-table td.torsion-record::before { content: "\2606"; }
+.curves-table td.subset-record::before { content: "\2606"; }
 
 .curves-table a.sort {
   font: inherit;
@@ -1290,7 +1291,7 @@ a.external::after {
   .browse-cta a { display: block; margin: 0.35rem 0; }
   .browse-cta .cta-sep { display: none; }
   /* Plot switcher: short metric labels so the four tabs fit one row, and the
-     torsion/best-only controls on their own line below the tab underline. */
+     subset/best-only controls on their own line below the tab underline. */
   .plot-tabs { border-bottom: none; }
   .plot-tabs .plot-metrics {
     display: flex;
@@ -1303,13 +1304,13 @@ a.external::after {
     margin-left: 0;
     justify-content: space-between;
   }
-  /* Drop the torsion column too; the torsion filter above still works. */
+  /* Drop the torsion column too; the subset filter above still works. */
   .curves-table th.torsion, .curves-table td.torsion { display: none; }
   /* and compact further so the six remaining columns fit a 390px phone */
   .curves-table { font-size: 0.8rem; }
   .curves-table th, .curves-table td { padding: 0.35rem 0.25rem; }
   /* No room for the ★ on narrow screens — the highlight alone marks records. */
-  .curves-table td.record::before, .curves-table td.torsion-record::before { content: none; }
+  .curves-table td.record::before, .curves-table td.subset-record::before { content: none; }
   .eq { font-size: 1rem; word-break: break-word; }
   .result-meta { grid-template-columns: 1fr; gap: 0.1rem; }
   .result-meta dt { margin-top: 0.5rem; }

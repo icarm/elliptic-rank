@@ -35,13 +35,16 @@ export interface Placement {
 // it has no id yet) and of the rivals it is judged against. `torsion` is the
 // torsion subgroup as stored (JSON invariant factors, e.g. "[2, 2]"); it is
 // what the per-torsion placement groups by, and may be absent or null for
-// rows recorded before it was tracked.
+// rows recorded before it was tracked. `family` is the curve's family key (see
+// family.curveFamily), null when it is in none; the per-family placement
+// groups by it.
 export interface Metrics {
   naive_height: number
   faltings_height: number | null
   conductor: string | null
   discriminant: string
   torsion?: string | null
+  family?: string | null
 }
 
 // Where a candidate would place among `rivals` (every curve of rank ≥ the
@@ -144,28 +147,32 @@ export function qualifies(p: Placement, limit = BOARD_TOP_K): boolean {
   return [p.naive, p.faltings, p.conductor, p.disc].some((place) => place != null && place <= limit)
 }
 
-// A candidate's placement overall and among the rivals sharing its torsion
+// A candidate's placement overall, among the rivals sharing its torsion
 // subgroup (records are also tracked per torsion subgroup, as at Dujella's
-// tables). The candidate's torsion is always known: the verifier computes it
-// for every certified curve. Rivals with no recorded torsion (rows predating
-// the column, all since backfilled) belong to no torsion pool.
+// tables) and among those in its family, if it is in one (null otherwise).
+// The candidate's torsion is always known: the verifier computes it for every
+// certified curve. Rivals with no recorded torsion (rows predating the column,
+// all since backfilled) belong to no torsion pool.
 export interface Judgement {
   placement: Placement
   torsion: Placement
+  family: Placement | null
 }
 
 export function judge(candidate: Metrics & { torsion: string }, rivals: Metrics[]): Judgement {
+  const family = candidate.family ?? null
   return {
     placement: placement(candidate, rivals),
     torsion: placement(candidate, rivals.filter((o) => o.torsion === candidate.torsion)),
+    family: family == null ? null : placement(candidate, rivals.filter((o) => o.family === family)),
   }
 }
 
 // Whether a judgement earns a spot on the board: top `limit` on some metric,
-// either overall or within the candidate's torsion subgroup. Every rival in the
-// torsion pool is also in the overall pool, so a per-torsion place is never
+// overall, within the candidate's torsion subgroup or within its family. Every
+// rival in those pools is also in the overall pool, so a place in them is never
 // worse than the overall one: this admits a superset of what `qualifies` alone
 // would, and never fewer curves.
 export function admitted(j: Judgement, limit = BOARD_TOP_K): boolean {
-  return qualifies(j.placement, limit) || qualifies(j.torsion, limit)
+  return qualifies(j.placement, limit) || qualifies(j.torsion, limit) || (j.family != null && qualifies(j.family, limit))
 }

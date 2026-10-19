@@ -1,8 +1,9 @@
 // Client side of the landing page plot (landingPage in src/pages.ts): switch
 // between the pre-rendered per-metric panels and toggle best-only/all curves,
-// mirroring the choice into the query string, and reload for a new torsion
-// subgroup (rendered server-side). No JS: the <noscript> style in the page
-// shows every panel instead, and an "apply" button submits the torsion form.
+// mirroring the choice into the query string, and reload for a new subset
+// (a torsion subgroup or family, rendered server-side). No JS: the <noscript>
+// style in the page shows every panel instead, and an "apply" button submits
+// the subset form.
 (function () {
   var tabs = Array.prototype.slice.call(document.querySelectorAll('input[name="plot-metric"]'));
   var panels = Array.prototype.slice.call(document.querySelectorAll('.board .plot-panel'));
@@ -25,10 +26,16 @@
     var qs = q.toString();
     history.replaceState(null, '', location.pathname + (qs ? '?' + qs : ''));
   });
-  var torsion = document.getElementById('plot-torsion');
-  torsion.addEventListener('change', function () {
+  // Option values are "torsion:<key>" or "family:<key>"; the URL carries
+  // ?torsion=<key> or ?family=<key>, as landingPage reads it.
+  var subset = document.getElementById('plot-subset');
+  subset.addEventListener('change', function () {
     var q = new URLSearchParams(location.search);
-    if (torsion.value) q.set('torsion', torsion.value); else q.delete('torsion');
+    ['subset', 'torsion', 'family'].forEach(function (k) { q.delete(k); });
+    if (subset.value) {
+      var i = subset.value.indexOf(':');
+      q.set(subset.value.slice(0, i), subset.value.slice(i + 1));
+    }
     var qs = q.toString();
     location.assign(location.pathname + (qs ? '?' + qs : ''));
   });
