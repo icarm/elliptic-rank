@@ -1495,10 +1495,14 @@ function leaderboardStatus(submit: SubmitInfo | null): string {
   let added = true
   switch (submit.status) {
     case 'created':
-      msg = submit.viaTorsion
-        ? `Added to the leaderboard as a top-${BOARD_TOP_K} curve among those with the same torsion subgroup.`
-        : submit.viaFamily
-          ? `Added to the leaderboard as a top-${BOARD_TOP_K} curve among those in the same family.`
+      msg =
+        submit.viaTorsion || submit.viaFamily
+          ? `Added to the leaderboard as a top-${BOARD_TOP_K} curve among those ${[
+              submit.viaTorsion ? 'with the same torsion subgroup' : null,
+              submit.viaFamily ? 'in the same family' : null,
+            ]
+              .filter((x) => x != null)
+              .join(' and among those ')}.`
           : 'Added to the leaderboard.'
       break
     case 'improved':
@@ -1670,9 +1674,12 @@ export function apiDocsPage(user: User | null = null): string {
       top <code>${BOARD_TOP_K}</code> on some metric among curves of rank &ge; its own, overall, among
       those with the same torsion subgroup, or among those in the same family (Mordell curves
       <span class="eqi">y<sup>2</sup> = x<sup>3</sup> + k</span> or congruent-number curves
-      <span class="eqi">y<sup>2</sup> = x<sup>3</sup> &minus; n<sup>2</sup>x</span>; a <code>"created"</code> result carries
-      <code>"viaTorsion": true</code> or <code>"viaFamily": true</code> when only one of those applied); otherwise the
-      submission is verified but not stored, and <code>leaderboard</code> is
+      <span class="eqi">y<sup>2</sup> = x<sup>3</sup> &minus; n<sup>2</sup>x</span>). A <code>"created"</code> result
+      carries <code>viaTorsion</code> and <code>viaFamily</code>: both <code>false</code> when the curve placed in
+      the overall top <code>${BOARD_TOP_K}</code>, and otherwise each <code>true</code> exactly when the curve's
+      placement within its torsion subgroup or its family, respectively, qualified (so both can be
+      <code>true</code>). A new curve that places in the top <code>${BOARD_TOP_K}</code> in none of those is verified
+      but not stored, and <code>leaderboard</code> is
       <code>{ "status": "declined", "rank", "limit", "torsion", "family", "placement": { "naive", "faltings", "conductor", "disc" }, "torsionPlacement": { ... }, "familyPlacement": { ... } }</code>
       with each 1-based place overall, within the torsion subgroup and within the family
       (<code>"mordell"</code> or <code>"congruent"</code>; <code>family</code> and <code>familyPlacement</code> are

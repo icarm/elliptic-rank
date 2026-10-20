@@ -176,3 +176,14 @@ export function judge(candidate: Metrics & { torsion: string }, rivals: Metrics[
 export function admitted(j: Judgement, limit = BOARD_TOP_K): boolean {
   return qualifies(j.placement, limit) || qualifies(j.torsion, limit) || (j.family != null && qualifies(j.family, limit))
 }
+
+// For an admitted curve that missed the overall top `limit`, which pools let
+// it in: each flag says whether that pool's placement qualified, so both may
+// be true. Both are false for a curve that qualified overall.
+export function admittedVia(j: Judgement, limit = BOARD_TOP_K): { viaTorsion: boolean; viaFamily: boolean } {
+  const overall = qualifies(j.placement, limit)
+  return {
+    viaTorsion: !overall && qualifies(j.torsion, limit),
+    viaFamily: !overall && j.family != null && qualifies(j.family, limit),
+  }
+}

@@ -1,4 +1,4 @@
-import { placement, qualifies, judge, admitted, recordsAmong, boardRecords, BOARD_TOP_K } from '../src/gate.ts'
+import { placement, qualifies, judge, admitted, admittedVia, recordsAmong, boardRecords, BOARD_TOP_K } from '../src/gate.ts'
 
 let failures = 0
 function check(name, cond, detail = '') {
@@ -88,6 +88,16 @@ const jf1 = judge({ ...worst, torsion: '[]', family: 'mordell' }, mordellBoard)
 check('21st within a full family pool is out', jf1.family?.naive === 21 && !admitted(jf1), JSON.stringify(jf1))
 const jf2 = judge({ ...worst, torsion: '[]', family: 'mordell' }, [...trivial, ...mordellBoard.slice(0, 5)])
 check('admitted via family alone', jf2.family?.naive === 6 && !qualifies(jf2.torsion) && admitted(jf2), JSON.stringify(jf2))
+
+// admittedVia reports each pool that qualified, independently.
+const via = (j) => JSON.stringify(admittedVia(j))
+check('via family only', via(jf2) === '{"viaTorsion":false,"viaFamily":true}', via(jf2))
+check('via torsion only', via(j0) === '{"viaTorsion":true,"viaFamily":false}', via(j0))
+// First of both its torsion subgroup and its family, last overall: both pools qualify.
+const jboth = judge({ ...worst, torsion: '[2]', family: 'mordell' }, trivial)
+check('via both torsion and family', admitted(jboth) && via(jboth) === '{"viaTorsion":true,"viaFamily":true}', via(jboth))
+const jover = judge({ ...rival(5), torsion: '[2]', family: 'mordell' }, trivial)
+check('overall qualifier: neither flag', via(jover) === '{"viaTorsion":false,"viaFamily":false}', via(jover))
 
 // Records: ties share the ★ badge, but a strict (Zulip-announced) record needs
 // the sole holder. Curve #0 (11a3) and 11a2 tie on conductor 11 and |Δ| = 11.

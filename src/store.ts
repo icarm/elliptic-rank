@@ -12,7 +12,7 @@ import { verifyPrimes, autoPrimes, type VerifyResult, type PrimesResult } from '
 import type { Gp } from './pari'
 import type { RecordFlags, PlotCurve, TableCurve } from './pages'
 import { curveFamily } from './family'
-import { BOARD_TOP_K, placement, qualifies, judge, admitted, recordsAmong, boardRecords, lessDecimal, lessAbsDecimal, type Metrics, type Placement } from './gate'
+import { BOARD_TOP_K, placement, qualifies, judge, admitted, admittedVia, recordsAmong, boardRecords, lessDecimal, lessAbsDecimal, type Metrics, type Placement } from './gate'
 
 // The entry gate and the decimal comparators live in ./gate (dependency-free
 // so they can be unit-tested without the verifier); re-exported for callers.
@@ -274,9 +274,11 @@ export type RecordStatus =
       // True when this submission newly recorded the conductor for the curve (i.e.
       // the conductor was not previously on record). Not the conductor value itself.
       conductorRecorded?: boolean
-      // 'created' only: true when the curve was admitted not on the overall
-      // board but on its placement among curves with the same torsion subgroup
-      // (viaTorsion), or else among those in its family (viaFamily).
+      // 'created' only: the curve missed the overall top BOARD_TOP_K and was
+      // admitted on its placement among curves with the same torsion subgroup
+      // (viaTorsion) and/or among those in its family (viaFamily). Each flag
+      // says whether that placement qualified, so both may be true; both are
+      // false for a curve that qualified overall.
       viaTorsion?: boolean
       viaFamily?: boolean
     }
@@ -604,8 +606,7 @@ export async function recordCurve(
         limit: BOARD_TOP_K,
       }
     }
-    const viaTorsion = !qualifies(verdict.placement) && qualifies(verdict.torsion)
-    const viaFamily = !qualifies(verdict.placement) && !viaTorsion
+    const { viaTorsion, viaFamily } = admittedVia(verdict)
 
     const ins = await env.DB.prepare(
       `INSERT INTO curves
