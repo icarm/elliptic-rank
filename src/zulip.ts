@@ -73,12 +73,17 @@ function poolOnly(overall: RecordFlags, pool: RecordFlags): RecordFlags {
 // `first` heads the message for the first such curve at a rank ("First curve
 // with ℤ/5ℤ torsion", "First Mordell curve"). `flags` and `rivals` are the
 // curve's strict records and rival count there (see store.announcedRecords).
+// `parent` is the pool of the family this one is a special case of (null for
+// torsion and for a family of all curves of some j-invariant): its curves
+// include all of this pool's, so a record there, or being first there,
+// implies the same here.
 interface Pool {
   name: string
   among: string
   first: string
   flags: RecordFlags
   rivals: number
+  parent: Pool | null
 }
 
 // The curve's pools: its torsion subgroup (unless not recorded or unparseable),
@@ -94,18 +99,23 @@ function poolsOf(curve: RecordCandidate, flags: Awaited<ReturnType<typeof announ
       first: `First curve with ${name}`,
       flags: flags.torsion,
       rivals: flags.torsionRivals,
+      parent: null,
     })
   }
+  const byKey = new Map<string, Pool>()
   for (const f of flags.families) {
     const family = familyByKey(f.key)
     if (family == null) continue
-    pools.push({
+    const pool: Pool = {
       name: family.name,
       among: `of the form ${family.label}`,
       first: `First ${family.name.replace(/s$/, '')}`,
       flags: f.flags,
       rivals: f.rivals,
-    })
+      parent: family.within != null ? (byKey.get(family.within) ?? null) : null,
+    }
+    byKey.set(f.key, pool)
+    pools.push(pool)
   }
   return pools
 }
@@ -160,9 +170,14 @@ export async function notifyRecord(
   const rank = curve.rank_lower_bound
   const overall = recordPhrases(curve, flags.overall, all)
   // The pools with news: the curve is the first in them at its rank, or holds
-  // records there that its overall records don't imply.
+  // records there that neither its overall records nor those of the pool's
+  // parent family already imply.
   const news = poolsOf(curve, flags)
-    .map((p) => ({ ...p, isFirst: p.rivals === 0, held: recordPhrases(curve, poolOnly(flags.overall, p.flags), all) }))
+    .map((p) => ({
+      ...p,
+      isFirst: p.rivals === 0 && !(p.parent != null && p.parent.rivals === 0),
+      held: recordPhrases(curve, poolOnly(flags.overall, p.parent != null ? poolOnly(p.parent.flags, p.flags) : p.flags), all),
+    }))
     .filter((p) => p.isFirst || p.held.length > 0)
   if (overall.length === 0 && news.length === 0) return
 
@@ -223,9 +238,10 @@ export async function notifyBackfillRecord(
   if (flags.rivals === 0) return
   const rank = curve.rank_lower_bound
   const overall = recordPhrases(curve, flags.overall, ['conductor'])
-  const inPools = poolsOf(curve, flags).filter(
-    (p) => p.rivals > 0 && recordPhrases(curve, p.flags, ['conductor']).length > 0,
-  )
+  // Pools where it is now the conductor record, skipping one whose parent
+  // family's record already implies it.
+  const conductorRecord = (p: Pool): boolean => p.rivals > 0 && recordPhrases(curve, p.flags, ['conductor']).length > 0
+  const inPools = poolsOf(curve, flags).filter((p) => conductorRecord(p) && !(p.parent != null && conductorRecord(p.parent)))
   if (overall.length === 0 && inPools.length === 0) return
   const [lead, ...rest] = inPools
   const [headline, among] =

@@ -5,7 +5,7 @@
 import type { VerifyResult } from './verify'
 import { COMMENT_MAX, type CommentView, type ActivityItem, type BatchRecords, type CurveEvent, type Contribution, type RecordStatus } from './store'
 import { BOARD_TOP_K, boardRecords, type Placement, type Records } from './gate'
-import { FAMILIES, curveFamilies, familyByKey, type Family } from './family'
+import { FAMILIES, curveFamilies, familyByKey, impliedByParent, type Family } from './family'
 
 export const ABOUT_MAX = 1000
 
@@ -734,7 +734,8 @@ function curveTableRow(
     // Every overall record is also one within its subsets, except for a curve
     // whose torsion is not recorded, which has no torsion records at all.
     const inTorsion = !!use.torsion && torsion
-    const inFamilies = recordFamilies.filter((f) => use.families?.includes(f.key))
+    const highlighted = (key: string): boolean => !!use.families?.includes(key) && recordFamilies.some((f) => f.key === key)
+    const inFamilies = recordFamilies.filter((f) => highlighted(f.key) && !impliedByParent(f.key, highlighted))
     const on = overall || inTorsion || inFamilies.length > 0
     const subsetOnly = on && !overall
     const title = !subsetOnly
@@ -1267,14 +1268,20 @@ export function curveDetailPage(
   const torsionHtml = curve.torsion != null ? torsionGroupHtml(curve.torsion) : null
   const families = familiesOf(curve)
   // Per metric: the overall record badge, else the torsion-subgroup and family
-  // ones (a curve may hold several).
+  // ones (a curve may hold several; a subfamily's is left out where the
+  // parent family's implies it).
   const badges = (metric: keyof RecordFlags, sort: string): string =>
     records.overall[metric]
       ? badge(true, curve.rank_lower_bound, sort)
       : (curve.torsion != null && records.torsion
           ? torsionBadge(records.torsion[metric], curve.rank_lower_bound, sort, curve.torsion)
           : '') +
-        families.map((f) => familyBadge(!!records.families[f.key]?.[metric], curve.rank_lower_bound, sort, f)).join('')
+        families
+          .map((f) => {
+            const holds = (key: string): boolean => !!records.families[key]?.[metric]
+            return familyBadge(holds(f.key) && !impliedByParent(f.key, holds), curve.rank_lower_bound, sort, f)
+          })
+          .join('')
   const pointList = points
     .map(([x, y]) => `<li><code>(${escapeHtml(x)}, ${escapeHtml(y)})</code></li>`)
     .join('\n          ')
@@ -1389,7 +1396,10 @@ function activityRecordBadges(
     out += ` <span class="record-badge torsion-badge activity-badge" title="smallest on the board among curves of rank &ge; ${rank} with this torsion subgroup">&#9734; record for ${t.recordName}, rank &ge; ${rank}: ${links.join(', ')}</span>`
   }
   for (const family of families) {
-    const familyOnly = ACTIVITY_METRICS.filter(([m]) => inFamilies?.[family.key]?.[m] && !overall?.[m])
+    const familyOnly = ACTIVITY_METRICS.filter(([m]) => {
+      const holds = (key: string): boolean => !!inFamilies?.[key]?.[m]
+      return holds(family.key) && !overall?.[m] && !impliedByParent(family.key, holds)
+    })
     if (familyOnly.length === 0) continue
     const links = familyOnly.map(([, sort, name]) => `<a href="/curves?sort=${sort}&amp;minrank=${rank}&amp;family=${family.key}">${name}</a>`)
     out += ` <span class="record-badge torsion-badge activity-badge" title="smallest on the board among ${family.name} of rank &ge; ${rank}">&#9734; record for ${family.name}, rank &ge; ${rank}: ${links.join(', ')}</span>`

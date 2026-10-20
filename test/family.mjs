@@ -1,4 +1,4 @@
-import { curveFamilies, legacyFamily, familyByKey, FAMILIES } from '../src/family.ts'
+import { curveFamilies, legacyFamily, familyByKey, impliedByParent, FAMILIES } from '../src/family.ts'
 
 let failures = 0
 function check(name, cond, detail = '') {
@@ -40,6 +40,13 @@ check('legacy: cube sum is still "mordell"', legacyFamily(...cinvs(0, -432)) ===
 check('legacy: congruent', legacyFamily(...cinvs(-1, 0)) === 'congruent')
 check('legacy: quartic twist only is null', legacyFamily(...cinvs(1, 0)) === null)
 check('legacy: no family is null', legacyFamily('16', '-152') === null)
+
+// A subfamily's record is implied when the curve also holds the parent's.
+const holding = (...keys) => (k) => keys.includes(k)
+check('congruent record implied by quartic record', impliedByParent('congruent', holding('quartic', 'congruent')))
+check('congruent record alone is not implied', !impliedByParent('congruent', holding('congruent')))
+check('cube-sum record implied by Mordell record', impliedByParent('cubesum', holding('mordell', 'cubesum')))
+check('a family of all j-invariant curves is never implied', !impliedByParent('quartic', holding('quartic')) && !impliedByParent('mordell', holding('mordell')))
 
 check('familyByKey round-trips', FAMILIES.every((f) => familyByKey(f.key) === f) && familyByKey('nope') === null && familyByKey(undefined) === null)
 

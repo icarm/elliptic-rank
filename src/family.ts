@@ -88,6 +88,16 @@ export function familyByKey(key: string | null | undefined): Family | null {
   return FAMILIES.find((f) => f.key === key) ?? null
 }
 
+// Whether a record within family `key` goes without saying because the curve
+// also holds it within the family `key` is a special case of: that family's
+// curves include all of this one's, so its record implies this one. `holds`
+// says whether the curve holds the record within a family, by key. As a ★
+// overall record hides the ☆ torsion one, the implied record isn't shown.
+export function impliedByParent(key: string, holds: (key: string) => boolean): boolean {
+  const within = familyByKey(key)?.within
+  return within != null && holds(within)
+}
+
 // The keys of every family the curve with these c-invariants (decimal
 // strings) is in, in FAMILIES order: none, or a j-invariant's family of all
 // its curves and possibly that family's special case.
