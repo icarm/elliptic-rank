@@ -464,6 +464,31 @@ pre code {
   color: var(--accent);
 }
 
+/* While landing.js reloads the page for a new "within" subset, the old plot
+   is dimmed and inert under a "loading…" label, so it isn't mistaken for (or
+   clicked through as) the new one. */
+.plot-area { position: relative; }
+.plot-loading { display: none; }
+.board.is-loading .plot-panel {
+  opacity: 0.35;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.board.is-loading .plot-loading {
+  display: block;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .board.best-only .rank-plot .dot:not(.best) {
   display: none;
 }

@@ -580,46 +580,49 @@ export function landingPage(
           </span>
           <form class="plot-controls" method="get" action="/">
             <input type="hidden" name="metric" value="${sel}" />${showAll ? '<input type="hidden" name="show" value="all" />' : ''}
-            <label class="plot-subset" title="Plot only curves with one torsion subgroup or in one family."><span>within</span> <select id="plot-subset" name="subset">${subsetOptions(subsets, subset)}</select></label>
+            <label class="plot-subset" title="Plot only curves with one torsion subgroup or in one family."><span>within</span> <select id="plot-subset" name="subset" autocomplete="off">${subsetOptions(subsets, subset)}</select></label>
             <noscript><button type="submit">apply</button></noscript>
             <label class="plot-filter" title="Plot only the best (lowest) curve at each rank bound."><input type="checkbox" id="plot-best-only"${showAll ? '' : ' checked'} /><span>best only</span></label>
           </form>
         </div>
-        <div class="plot-panel" data-metric="conductor"${sel === 'conductor' ? '' : ' hidden'}>
-          ${scatterPlot(
-            curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
-            'log conductor',
-            (v) => v.toFixed(0),
-            'conductor',
-            subsetSel,
-          )}
-        </div>
-        <div class="plot-panel" data-metric="disc"${sel === 'disc' ? '' : ' hidden'}>
-          ${scatterPlot(
-            curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.discriminant) })),
-            'log |Δ|',
-            (v) => v.toFixed(0),
-            'disc',
-            subsetSel,
-          )}
-        </div>
-        <div class="plot-panel" data-metric="faltings"${sel === 'faltings' ? '' : ' hidden'}>
-          ${scatterPlot(
-            curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
-            'Faltings height',
-            (v) => v.toFixed(1),
-            'faltings',
-            subsetSel,
-          )}
-        </div>
-        <div class="plot-panel" data-metric="naive"${sel === 'naive' ? '' : ' hidden'}>
-          ${scatterPlot(
-            curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
-            'naive height',
-            (v) => v.toFixed(0),
-            'naive',
-            subsetSel,
-          )}
+        <div class="plot-area">
+          <div class="plot-panel" data-metric="conductor"${sel === 'conductor' ? '' : ' hidden'}>
+            ${scatterPlot(
+              curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
+              'log conductor',
+              (v) => v.toFixed(0),
+              'conductor',
+              subsetSel,
+            )}
+          </div>
+          <div class="plot-panel" data-metric="disc"${sel === 'disc' ? '' : ' hidden'}>
+            ${scatterPlot(
+              curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.discriminant) })),
+              'log |Δ|',
+              (v) => v.toFixed(0),
+              'disc',
+              subsetSel,
+            )}
+          </div>
+          <div class="plot-panel" data-metric="faltings"${sel === 'faltings' ? '' : ' hidden'}>
+            ${scatterPlot(
+              curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
+              'Faltings height',
+              (v) => v.toFixed(1),
+              'faltings',
+              subsetSel,
+            )}
+          </div>
+          <div class="plot-panel" data-metric="naive"${sel === 'naive' ? '' : ' hidden'}>
+            ${scatterPlot(
+              curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
+              'naive height',
+              (v) => v.toFixed(0),
+              'naive',
+              subsetSel,
+            )}
+          </div>
+          <p class="plot-loading">loading&hellip;</p>
         </div>
         <noscript><style>.plot-tabs .plot-metrics, .plot-tabs .plot-filter { display: none; } .board .plot-panel[hidden] { display: block; }</style></noscript>
         <script src="/landing.js" defer></script>
