@@ -12,7 +12,7 @@
 import type { Bindings } from './auth'
 import { announcedRecords, loadRecordCandidate, type RecordCandidate, type RecordStatus } from './store'
 import { logBigInt, torsionText, type RecordFlags } from './pages'
-import { curveFamily, familyByKey } from './family'
+import { familyByKey } from './family'
 
 // Send `text` as a Zulip message via the incoming webhook. Returns true on a 2xx
 // response. Never throws: delivery is best-effort and runs off the request path.
@@ -67,7 +67,7 @@ function poolOnly(overall: RecordFlags, pool: RecordFlags): RecordFlags {
 }
 
 // A record pool the curve is in, besides the whole board: its torsion subgroup
-// or its family. `name` is the record's name, as on the site's ☆ badges ("ℤ/5ℤ
+// or one of its families. `name` is the record's name, as on the site's ☆ badges ("ℤ/5ℤ
 // torsion", "trivial torsion", "Mordell curves"); `among` qualifies the curves
 // it is judged among ("with torsion ℤ/5ℤ", "of the form y² = x³ + k"); and
 // `first` heads the message for the first such curve at a rank ("First curve
@@ -82,7 +82,7 @@ interface Pool {
 }
 
 // The curve's pools: its torsion subgroup (unless not recorded or unparseable),
-// then its family (if any).
+// then its families, in FAMILIES order (a family before its special case).
 function poolsOf(curve: RecordCandidate, flags: Awaited<ReturnType<typeof announcedRecords>>): Pool[] {
   const pools: Pool[] = []
   const t = curve.torsion == null ? null : torsionText(curve.torsion)
@@ -96,14 +96,15 @@ function poolsOf(curve: RecordCandidate, flags: Awaited<ReturnType<typeof announ
       rivals: flags.torsionRivals,
     })
   }
-  const family = curve.c4 != null && curve.c6 != null ? familyByKey(curveFamily(curve.c4, curve.c6)) : null
-  if (family != null && flags.family != null) {
+  for (const f of flags.families) {
+    const family = familyByKey(f.key)
+    if (family == null) continue
     pools.push({
       name: family.name,
       among: `of the form ${family.label}`,
       first: `First ${family.name.replace(/s$/, '')}`,
-      flags: flags.family,
-      rivals: flags.familyRivals,
+      flags: f.flags,
+      rivals: f.rivals,
     })
   }
   return pools
@@ -122,9 +123,10 @@ function joinRecords(parts: string[]): string {
 // submission did not change the board, and a 'declined' one was never written.
 //
 // A record overall gets a ★ message, which also mentions any further records
-// the curve holds within its torsion subgroup and family. Otherwise, a record
-// within one of those pools gets a ☆ message naming the first such pool up
-// front (torsion before family), and mentions the other. A curve that is the
+// the curve holds within its torsion subgroup and families. Otherwise, a
+// record within one of those pools gets a ☆ message naming the first such pool
+// up front (torsion, then families in FAMILIES order), and mentions the
+// others. A curve that is the
 // first on the board in a pool at its rank trivially holds every record in
 // that pool, so its line says just that. The first curve on the board of its
 // rank at all gets a ★ message saying so, with no pool lines (being first in
@@ -198,9 +200,9 @@ export async function notifyRecord(
 // is the only invariant a backfill records (naive height, discriminant, and
 // Faltings height are all fixed at submission), so only a new smallest-conductor
 // record can result, and as above only a strict one (not a tie) is announced:
-// with ★ if overall, else with ☆ if within the curve's torsion subgroup or
-// family (naming the first such pool, torsion before family, and mentioning
-// the other). A curve alone at its rank is skipped, and one alone in a pool is
+// with ★ if overall, else with ☆ if within the curve's torsion subgroup or one
+// of its families (naming the first such pool, torsion before families, and
+// mentioning the others). A curve alone at its rank is skipped, and one alone in a pool is
 // skipped there: its record is trivial, and being first was news at
 // submission, not now. No-op when the webhook is unconfigured or it isn't a
 // record.

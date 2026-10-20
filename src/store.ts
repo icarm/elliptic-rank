@@ -4,14 +4,14 @@
 // replaced only when a new submission proves a strictly higher rank lower bound.
 // A curve new to the board is written only if it places in the top BOARD_TOP_K
 // on some metric for its rank, overall, among curves with the same torsion
-// subgroup or among those in its family (see judge/admitted); existing rows
-// are never evicted.
+// subgroup or among those in one of its families (see judge/admitted);
+// existing rows are never evicted.
 
 import type { Bindings } from './auth'
 import { verifyPrimes, autoPrimes, type VerifyResult, type PrimesResult } from './verify'
 import type { Gp } from './pari'
 import type { RecordFlags, PlotCurve, TableCurve } from './pages'
-import { curveFamily } from './family'
+import { curveFamilies, legacyFamily } from './family'
 import { BOARD_TOP_K, placement, qualifies, judge, admitted, admittedVia, recordsAmong, boardRecords, lessDecimal, lessAbsDecimal, type Metrics, type Placement } from './gate'
 
 // The entry gate and the decimal comparators live in ./gate (dependency-free
@@ -21,16 +21,21 @@ export { BOARD_TOP_K, placement, qualifies, judge, admitted, lessDecimal, lessAb
 export const COMMENT_MAX = 4000
 
 // Columns every curve list reads: the landing and progress plots need the id,
-// rank, metrics, torsion and c-invariants (for the family; PlotCurve); the
+// rank, metrics, torsion and c-invariants (for the families; PlotCurve); the
 // /curves table and a profile's curve list also need the equation (TableCurve).
 const PLOT_COLUMNS = 'id, rank_lower_bound, naive_height, faltings_height, conductor, discriminant, torsion, c4, c6'
 
 // The rivals' columns the gate and the record badges judge by.
 const RIVAL_COLUMNS = 'naive_height, faltings_height, conductor, discriminant, torsion, c4, c6'
 
-// Rows with their c-invariants as gate Metrics, tagged with their family.
-function withFamily<T extends { c4: string; c6: string }>(rows: T[]): (T & { family: string | null })[] {
-  return rows.map((r) => ({ ...r, family: curveFamily(r.c4, r.c6) }))
+// Rows with their c-invariants as gate Metrics, tagged with their families.
+function withFamilies<T extends { c4: string; c6: string }>(rows: T[]): (T & { families: string[] })[] {
+  return rows.map((r) => ({ ...r, families: curveFamilies(r.c4, r.c6) }))
+}
+
+// The families of a curve whose c-invariants may be absent (none then).
+function familiesOf(c: { c4?: string; c6?: string }): string[] {
+  return c.c4 != null && c.c6 != null ? curveFamilies(c.c4, c.c6) : []
 }
 const TABLE_COLUMNS = `${PLOT_COLUMNS}, ainvs`
 
@@ -276,24 +281,30 @@ export type RecordStatus =
       conductorRecorded?: boolean
       // 'created' only: the curve missed the overall top BOARD_TOP_K and was
       // admitted on its placement among curves with the same torsion subgroup
-      // (viaTorsion) and/or among those in its family (viaFamily). Each flag
-      // says whether that placement qualified, so both may be true; both are
-      // false for a curve that qualified overall.
+      // (viaTorsion) and/or among those in some of its families (viaFamilies,
+      // family keys from ./family; viaFamily: any). Each pool is judged on its
+      // own, so several may have qualified; all are false or empty for a curve
+      // that qualified overall (see gate.admittedVia).
       viaTorsion?: boolean
       viaFamily?: boolean
+      viaFamilies?: string[]
     }
   | {
       // Verified, but not written: the curve is new and places outside the top
       // `limit` on every metric among curves of rank ≥ `rank`, overall
       // (`placement`), among those with its torsion subgroup
-      // (`torsionPlacement`) and, when it is in a family (`family`, a key from
-      // ./family), among those in it (`familyPlacement`, else null). Nothing is
-      // stored, so there is no id.
+      // (`torsionPlacement`) and among those in each of its families
+      // (`families`, keys from ./family; `familyPlacements`, keyed by family).
+      // `family` and `familyPlacement` keep their meaning from before families
+      // nested: "mordell" or "congruent" and the placement there, else null
+      // (see family.legacyFamily). Nothing is stored, so there is no id.
       status: 'declined'
       rank: number
       placement: Placement
       torsionPlacement: Placement
       torsion: string
+      families: string[]
+      familyPlacements: Record<string, Placement>
       family: string | null
       familyPlacement: Placement | null
       limit: number
@@ -323,7 +334,7 @@ export interface RecordCandidate {
   conductor: string | null
   discriminant: string
   torsion?: string | null
-  // The c-invariants, for the curve's family; absent means no family records.
+  // The c-invariants, for the curve's families; absent means no family records.
   c4?: string
   c6?: string
 }
@@ -338,13 +349,14 @@ export function loadRecordCandidate(env: Bindings, curveId: number): Promise<Rec
 
 // What the Zulip notifiers announce: the curve's records for its rank, judged
 // against every other curve of equal or higher rank (see gate.recordsAmong),
-// overall, within its torsion subgroup and within its family. Unlike the ★/☆
-// badges, these are strict: a tie doesn't count, the curve must be the sole
-// holder. `rivals` counts the other curves of rank ≥ its own, so 0 means it is
-// the first curve on the board of its rank. `torsion` is null when the curve's
-// torsion is not recorded, `family` when it is in no family; `torsionRivals`
-// and `familyRivals` count the rivals in those pools, so 0 means it is the
-// first such curve on the board.
+// overall, within its torsion subgroup and within each of its families.
+// Unlike the ★/☆ badges, these are strict: a tie doesn't count, the curve must
+// be the sole holder. `rivals` counts the other curves of rank ≥ its own, so 0
+// means it is the first curve on the board of its rank. `torsion` is null when
+// the curve's torsion is not recorded; `families` has an entry per family the
+// curve is in, in FAMILIES order. `torsionRivals` and each family's `rivals`
+// count the rivals in those pools, so 0 means it is the first such curve on
+// the board.
 export async function announcedRecords(
   env: Bindings,
   curve: RecordCandidate,
@@ -353,26 +365,25 @@ export async function announcedRecords(
   rivals: number
   torsion: RecordFlags | null
   torsionRivals: number
-  family: RecordFlags | null
-  familyRivals: number
+  families: { key: string; flags: RecordFlags; rivals: number }[]
 }> {
   const rivals = await rivalsOf(env, curve)
   const t = curve.torsion ?? null
   const pool = t == null ? [] : rivals.filter((o) => o.torsion === t)
-  const f = curve.c4 != null && curve.c6 != null ? curveFamily(curve.c4, curve.c6) : null
-  const familyPool = f == null ? [] : rivals.filter((o) => o.family === f)
   return {
     overall: recordsAmong(curve, rivals, true),
     rivals: rivals.length,
     torsion: t == null ? null : recordsAmong(curve, pool, true),
     torsionRivals: pool.length,
-    family: f == null ? null : recordsAmong(curve, familyPool, true),
-    familyRivals: familyPool.length,
+    families: familiesOf(curve).map((key) => {
+      const familyPool = rivals.filter((o) => o.families?.includes(key))
+      return { key, flags: recordsAmong(curve, familyPool, true), rivals: familyPool.length }
+    }),
   }
 }
 
-// The metrics, torsion and family of every other curve of rank ≥ the curve's
-// own: the rivals its records are judged against.
+// The metrics, torsion and families of every other curve of rank ≥ the
+// curve's own: the rivals its records are judged against.
 async function rivalsOf(env: Bindings, curve: RecordCandidate): Promise<Metrics[]> {
   const { results } = await env.DB.prepare(
     `SELECT ${RIVAL_COLUMNS} FROM curves
@@ -380,68 +391,76 @@ async function rivalsOf(env: Bindings, curve: RecordCandidate): Promise<Metrics[
   )
     .bind(curve.rank_lower_bound, curve.id)
     .all<Metrics & { c4: string; c6: string }>()
-  return withFamily(results)
+  return withFamilies(results)
 }
 
 // The curve page's badges: records overall, within the curve's torsion
-// subgroup and within its family, all among curves of rank ≥ its own and with
-// ties shared. The torsion and family pools are subsets of the overall one, so
-// every overall record is also a record in them; the page shows their badges
-// only where there is no overall one. `torsion` is null when the curve's
-// torsion is not recorded, `family` when it is in no family.
+// subgroup and within each of its families, all among curves of rank ≥ its
+// own and with ties shared. The torsion and family pools are subsets of the
+// overall one, so every overall record is also a record in them; the page
+// shows their badges only where there is no overall one. `torsion` is null
+// when the curve's torsion is not recorded; `families` is keyed by family, in
+// FAMILIES order, with an entry per family the curve is in.
 export async function recordBadges(
   env: Bindings,
   curve: RecordCandidate,
-): Promise<{ overall: RecordFlags; torsion: RecordFlags | null; family: RecordFlags | null }> {
+): Promise<{ overall: RecordFlags; torsion: RecordFlags | null; families: Record<string, RecordFlags> }> {
   const rivals = await rivalsOf(env, curve)
   const t = curve.torsion ?? null
-  const f = curve.c4 != null && curve.c6 != null ? curveFamily(curve.c4, curve.c6) : null
+  const families: Record<string, RecordFlags> = {}
+  for (const key of familiesOf(curve)) families[key] = recordsAmong(curve, rivals.filter((o) => o.families?.includes(key)))
   return {
     overall: recordsAmong(curve, rivals),
     torsion: t == null ? null : recordsAmong(curve, rivals.filter((o) => o.torsion === t)),
-    family: f == null ? null : recordsAmong(curve, rivals.filter((o) => o.family === f)),
+    families,
   }
 }
 
 // Record flags for many curves at once — e.g. everything attributed to one
 // user, or in recent activity — judged against the whole board, not just the
-// given subset: overall, and within each curve's torsion subgroup and family
-// (as recordBadges, but for a batch). One query loads the metrics of every
-// curve at rank ≥ the lowest rank in the batch, and gate.boardRecords judges
-// them: the same rule as recordBadges and the /curves table. A curve with no
-// recorded torsion has no entry in `torsion`, one in no family none in
-// `family`.
+// given subset: overall, and within each curve's torsion subgroup and each of
+// its families (as recordBadges, but for a batch). One query loads the metrics
+// of every curve at rank ≥ the lowest rank in the batch, and gate.boardRecords
+// judges them: the same rule as recordBadges and the /curves table. A curve
+// with no recorded torsion has no entry in `torsion`; `families` holds, per
+// curve, its records keyed by family (none for a curve in no family).
 export interface BatchRecords {
   overall: Map<number, RecordFlags>
   torsion: Map<number, RecordFlags>
-  family: Map<number, RecordFlags>
+  families: Map<number, Record<string, RecordFlags>>
 }
 
 export async function recordBadgesForCurves(env: Bindings, curves: RecordCandidate[]): Promise<BatchRecords> {
-  if (curves.length === 0) return { overall: new Map(), torsion: new Map(), family: new Map() }
+  if (curves.length === 0) return { overall: new Map(), torsion: new Map(), families: new Map() }
   const board = await loadBoard(env, curves)
   const wanted = new Set(curves.map((c) => c.id))
-  // Records within each pool of `board` that keyOf assigns (null: none).
-  const pooled = (keyOf: (c: RecordCandidate) => string | null): Map<number, RecordFlags> => {
+  // Records within each pool of `board`: keysOf lists the pools a curve is in.
+  const pooled = (keysOf: (c: RecordCandidate) => readonly string[]): Map<string, Map<number, RecordFlags>> => {
     const pools = new Map<string, RecordCandidate[]>()
     for (const c of board) {
-      const k = keyOf(c)
-      if (k == null) continue
-      const g = pools.get(k)
-      if (g) g.push(c)
-      else pools.set(k, [c])
+      for (const k of keysOf(c)) {
+        const g = pools.get(k)
+        if (g) g.push(c)
+        else pools.set(k, [c])
+      }
     }
-    const out = new Map<number, RecordFlags>()
-    for (const group of pools.values()) {
-      for (const [id, f] of recordsFor(group, wanted)) out.set(id, f)
+    return new Map([...pools].map(([k, group]) => [k, recordsFor(group, wanted)]))
+  }
+  const torsion = new Map<number, RecordFlags>()
+  for (const flags of pooled((c) => (c.torsion != null ? [c.torsion] : [])).values()) {
+    for (const [id, f] of flags) torsion.set(id, f)
+  }
+  const families = new Map<number, Record<string, RecordFlags>>()
+  const byFamily = pooled(familiesOf)
+  for (const c of curves) {
+    const entry: Record<string, RecordFlags> = {}
+    for (const key of familiesOf(c)) {
+      const f = byFamily.get(key)?.get(c.id)
+      if (f) entry[key] = f
     }
-    return out
+    families.set(c.id, entry)
   }
-  return {
-    overall: recordsFor(board, wanted),
-    torsion: pooled((c) => c.torsion ?? null),
-    family: pooled((c) => (c.c4 != null && c.c6 != null ? curveFamily(c.c4, c.c6) : null)),
-  }
+  return { overall: recordsFor(board, wanted), torsion, families }
 }
 
 // Every curve at rank ≥ the lowest rank among `curves`.
@@ -582,31 +601,36 @@ export async function recordCurve(
   if (!existing) {
     // Entry gate: a new curve must place in the top BOARD_TOP_K on some metric
     // among the curves of equal or higher rank already on the board, overall,
-    // among those sharing its torsion subgroup or among those in its family.
+    // among those sharing its torsion subgroup or among those in one of its
+    // families.
     const { results: rivals } = await env.DB.prepare(
       `SELECT ${RIVAL_COLUMNS} FROM curves
          WHERE rank_lower_bound >= ?`,
     )
       .bind(rank)
       .all<Metrics & { c4: string; c6: string }>()
-    const family = curveFamily(result.canonical!.c4, result.canonical!.c6)
+    const { c4, c6 } = result.canonical!
+    const families = curveFamilies(c4, c6)
     const verdict = judge(
-      { naive_height: height, faltings_height: faltings, conductor, discriminant: result.curve!.discriminant, torsion, family },
-      withFamily(rivals),
+      { naive_height: height, faltings_height: faltings, conductor, discriminant: result.curve!.discriminant, torsion, families },
+      withFamilies(rivals),
     )
     if (!admitted(verdict)) {
+      const family = legacyFamily(c4, c6)
       return {
         status: 'declined',
         rank,
         placement: verdict.placement,
         torsionPlacement: verdict.torsion,
         torsion,
+        families,
+        familyPlacements: verdict.families,
         family,
-        familyPlacement: verdict.family,
+        familyPlacement: family == null ? null : verdict.families[family],
         limit: BOARD_TOP_K,
       }
     }
-    const { viaTorsion, viaFamily } = admittedVia(verdict)
+    const { viaTorsion, viaFamily, viaFamilies } = admittedVia(verdict)
 
     const ins = await env.DB.prepare(
       `INSERT INTO curves
@@ -633,7 +657,7 @@ export async function recordCurve(
       .run()
     const id = ins.meta.last_row_id as number
     if (hasCommentary) await postComment(env, id, userId, commentary!)
-    return { id, status: 'created', rank, conductorRecorded: !!conductor, viaTorsion, viaFamily }
+    return { id, status: 'created', rank, conductorRecorded: !!conductor, viaTorsion, viaFamily, viaFamilies }
   }
 
   // Existing curve: attach the supplied commentary only if it has none yet.

@@ -30,6 +30,13 @@
   else if (params.get('torsion')) subsetSel.value = 'torsion:' + params.get('torsion');
   if (subsetSel.selectedIndex < 0) subsetSel.value = '';
 
+  // Whether `key` is among the space-separated keys of `list`: a row's
+  // data-torsion (one key) or data-families, or a cell's data-frec (the
+  // families it is a record in).
+  function inSubset(list, key) {
+    return (list || '').split(' ').indexOf(key) >= 0;
+  }
+
   function compare(av, bv, dir) {
     if (av === '') return bv === '' ? 0 : 1; // missing values last either way
     if (bv === '') return -1;
@@ -51,8 +58,8 @@
     var eq = rankOp.value === 'eq';
     // "=" with an empty box means no filter (any rank); ">=" defaults to 0.
     rankInput.placeholder = eq ? 'any' : '0';
-    // "torsion:2x4" or "family:mordell" (the row's data-torsion or
-    // data-family), or '' for all curves.
+    // "torsion:2x4" or "family:mordell" (matched against the row's
+    // data-torsion or data-families), or '' for all curves.
     var subset = subsetSel.value;
     var kind = subset.split(':')[0];
     var key = subset.slice(kind.length + 1);
@@ -61,7 +68,7 @@
     rows.forEach(function (r) {
       var rk = Number(r.dataset.rank);
       r.hidden = (hasFilter && (eq ? rk !== n : rk < n)) ||
-        (subset !== '' && r.dataset[kind] !== key);
+        (subset !== '' && !inSubset(r.dataset[kind === 'torsion' ? 'torsion' : 'families'], key));
       if (!r.hidden) shown++;
     });
     // One call sets the new order. Appending the rows one at a time left the
@@ -79,7 +86,7 @@
         var rank = r.dataset.rank;
         Array.prototype.forEach.call(r.querySelectorAll('td[data-rec]'), function (td) {
           var overall = td.dataset.rec === '1';
-          var on = overall || (kind === 'torsion' && td.dataset.trec === '1') || (kind === 'family' && td.dataset.frec === '1');
+          var on = overall || (kind === 'torsion' && td.dataset.trec === '1') || (kind === 'family' && inSubset(td.dataset.frec, key));
           var subsetOnly = on && !overall;
           td.classList.toggle('record', on);
           td.classList.toggle('subset-record', subsetOnly);

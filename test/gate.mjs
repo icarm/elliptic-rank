@@ -78,26 +78,33 @@ check('rivals with unknown torsion are not in any torsion pool', j4.torsion?.nai
 // Anything qualifying overall is admitted regardless of torsion.
 check('overall qualifier admitted', admitted(judge({ ...rival(5), torsion: '[3]' }, trivial)))
 
-// Families: a third pool, alongside torsion. A curve in no family has no
-// family placement; one in a family is judged among that family's rivals only.
-check('no family -> no family placement', judge({ ...worst, torsion: '[]' }, trivial).family === null)
-const mordellBoard = board.map((r) => ({ ...r, torsion: '[]', family: 'mordell' }))
-const jf0 = judge({ ...worst, torsion: '[]', family: 'congruent' }, mordellBoard)
-check('first of its family: family place 1', jf0.family?.naive === 1 && jf0.torsion.naive === 21 && admitted(jf0), JSON.stringify(jf0))
-const jf1 = judge({ ...worst, torsion: '[]', family: 'mordell' }, mordellBoard)
-check('21st within a full family pool is out', jf1.family?.naive === 21 && !admitted(jf1), JSON.stringify(jf1))
-const jf2 = judge({ ...worst, torsion: '[]', family: 'mordell' }, [...trivial, ...mordellBoard.slice(0, 5)])
-check('admitted via family alone', jf2.family?.naive === 6 && !qualifies(jf2.torsion) && admitted(jf2), JSON.stringify(jf2))
+// Families: further pools, alongside torsion. A curve in no family has no
+// family placements; one in families is judged within each family's rivals.
+check('no family -> no family placements', JSON.stringify(judge({ ...worst, torsion: '[]' }, trivial).families) === '{}')
+const mordellBoard = board.map((r) => ({ ...r, torsion: '[]', families: ['mordell'] }))
+const jf0 = judge({ ...worst, torsion: '[]', families: ['quartic', 'congruent'] }, mordellBoard)
+check('first of its families: family place 1', jf0.families.congruent?.naive === 1 && jf0.families.quartic?.naive === 1 && jf0.torsion.naive === 21 && admitted(jf0), JSON.stringify(jf0))
+const jf1 = judge({ ...worst, torsion: '[]', families: ['mordell'] }, mordellBoard)
+check('21st within a full family pool is out', jf1.families.mordell?.naive === 21 && !admitted(jf1), JSON.stringify(jf1))
+const jf2 = judge({ ...worst, torsion: '[]', families: ['mordell'] }, [...trivial, ...mordellBoard.slice(0, 5)])
+check('admitted via family alone', jf2.families.mordell?.naive === 6 && !qualifies(jf2.torsion) && admitted(jf2), JSON.stringify(jf2))
+// Nested families: a cube-sum curve is judged among all Mordell curves and,
+// separately, among the cube-sum curves only.
+const nested = [...mordellBoard.slice(0, 15), ...mordellBoard.slice(15).map((r) => ({ ...r, families: ['mordell', 'cubesum'] }))]
+const jn = judge({ ...worst, torsion: '[]', families: ['mordell', 'cubesum'] }, nested)
+check('nested: placed in each family', jn.families.mordell?.naive === 21 && jn.families.cubesum?.naive === 6, JSON.stringify(jn.families))
+check('nested: admitted via the subfamily', admitted(jn) && JSON.stringify(admittedVia(jn).viaFamilies) === '["cubesum"]', JSON.stringify(admittedVia(jn)))
 
 // admittedVia reports each pool that qualified, independently.
 const via = (j) => JSON.stringify(admittedVia(j))
-check('via family only', via(jf2) === '{"viaTorsion":false,"viaFamily":true}', via(jf2))
-check('via torsion only', via(j0) === '{"viaTorsion":true,"viaFamily":false}', via(j0))
+check('via family only', via(jf2) === '{"viaTorsion":false,"viaFamily":true,"viaFamilies":["mordell"]}', via(jf2))
+check('via torsion only', via(j0) === '{"viaTorsion":true,"viaFamily":false,"viaFamilies":[]}', via(j0))
+check('via both families', via(jf0) === '{"viaTorsion":false,"viaFamily":true,"viaFamilies":["quartic","congruent"]}', via(jf0))
 // First of both its torsion subgroup and its family, last overall: both pools qualify.
-const jboth = judge({ ...worst, torsion: '[2]', family: 'mordell' }, trivial)
-check('via both torsion and family', admitted(jboth) && via(jboth) === '{"viaTorsion":true,"viaFamily":true}', via(jboth))
-const jover = judge({ ...rival(5), torsion: '[2]', family: 'mordell' }, trivial)
-check('overall qualifier: neither flag', via(jover) === '{"viaTorsion":false,"viaFamily":false}', via(jover))
+const jboth = judge({ ...worst, torsion: '[2]', families: ['mordell'] }, trivial)
+check('via both torsion and family', admitted(jboth) && via(jboth) === '{"viaTorsion":true,"viaFamily":true,"viaFamilies":["mordell"]}', via(jboth))
+const jover = judge({ ...rival(5), torsion: '[2]', families: ['mordell'] }, trivial)
+check('overall qualifier: no flags', via(jover) === '{"viaTorsion":false,"viaFamily":false,"viaFamilies":[]}', via(jover))
 
 // Records: ties share the ★ badge, but a strict (Zulip-announced) record needs
 // the sole holder. Curve #0 (11a3) and 11a2 tie on conductor 11 and |Δ| = 11.

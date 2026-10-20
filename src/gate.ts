@@ -35,16 +35,16 @@ export interface Placement {
 // it has no id yet) and of the rivals it is judged against. `torsion` is the
 // torsion subgroup as stored (JSON invariant factors, e.g. "[2, 2]"); it is
 // what the per-torsion placement groups by, and may be absent or null for
-// rows recorded before it was tracked. `family` is the curve's family key (see
-// family.curveFamily), null when it is in none; the per-family placement
-// groups by it.
+// rows recorded before it was tracked. `families` are the keys of the
+// families the curve is in (see family.curveFamilies); each per-family
+// placement is among the rivals listing that key.
 export interface Metrics {
   naive_height: number
   faltings_height: number | null
   conductor: string | null
   discriminant: string
   torsion?: string | null
-  family?: string | null
+  families?: readonly string[]
 }
 
 // Where a candidate would place among `rivals` (every curve of rank ≥ the
@@ -149,41 +149,54 @@ export function qualifies(p: Placement, limit = BOARD_TOP_K): boolean {
 
 // A candidate's placement overall, among the rivals sharing its torsion
 // subgroup (records are also tracked per torsion subgroup, as at Dujella's
-// tables) and among those in its family, if it is in one (null otherwise).
-// The candidate's torsion is always known: the verifier computes it for every
-// certified curve. Rivals with no recorded torsion (rows predating the column,
-// all since backfilled) belong to no torsion pool.
+// tables) and among those in each of its families (keyed by family; empty
+// when it is in none). The candidate's torsion is always known: the verifier
+// computes it for every certified curve. Rivals with no recorded torsion (rows
+// predating the column, all since backfilled) belong to no torsion pool.
 export interface Judgement {
   placement: Placement
   torsion: Placement
-  family: Placement | null
+  families: Record<string, Placement>
 }
 
 export function judge(candidate: Metrics & { torsion: string }, rivals: Metrics[]): Judgement {
-  const family = candidate.family ?? null
+  const families: Record<string, Placement> = {}
+  for (const f of candidate.families ?? []) {
+    families[f] = placement(candidate, rivals.filter((o) => o.families?.includes(f)))
+  }
   return {
     placement: placement(candidate, rivals),
     torsion: placement(candidate, rivals.filter((o) => o.torsion === candidate.torsion)),
-    family: family == null ? null : placement(candidate, rivals.filter((o) => o.family === family)),
+    families,
   }
 }
 
 // Whether a judgement earns a spot on the board: top `limit` on some metric,
-// overall, within the candidate's torsion subgroup or within its family. Every
-// rival in those pools is also in the overall pool, so a place in them is never
-// worse than the overall one: this admits a superset of what `qualifies` alone
-// would, and never fewer curves.
+// overall, within the candidate's torsion subgroup or within one of its
+// families. Every rival in those pools is also in the overall pool, so a place
+// in them is never worse than the overall one: this admits a superset of what
+// `qualifies` alone would, and never fewer curves.
 export function admitted(j: Judgement, limit = BOARD_TOP_K): boolean {
-  return qualifies(j.placement, limit) || qualifies(j.torsion, limit) || (j.family != null && qualifies(j.family, limit))
+  return (
+    qualifies(j.placement, limit) ||
+    qualifies(j.torsion, limit) ||
+    Object.values(j.families).some((p) => qualifies(p, limit))
+  )
 }
 
 // For an admitted curve that missed the overall top `limit`, which pools let
-// it in: each flag says whether that pool's placement qualified, so both may
-// be true. Both are false for a curve that qualified overall.
-export function admittedVia(j: Judgement, limit = BOARD_TOP_K): { viaTorsion: boolean; viaFamily: boolean } {
+// it in: whether its torsion placement qualified, and which of its families'
+// placements did (viaFamily: any of them). Each pool is judged on its own, so
+// several may have. All are false or empty for a curve that qualified overall.
+export function admittedVia(
+  j: Judgement,
+  limit = BOARD_TOP_K,
+): { viaTorsion: boolean; viaFamily: boolean; viaFamilies: string[] } {
   const overall = qualifies(j.placement, limit)
+  const viaFamilies = overall ? [] : Object.keys(j.families).filter((f) => qualifies(j.families[f], limit))
   return {
     viaTorsion: !overall && qualifies(j.torsion, limit),
-    viaFamily: !overall && j.family != null && qualifies(j.family, limit),
+    viaFamily: viaFamilies.length > 0,
+    viaFamilies,
   }
 }
