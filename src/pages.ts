@@ -3,7 +3,7 @@
 // so GitHub login / profiles can slot in later without reworking the chrome.
 
 import type { VerifyResult } from './verify'
-import { COMMENT_MAX, type CommentView, type ActivityItem, type CurveEvent, type Contribution, type RecordStatus } from './store'
+import { COMMENT_MAX, type CommentView, type ActivityItem, type BatchRecords, type CurveEvent, type Contribution, type RecordStatus } from './store'
 import { BOARD_TOP_K, boardRecords, type Placement, type Records } from './gate'
 import { FAMILIES, curveFamily, familyByKey, type Family } from './family'
 
@@ -696,18 +696,18 @@ export interface TableCurve extends PlotCurve {
 type MetricRecords = Partial<Record<'conductor' | 'naive' | 'faltings' | 'disc', boolean>>
 
 // `torsionRecords` and `familyRecords` are the records within the row's own
-// torsion subgroup and family, and `use` highlights one of those sets too (a
-// record only there gets ☆). On /curves each metric cell carries every flag
-// (data-rec, data-trec, data-frec) so curves.js can highlight whichever set
-// the subset filter calls for, and `use` picks the set rendered initially; the
-// profile list always uses the overall and torsion records.
+// torsion subgroup and family, and `use` lists which of those sets to
+// highlight too (a record only there gets ☆). On /curves each metric cell
+// carries every flag (data-rec, data-trec, data-frec) so curves.js can
+// highlight whichever set the subset filter calls for, and `use` picks the set
+// rendered initially; the profile list always uses all of them.
 function curveTableRow(
   c: TableCurve,
   hidden = false,
   records: MetricRecords = {},
   torsionRecords: MetricRecords | null = null,
   familyRecords: MetricRecords | null = null,
-  use: Subset['kind'] | null = null,
+  use: readonly Subset['kind'][] = [],
 ): string {
   const unknown = '<span class="muted">?</span>'
   let ainvs: string[] = []
@@ -731,13 +731,18 @@ function curveTableRow(
     const fam = !!familyRecords?.[metric]
     // Every overall record is also one within its subsets, except for a curve
     // whose torsion is not recorded, which has no torsion records at all.
-    const on = overall || (use === 'torsion' && torsion) || (use === 'family' && fam)
+    const inTorsion = use.includes('torsion') && torsion
+    const inFamily = use.includes('family') && fam && family != null
+    const on = overall || inTorsion || inFamily
     const subsetOnly = on && !overall
     const title = !subsetOnly
       ? `record: smallest among curves of rank &ge; ${c.rank_lower_bound}`
-      : use === 'family'
-        ? `record for ${family!.name}: smallest among ${family!.name} of rank &ge; ${c.rank_lower_bound}`
-        : `record for this torsion subgroup: smallest among curves of rank &ge; ${c.rank_lower_bound} with this torsion`
+      : [
+          inTorsion ? `record for this torsion subgroup: smallest among curves of rank &ge; ${c.rank_lower_bound} with this torsion` : null,
+          inFamily ? `record for ${family!.name}: smallest among ${family!.name} of rank &ge; ${c.rank_lower_bound}` : null,
+        ]
+          .filter((t) => t != null)
+          .join('; ')
     const flags =
       (torsionRecords ? ` data-rec="${overall ? 1 : 0}" data-trec="${torsion ? 1 : 0}"` : '') +
       (familyRecords ? ` data-frec="${fam ? 1 : 0}"` : '')
@@ -849,7 +854,7 @@ export function curveTablePage(
   }
   const rows = sorted
     .map((c) =>
-      curveTableRow(c, rowHidden(c), flagsFor(records, c.id), flagsFor(torsionRecords, c.id), flagsFor(familyRecords, c.id), subset?.kind ?? null),
+      curveTableRow(c, rowHidden(c), flagsFor(records, c.id), flagsFor(torsionRecords, c.id), flagsFor(familyRecords, c.id), subset != null ? [subset.kind] : []),
     )
     .join('\n')
   // Query string for the state where `key` is the sort column — clicking the
@@ -1328,9 +1333,10 @@ export function commentHistoryPage(
 
 // A feed entry's compact record badges: which metrics the curve currently
 // holds overall records for at its rank (★, same rule as the curve page's
-// badges), then those it holds only within its torsion subgroup (☆, as the
-// curve page's torsion badges). Each metric links to the table filtered to
-// that rank (and subgroup) and sorted by the metric.
+// badges), then those it holds only within its torsion subgroup or only within
+// its family (☆, as the curve page's torsion and family badges). Each metric
+// links to the table filtered to that rank (and subset) and sorted by the
+// metric.
 const ACTIVITY_METRICS: [keyof RecordFlags, string, string][] = [
   ['conductor', 'conductor', 'conductor'],
   ['discriminant', 'disc', 'discriminant'],
@@ -1341,8 +1347,10 @@ const ACTIVITY_METRICS: [keyof RecordFlags, string, string][] = [
 function activityRecordBadges(
   overall: RecordFlags | undefined,
   inGroup: RecordFlags | undefined,
+  inFamily: RecordFlags | undefined,
   rank: number,
   t: TorsionLabel | null,
+  family: Family | null,
 ): string {
   let out = ''
   const held = ACTIVITY_METRICS.filter(([m]) => overall?.[m])
@@ -1355,15 +1363,20 @@ function activityRecordBadges(
     const links = groupOnly.map(([, sort, name]) => `<a href="/curves?sort=${sort}&amp;minrank=${rank}&amp;torsion=${t.key}">${name}</a>`)
     out += ` <span class="record-badge torsion-badge activity-badge" title="smallest on the board among curves of rank &ge; ${rank} with this torsion subgroup">&#9734; record for ${t.recordName}, rank &ge; ${rank}: ${links.join(', ')}</span>`
   }
+  const familyOnly = ACTIVITY_METRICS.filter(([m]) => inFamily?.[m] && !overall?.[m])
+  if (family != null && familyOnly.length > 0) {
+    const links = familyOnly.map(([, sort, name]) => `<a href="/curves?sort=${sort}&amp;minrank=${rank}&amp;family=${family.key}">${name}</a>`)
+    out += ` <span class="record-badge torsion-badge activity-badge" title="smallest on the board among ${family.name} of rank &ge; ${rank}">&#9734; record for ${family.name}, rank &ge; ${rank}: ${links.join(', ')}</span>`
+  }
   return out
 }
 
 // Recent-activity feed: submissions, later contributions, and commentary
 // edits, newest first. `records` holds each curve's current record flags,
-// overall and within its torsion subgroup, keyed by curve id.
+// overall and within its torsion subgroup and family, keyed by curve id.
 export function activityPage(
   items: ActivityItem[],
-  records: { overall: Map<number, RecordFlags>; torsion: Map<number, RecordFlags> },
+  records: BatchRecords,
   page: number,
   hasOlder: boolean,
   user: User | null = null,
@@ -1377,7 +1390,18 @@ export function activityPage(
     const tors = t != null && t.key !== 'trivial'
       ? `torsion <a href="/curves?torsion=${t.key}" title="show only curves with this torsion subgroup">${t.html}</a>, `
       : ''
-    const context = `${tors}log |&Delta;| = ${logBigInt(a.discriminant).toFixed(2)}${activityRecordBadges(records.overall.get(a.curve_id), records.torsion.get(a.curve_id), a.rank, t)}`
+    // The family, if any, linking to the table filtered to it.
+    const family = familyByKey(curveFamily(a.c4, a.c6))
+    const fam = family != null ? `<a href="/curves?family=${family.key}" title="show only ${family.name}">${family.html}</a>, ` : ''
+    const badges = activityRecordBadges(
+      records.overall.get(a.curve_id),
+      records.torsion.get(a.curve_id),
+      records.family.get(a.curve_id),
+      a.rank,
+      t,
+      family,
+    )
+    const context = `${tors}${fam}log |&Delta;| = ${logBigInt(a.discriminant).toFixed(2)}${badges}`
     if (a.kind === 'submission') {
       return `<li>
           ${meta}
@@ -1712,10 +1736,7 @@ export function apiDocsPage(user: User | null = null): string {
 // each curve; later rank improvements by others leave that credit in place).
 // Best rank first, so a contributor's strongest results lead. A static table —
 // no client-side sorting needed here.
-function submittedCurvesSection(
-  curves: TableCurve[],
-  records: { overall: Map<number, RecordFlags>; torsion: Map<number, RecordFlags> },
-): string {
+function submittedCurvesSection(curves: TableCurve[], records: BatchRecords): string {
   const heading = `<h3>Curves <span class="muted">(${curves.length})</span></h3>`
   if (curves.length === 0) {
     return `<section class="my-curves">
@@ -1724,13 +1745,13 @@ function submittedCurvesSection(
       </section>`
   }
   // Records overall (★) and those held only within the curve's torsion
-  // subgroup (☆), as on the curve page and in recent activity.
+  // subgroup or family (☆), as on the curve page and in recent activity.
   const flagsFor = (map: Map<number, RecordFlags>, id: number): MetricRecords => {
     const r = map.get(id)
     return r ? { conductor: r.conductor, naive: r.naive, faltings: r.faltings, disc: r.discriminant } : {}
   }
   const rows = curves
-    .map((c) => curveTableRow(c, false, flagsFor(records.overall, c.id), flagsFor(records.torsion, c.id), null, 'torsion'))
+    .map((c) => curveTableRow(c, false, flagsFor(records.overall, c.id), flagsFor(records.torsion, c.id), flagsFor(records.family, c.id), ['torsion', 'family']))
     .join('\n')
   return `<section class="my-curves">
         ${heading}
@@ -1883,7 +1904,7 @@ export interface PublicUser {
 export function userPage(
   profile: PublicUser,
   curves: TableCurve[],
-  records: { overall: Map<number, RecordFlags>; torsion: Map<number, RecordFlags> },
+  records: BatchRecords,
   contributions: Contribution[] = [],
   viewer: User | null = null,
 ): string {

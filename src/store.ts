@@ -208,6 +208,8 @@ export interface ActivityItem {
   conductor: string | null
   discriminant: string
   torsion: string | null
+  c4: string
+  c6: string
   user: string | null
   user_id: number | null
   content: string | null
@@ -226,15 +228,15 @@ export async function recentActivity(
 ): Promise<{ items: ActivityItem[]; page: number; hasOlder: boolean }> {
   const size = ACTIVITY_PAGE_SIZE
   const { results } = await env.DB.prepare(
-    `SELECT kind, ts, curve_id, rank, naive_height, faltings_height, conductor, discriminant, torsion, user, user_id, content, old_rank, new_rank FROM (
+    `SELECT kind, ts, curve_id, rank, naive_height, faltings_height, conductor, discriminant, torsion, c4, c6, user, user_id, content, old_rank, new_rank FROM (
          SELECT 'submission' AS kind, c.created_at AS ts, c.id AS curve_id,
-                c.rank_lower_bound AS rank, c.naive_height, c.faltings_height, c.conductor, c.discriminant, c.torsion,
+                c.rank_lower_bound AS rank, c.naive_height, c.faltings_height, c.conductor, c.discriminant, c.torsion, c.c4, c.c6,
                 u.display_name AS user, u.id AS user_id, NULL AS content,
                 NULL AS old_rank, NULL AS new_rank
            FROM curves c LEFT JOIN users u ON u.id = c.submitter_user_id
          UNION ALL
          SELECT 'comment' AS kind, cl.created_at AS ts, cl.curve_id AS curve_id,
-                cv.rank_lower_bound AS rank, cv.naive_height, cv.faltings_height, cv.conductor, cv.discriminant, cv.torsion,
+                cv.rank_lower_bound AS rank, cv.naive_height, cv.faltings_height, cv.conductor, cv.discriminant, cv.torsion, cv.c4, cv.c6,
                 cu.display_name AS user, cu.id AS user_id, cl.content AS content,
                 NULL AS old_rank, NULL AS new_rank
            FROM comments_log cl
@@ -242,7 +244,7 @@ export async function recentActivity(
            JOIN curves cv ON cv.id = cl.curve_id
          UNION ALL
          SELECT e.kind AS kind, e.created_at AS ts, e.curve_id AS curve_id,
-                ce.rank_lower_bound AS rank, ce.naive_height, ce.faltings_height, ce.conductor, ce.discriminant, ce.torsion,
+                ce.rank_lower_bound AS rank, ce.naive_height, ce.faltings_height, ce.conductor, ce.discriminant, ce.torsion, ce.c4, ce.c6,
                 eu.display_name AS user, eu.id AS user_id, NULL AS content,
                 e.old_rank, e.new_rank
            FROM curve_events e
@@ -334,24 +336,36 @@ export function loadRecordCandidate(env: Bindings, curveId: number): Promise<Rec
 
 // What the Zulip notifiers announce: the curve's records for its rank, judged
 // against every other curve of equal or higher rank (see gate.recordsAmong),
-// both overall and within its torsion subgroup. Unlike the ★/☆ badges, these
-// are strict: a tie doesn't count, the curve must be the sole holder.
-// `rivals` counts the other curves of rank ≥ its own, so 0 means it is the
-// first curve on the board of its rank. `torsion` is null when the curve's
-// torsion is not recorded; `torsionRivals` counts the rivals with its torsion
-// subgroup, so 0 means it is the first such curve on the board.
+// overall, within its torsion subgroup and within its family. Unlike the ★/☆
+// badges, these are strict: a tie doesn't count, the curve must be the sole
+// holder. `rivals` counts the other curves of rank ≥ its own, so 0 means it is
+// the first curve on the board of its rank. `torsion` is null when the curve's
+// torsion is not recorded, `family` when it is in no family; `torsionRivals`
+// and `familyRivals` count the rivals in those pools, so 0 means it is the
+// first such curve on the board.
 export async function announcedRecords(
   env: Bindings,
   curve: RecordCandidate,
-): Promise<{ overall: RecordFlags; rivals: number; torsion: RecordFlags | null; torsionRivals: number }> {
+): Promise<{
+  overall: RecordFlags
+  rivals: number
+  torsion: RecordFlags | null
+  torsionRivals: number
+  family: RecordFlags | null
+  familyRivals: number
+}> {
   const rivals = await rivalsOf(env, curve)
   const t = curve.torsion ?? null
   const pool = t == null ? [] : rivals.filter((o) => o.torsion === t)
+  const f = curve.c4 != null && curve.c6 != null ? curveFamily(curve.c4, curve.c6) : null
+  const familyPool = f == null ? [] : rivals.filter((o) => o.family === f)
   return {
     overall: recordsAmong(curve, rivals, true),
     rivals: rivals.length,
     torsion: t == null ? null : recordsAmong(curve, pool, true),
     torsionRivals: pool.length,
+    family: f == null ? null : recordsAmong(curve, familyPool, true),
+    familyRivals: familyPool.length,
   }
 }
 
@@ -389,30 +403,43 @@ export async function recordBadges(
 
 // Record flags for many curves at once — e.g. everything attributed to one
 // user, or in recent activity — judged against the whole board, not just the
-// given subset: overall, and within each curve's torsion subgroup (as
-// recordBadges, but for a batch). One query loads the metrics of every curve
-// at rank ≥ the lowest rank in the batch, and gate.boardRecords judges them:
-// the same rule as recordBadges and the /curves table. A curve with no
-// recorded torsion has no entry in `torsion`.
-export async function recordBadgesForCurves(
-  env: Bindings,
-  curves: RecordCandidate[],
-): Promise<{ overall: Map<number, RecordFlags>; torsion: Map<number, RecordFlags> }> {
-  if (curves.length === 0) return { overall: new Map(), torsion: new Map() }
+// given subset: overall, and within each curve's torsion subgroup and family
+// (as recordBadges, but for a batch). One query loads the metrics of every
+// curve at rank ≥ the lowest rank in the batch, and gate.boardRecords judges
+// them: the same rule as recordBadges and the /curves table. A curve with no
+// recorded torsion has no entry in `torsion`, one in no family none in
+// `family`.
+export interface BatchRecords {
+  overall: Map<number, RecordFlags>
+  torsion: Map<number, RecordFlags>
+  family: Map<number, RecordFlags>
+}
+
+export async function recordBadgesForCurves(env: Bindings, curves: RecordCandidate[]): Promise<BatchRecords> {
+  if (curves.length === 0) return { overall: new Map(), torsion: new Map(), family: new Map() }
   const board = await loadBoard(env, curves)
   const wanted = new Set(curves.map((c) => c.id))
-  const byTorsion = new Map<string, RecordCandidate[]>()
-  for (const c of board) {
-    if (c.torsion == null) continue
-    const g = byTorsion.get(c.torsion)
-    if (g) g.push(c)
-    else byTorsion.set(c.torsion, [c])
+  // Records within each pool of `board` that keyOf assigns (null: none).
+  const pooled = (keyOf: (c: RecordCandidate) => string | null): Map<number, RecordFlags> => {
+    const pools = new Map<string, RecordCandidate[]>()
+    for (const c of board) {
+      const k = keyOf(c)
+      if (k == null) continue
+      const g = pools.get(k)
+      if (g) g.push(c)
+      else pools.set(k, [c])
+    }
+    const out = new Map<number, RecordFlags>()
+    for (const group of pools.values()) {
+      for (const [id, f] of recordsFor(group, wanted)) out.set(id, f)
+    }
+    return out
   }
-  const torsion = new Map<number, RecordFlags>()
-  for (const group of byTorsion.values()) {
-    for (const [id, f] of recordsFor(group, wanted)) torsion.set(id, f)
+  return {
+    overall: recordsFor(board, wanted),
+    torsion: pooled((c) => c.torsion ?? null),
+    family: pooled((c) => (c.c4 != null && c.c6 != null ? curveFamily(c.c4, c.c6) : null)),
   }
-  return { overall: recordsFor(board, wanted), torsion }
 }
 
 // Every curve at rank ≥ the lowest rank among `curves`.
