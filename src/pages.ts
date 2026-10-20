@@ -580,7 +580,7 @@ export function landingPage(
           </span>
           <form class="plot-controls" method="get" action="/">
             <input type="hidden" name="metric" value="${sel}" />${showAll ? '<input type="hidden" name="show" value="all" />' : ''}
-            <label class="plot-subset" title="Plot only curves with one torsion subgroup or in one family."><span>curves</span> <select id="plot-subset" name="subset">${subsetOptions(subsets, subset)}</select></label>
+            <label class="plot-subset" title="Plot only curves with one torsion subgroup or in one family."><span>within</span> <select id="plot-subset" name="subset">${subsetOptions(subsets, subset)}</select></label>
             <noscript><button type="submit">apply</button></noscript>
             <label class="plot-filter" title="Plot only the best (lowest) curve at each rank bound."><input type="checkbox" id="plot-best-only"${showAll ? '' : ' checked'} /><span>best only</span></label>
           </form>
@@ -884,7 +884,7 @@ export function curveTablePage(
           </select>
           <input id="rank-filter" name="minrank" type="number" min="0" step="1" placeholder="${eq ? 'any' : '0'}" value="${hasFilter ? n : ''}" />
         </label>
-        <label class="rank-filter">curves
+        <label class="rank-filter">within
           <select id="subset-filter" name="subset" aria-label="torsion subgroup or family">${subsetOptions(subsets, subset)}</select>
         </label>${
           sortKey !== 'rank' || sortDir !== -1
@@ -1104,7 +1104,7 @@ function subsetOptions(subsets: Subset[], sel: Subset | null): string {
       .map((s) => `<option value="${kind}:${s.key}"${s.noun ? ` data-noun="${s.noun}" data-name="${s.name}" title="${s.noun}"` : ''}${s.phrase ? ` data-phrase="${s.phrase}"` : ''}${s === sel ? ' selected' : ''}>${s.option}</option>`)
     return opts.length ? `<optgroup label="${kind}">${opts.join('')}</optgroup>` : ''
   }
-  return `<option value=""${sel == null ? ' selected' : ''}>all</option>${group('torsion')}${group('family')}`
+  return `<option value=""${sel == null ? ' selected' : ''}>all curves</option>${group('torsion')}${group('family')}`
 }
 
 // Record badge for a curve-page metric: shown when no curve of equal or higher
