@@ -28,6 +28,7 @@ import {
 } from './pages'
 import { plotCurves, tableCurves, userCurves, loadWitness, recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordBadges, recordBadgesForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
 import { notifyRecord, notifyBackfillRecord } from './zulip'
+import { curveFamily } from './family'
 import { parsePoints, parseTokens } from './input'
 import {
   type AppEnv,
@@ -300,6 +301,9 @@ function historyJson(events: CurveEvent[]) {
 }
 
 function curveJson(r: CurveJsonRow, history: CurveEvent[]) {
+  // The family is computed from the c-invariants ("c4:c6"), as everywhere on
+  // the site, not stored.
+  const [c4, c6] = r.curve_key.split(':')
   const parse = (s: string): unknown => {
     try {
       return JSON.parse(s)
@@ -313,6 +317,7 @@ function curveJson(r: CurveJsonRow, history: CurveEvent[]) {
     ainvs: parse(r.ainvs),
     rank_lower_bound: r.rank_lower_bound,
     torsion: r.torsion == null ? null : parse(r.torsion),
+    family: curveFamily(c4, c6),
     naive_height: r.naive_height,
     faltings_height: r.faltings_height,
     conductor: r.conductor,

@@ -1719,7 +1719,14 @@ export function apiDocsPage(user: User | null = null): string {
       <code>documentation</code>) so a shared copy still says where it came from, then
       <code>count</code> and <code>curves</code>, each curve with its
       global-minimal a-invariants, transformed witness points, <code>discriminant</code> (the minimal
-      discriminant), rank lower bound, naive height, Faltings height, and (when recorded) conductor,
+      discriminant), rank lower bound, <code>torsion</code> (the invariant factors of the torsion
+      subgroup, e.g. <code>[2, 2]</code>; <code>[]</code> for trivial torsion), <code>family</code>
+      (<code>"mordell"</code> for a Mordell curve <span class="eqi">y<sup>2</sup> = x<sup>3</sup> + k</span>,
+      <code>"congruent"</code> for a congruent-number curve
+      <span class="eqi">y<sup>2</sup> = x<sup>3</sup> &minus; n<sup>2</sup>x</span>, else <code>null</code>;
+      decided up to <span class="eqi">&#8474;</span>-isomorphism from the c-invariants in
+      <code>curve_key</code>, so it is computed rather than stored, and curves gain it if a family is
+      added later), naive height, Faltings height, and (when recorded) conductor,
       <code>bad_primes</code> (the verified primes of bad reduction &mdash; the factorization of the
       conductor's support), submitter, commentary, and <code>history</code>: later contributions by
       other users, oldest first, each <code>{ kind, user, at }</code> with <code>kind</code> either
