@@ -179,6 +179,30 @@ if (
   console.log('bad primes canonicalized OK: [2, 5], conductor 800')
 }
 
+// Supplied primes that fail validation fall back to bounded trial division
+// rather than leaving the conductor unrecorded (issue #13). Curve 5180,
+// y^2 + y = x^3 - 12102217: minimal disc -3^9*13^4*103^4, conductor 16136289;
+// the supplied [3, 13] omits 103. The note about the rejected list is kept so
+// the submitter is told.
+const incompletePrimes = verify(gp, {
+  ainvs: ['0', '0', '1', '0', '-12102217'],
+  points: [['309', '4171'], ['4017/4', '253067/8'], ['25441/64', '3645841/512']],
+  primes: ['3', '13'],
+})
+if (
+  !incompletePrimes.ok ||
+  incompletePrimes.conductor !== '16136289' ||
+  JSON.stringify(incompletePrimes.badPrimes) !== '["3","13","103"]' ||
+  !incompletePrimes.conductorNote?.includes('incomplete')
+) {
+  console.error(
+    `FAIL: incomplete primes did not fall back to trial division: conductor ${incompletePrimes.conductor}, badPrimes ${JSON.stringify(incompletePrimes.badPrimes)}, note ${incompletePrimes.conductorNote}`,
+  )
+  process.exitCode = 1
+} else {
+  console.log('incomplete primes fall back to trial division OK: conductor 16136289')
+}
+
 // --- Exact independence certificate cases ---
 
 // Accepted submissions carry an exact certificate.

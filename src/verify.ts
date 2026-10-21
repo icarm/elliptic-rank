@@ -121,7 +121,8 @@ export interface VerifyResult {
   // computed exactly by elltors during certification (the certificate needs it),
   // so present whenever the certificate stage ran.
   torsion: string | null
-  // Set when primes were supplied but failed validation (conductor not recorded).
+  // Set when primes were supplied but failed validation. The conductor is then
+  // recorded only if bounded trial division recovered the primes on its own.
   conductorNote: string | null
 }
 
@@ -669,15 +670,18 @@ export function verify(gp: Gp, input: VerifyInput): VerifyResult {
       'my(A=abs(imag(conj(Emin.omega[1])*Emin.omega[2]))); -(1/2)*log(A)',
     )
 
-    // Conductor — the one prime-gated invariant. If no primes were supplied, try
-    // to recover them by bounded trial division: a best-effort that completes in
-    // milliseconds and gives up (rather than factoring a hard composite) when it
-    // cannot fully factor the minimal discriminant.
-    if (primes.length === 0) {
+    // Conductor — the one prime-gated invariant. If no primes were supplied, or
+    // the supplied ones fail validation, try to recover them by bounded trial
+    // division: a best-effort that completes in milliseconds and gives up
+    // (rather than factoring a hard composite) when it cannot fully factor the
+    // minimal discriminant.
+    let cond = conductorFromPrimes(gp, primes)
+    if (cond.conductor === null) {
       const auto = autoBadPrimes(gp)
-      if (auto) primes = auto
+      // Keep the supplied primes' note (if any) so the submitter still learns
+      // their list was rejected, even though the conductor was recovered.
+      if (auto) cond = { ...conductorFromPrimes(gp, auto), note: cond.note }
     }
-    const cond = conductorFromPrimes(gp, primes)
     result.conductor = cond.conductor
     result.badPrimes = cond.badPrimes
     result.conductorNote = cond.note

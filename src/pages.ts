@@ -1597,7 +1597,13 @@ export function submitResultPage(
           <dt>naive height</dt><dd><code>${escapeHtml(clip(result.height!.naiveLogHeight))}</code></dd>
         </dl>
         <p class="result-method">${escapeHtml(ind.method)}.</p>
-        ${result.conductorNote ? `<p class="muted">Conductor not recorded: ${escapeHtml(result.conductorNote)}.</p>` : ''}
+        ${
+          result.conductorNote
+            ? result.conductor
+              ? `<p class="muted">Supplied primes ignored: ${escapeHtml(result.conductorNote)}. The primes of bad reduction were recovered automatically by trial division.</p>`
+              : `<p class="muted">Conductor not recorded: ${escapeHtml(result.conductorNote)}.</p>`
+            : ''
+        }
         ${declined ? '' : leaderboardStatus(submit)}
       </div>`
   } else {
