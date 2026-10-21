@@ -10,6 +10,8 @@ import type { User } from './pages'
 export interface Bindings {
   DB: D1Database
   SESSIONS: KVNamespace
+  // Derived data cached across requests: the curves snapshot (see store.ts).
+  CACHE: KVNamespace
   SUBMISSION_RATE_LIMITER: RateLimit
   GITHUB_CLIENT_ID?: string
   GITHUB_CLIENT_SECRET?: string

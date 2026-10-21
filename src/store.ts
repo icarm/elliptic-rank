@@ -39,25 +39,68 @@ function familiesOf(c: { c4?: string; c6?: string }): string[] {
 }
 const TABLE_COLUMNS = `${PLOT_COLUMNS}, ainvs`
 
+// --- Curves snapshot ---
+//
+// Every page that plots, lists or badges curves needs (nearly) the whole
+// `curves` table, and D1 bills each of those full scans per row. So the
+// TABLE_COLUMNS of every curve are kept as one JSON value in KV and read from
+// there instead; a write rebuilds it (refreshCurves). Staleness is bounded: a
+// rebuilt snapshot reaches other locations within KV's ~60s edge cache, plus
+// SNAPSHOT_MEMO_MS in an isolate that already holds the old one. The entry gate
+// still reads D1, so a submission is always judged against the current board.
+//
+// Edits made outside the app (scripts/backfill-*.mjs, `wrangler d1 execute`)
+// do not rebuild it: it expires after SNAPSHOT_TTL_S, or delete the key to
+// pick them up at once:
+//   wrangler kv key delete --binding CACHE --remote curves-snapshot
+const SNAPSHOT_KEY = 'curves-snapshot'
+const SNAPSHOT_TTL_S = 3600
+const SNAPSHOT_MEMO_MS = 10_000
+
+// The parsed snapshot this isolate last read or wrote, reused for
+// SNAPSHOT_MEMO_MS. Callers must not mutate it.
+let memo: { at: number; curves: TableCurve[] } | null = null
+
+// Every curve, in id order, from the snapshot (rebuilt from D1 if absent).
+async function allCurves(env: Bindings): Promise<TableCurve[]> {
+  if (memo && Date.now() - memo.at < SNAPSHOT_MEMO_MS) return memo.curves
+  const cached = await env.CACHE.get<TableCurve[]>(SNAPSHOT_KEY, 'json')
+  if (cached) {
+    memo = { at: Date.now(), curves: cached }
+    return cached
+  }
+  return refreshCurves(env)
+}
+
+// Rebuild the snapshot from D1 (one full scan). Called after every write that
+// changes a TABLE_COLUMNS value, and on a snapshot miss.
+async function refreshCurves(env: Bindings): Promise<TableCurve[]> {
+  const { results } = await env.DB.prepare(`SELECT ${TABLE_COLUMNS} FROM curves ORDER BY id ASC`).all<TableCurve>()
+  await env.CACHE.put(SNAPSHOT_KEY, JSON.stringify(results), { expirationTtl: SNAPSHOT_TTL_S })
+  memo = { at: Date.now(), curves: results }
+  return results
+}
+
 // Every curve with its metrics, in submission (id) order, for the landing and
 // progress plots.
-export function plotCurves(env: Bindings): Promise<PlotCurve[]> {
-  return env.DB.prepare(`SELECT ${PLOT_COLUMNS} FROM curves ORDER BY id ASC`)
-    .all<PlotCurve>()
-    .then((r) => r.results)
+export async function plotCurves(env: Bindings): Promise<PlotCurve[]> {
+  return (await allCurves(env)).slice()
 }
 
 // Every curve for the /curves table, by increasing conductor (the table's
 // tiebreak; curveTablePage re-sorts by the chosen column), curves with no
 // recorded conductor last. Conductor is a big-integer decimal string, so
 // numeric order = (length, then lexicographic).
-export function tableCurves(env: Bindings): Promise<TableCurve[]> {
-  return env.DB.prepare(
-    `SELECT ${TABLE_COLUMNS} FROM curves
-       ORDER BY conductor IS NULL, LENGTH(conductor), conductor, naive_height ASC`,
-  )
-    .all<TableCurve>()
-    .then((r) => r.results)
+export async function tableCurves(env: Bindings): Promise<TableCurve[]> {
+  return (await allCurves(env)).slice().sort((a, b) => {
+    if (a.conductor == null || b.conductor == null) {
+      if (a.conductor != null) return -1
+      if (b.conductor != null) return 1
+    } else if (a.conductor !== b.conductor) {
+      return a.conductor.length - b.conductor.length || (a.conductor < b.conductor ? -1 : 1)
+    }
+    return a.naive_height - b.naive_height
+  })
 }
 
 // Curves attributed to this user as original submitter (a later rank
@@ -385,13 +428,8 @@ export async function announcedRecords(
 // The metrics, torsion and families of every other curve of rank ≥ the
 // curve's own: the rivals its records are judged against.
 async function rivalsOf(env: Bindings, curve: RecordCandidate): Promise<Metrics[]> {
-  const { results } = await env.DB.prepare(
-    `SELECT ${RIVAL_COLUMNS} FROM curves
-       WHERE rank_lower_bound >= ? AND id != ?`,
-  )
-    .bind(curve.rank_lower_bound, curve.id)
-    .all<Metrics & { c4: string; c6: string }>()
-  return withFamilies(results)
+  const curves = await allCurves(env)
+  return withFamilies(curves.filter((c) => c.rank_lower_bound >= curve.rank_lower_bound && c.id !== curve.id))
 }
 
 // The curve page's badges: records overall, within the curve's torsion
@@ -466,13 +504,7 @@ export async function recordBadgesForCurves(env: Bindings, curves: RecordCandida
 // Every curve at rank ≥ the lowest rank among `curves`.
 async function loadBoard(env: Bindings, curves: RecordCandidate[]): Promise<RecordCandidate[]> {
   const minRank = Math.min(...curves.map((c) => c.rank_lower_bound))
-  const { results } = await env.DB.prepare(
-    `SELECT ${PLOT_COLUMNS} FROM curves
-       WHERE rank_lower_bound >= ?`,
-  )
-    .bind(minRank)
-    .all<RecordCandidate>()
-  return results
+  return (await allCurves(env)).filter((c) => c.rank_lower_bound >= minRank)
 }
 
 // The `wanted` curves' entries of gate.boardRecords(board).
@@ -503,6 +535,7 @@ export async function setCurveConductor(
     .bind(conductor, badPrimes, curveId)
     .run()
   if (creditUserId != null) await logCurveEvent(env, curveId, creditUserId, 'primes_recorded')
+  await refreshCurves(env)
 }
 
 // Outcome of backfilling a curve's prime-gated invariants from the primes
@@ -657,6 +690,7 @@ export async function recordCurve(
       .run()
     const id = ins.meta.last_row_id as number
     if (hasCommentary) await postComment(env, id, userId, commentary!)
+    await refreshCurves(env)
     return { id, status: 'created', rank, conductorRecorded: !!conductor, viaTorsion, viaFamily, viaFamilies }
   }
 
@@ -667,11 +701,14 @@ export async function recordCurve(
 
   // The naive height is computed from the verifier's minimal-model invariant
   // path, so a stored value that disagrees predates a height-rule fix. Correct it
-  // in place.
+  // in place. `repaired` notes a metadata repair, so the snapshot is rebuilt
+  // even when nothing else changes.
+  let repaired = false
   if (Math.abs(existing.naive_height - height) > 1e-9) {
     await env.DB.prepare('UPDATE curves SET naive_height = ? WHERE id = ?')
       .bind(height, existing.id)
       .run()
+    repaired = true
   }
 
   // Torsion is intrinsic and computed on every verify, so a re-submission
@@ -681,6 +718,7 @@ export async function recordCurve(
     await env.DB.prepare('UPDATE curves SET torsion = ? WHERE id = ?')
       .bind(torsion, existing.id)
       .run()
+    repaired = true
   }
 
   // The conductor (with its bad primes) is the only prime-gated value, so it's
@@ -705,11 +743,15 @@ export async function recordCurve(
       .run()
     await logCurveEvent(env, existing.id, userId, 'rank_improved', { oldRank: existing.rank_lower_bound, newRank: rank })
     if (setConductor) await logCurveEvent(env, existing.id, userId, 'primes_recorded')
+    await refreshCurves(env)
     return { id: existing.id, status: 'improved', rank, previousRank: existing.rank_lower_bound, conductorRecorded: setConductor }
   }
 
+  // setCurveConductor rebuilds the snapshot itself.
   if (setConductor || setBadPrimes) {
     await setCurveConductor(env, existing.id, conductor!, badPrimes, setConductor ? userId : null)
+  } else if (repaired) {
+    await refreshCurves(env)
   }
   return { id: existing.id, status: 'unchanged', rank: existing.rank_lower_bound, conductorRecorded: setConductor }
 }

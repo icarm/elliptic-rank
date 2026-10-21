@@ -14,6 +14,7 @@
   // Replace the placeholder ids with the real ones from:
   //   wrangler d1 create elliptic-rank
   //   wrangler kv namespace create SESSIONS
+  //   wrangler kv namespace create CACHE
   // and set the OAuth secrets:
   //   wrangler secret put GITHUB_CLIENT_ID
   //   wrangler secret put GITHUB_CLIENT_SECRET
@@ -29,6 +30,11 @@
     {
       "binding": "SESSIONS",
       "id": "d72798bc75be4bce97fb19f2990f6230"
+    },
+    {
+      // Derived data (the curves snapshot). Safe to clear at any time.
+      "binding": "CACHE",
+      "id": "873bd3cba48c4a45a07f8f39999675bc"
     }
   ],
   "ratelimits": [
