@@ -367,7 +367,7 @@ app.get('/database.json', async (c) => {
 
 // JSON API: submit a curve + witness points. Requires a bearer token; the
 // verified curve is recorded on the leaderboard if it passes the entry gate
-// (store.recordCurve; a new curve must place in the top BOARD_TOP_K on some
+// (store.recordCurve; a new curve must place in the top boardTopK(rank) on some
 // metric for its rank). Body: { ainvs, points }.
 app.post('/api/submit', async (c) => {
   const user = c.get('user')

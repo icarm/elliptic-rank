@@ -1,4 +1,4 @@
-import { placement, qualifies, judge, admitted, admittedVia, recordsAmong, boardRecords, BOARD_TOP_K } from '../src/gate.ts'
+import { placement, qualifies, judge, admitted, admittedVia, recordsAmong, boardRecords, BOARD_TOP_K, boardTopK } from '../src/gate.ts'
 
 let failures = 0
 function check(name, cond, detail = '') {
@@ -41,6 +41,14 @@ check('tie on 10th place is 10th', tie.naive === 10 && tie.faltings === 10 && ti
 check('tie on Kth place qualifies', qualifies(tie, 10))
 check('11th place is out', !qualifies(placement(rival(10), board), 10))
 check('BOARD_TOP_K is 10', BOARD_TOP_K === 10)
+
+// From rank 30 up the gate admits the top 20: the 20th place (a tie with the
+// largest rival) is in there, the 21st is not.
+check('boardTopK is 10 below rank 30, 20 from 30 up', boardTopK(0) === 10 && boardTopK(29) === 10 && boardTopK(30) === 20 && boardTopK(31) === 20)
+check('rank 30: 11th place qualifies', qualifies(placement(rival(10), board), boardTopK(30)))
+check('rank 30: tie on 20th place qualifies', qualifies(placement(rival(19), board), boardTopK(30)))
+check('rank 30: 21st place is out', !qualifies(last, boardTopK(30)))
+check('rank 29: 11th place is out', !qualifies(placement(rival(10), board), boardTopK(29)))
 
 // One good metric is enough.
 const mixed = placement({ naive_height: 100, faltings_height: 100, conductor: '1' + '0'.repeat(30), discriminant: '5' }, board)

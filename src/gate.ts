@@ -20,6 +20,17 @@ export function lessAbsDecimal(a: string, b: string): boolean {
 // nothing is ever evicted, so the board only grows when a top-K list changes.
 export const BOARD_TOP_K = 10
 
+// From rank HIGH_RANK up the gate admits the top HIGH_RANK_TOP_K instead: curves
+// there are rare enough that each is of interest and the extra writes are
+// negligible. The plot scales stay at BOARD_TOP_K (see pages.scaleValues).
+export const HIGH_RANK = 30
+export const HIGH_RANK_TOP_K = 20
+
+// How many curves per metric the gate admits for a candidate of rank `rank`.
+export function boardTopK(rank: number): number {
+  return rank >= HIGH_RANK ? HIGH_RANK_TOP_K : BOARD_TOP_K
+}
+
 // 1-based place of a candidate among curves of rank ≥ its own, per metric:
 // one more than the number of rivals with a strictly smaller value. null when
 // the candidate has no value for the metric (conductor without primes), so it

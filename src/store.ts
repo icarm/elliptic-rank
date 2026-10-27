@@ -2,8 +2,8 @@
 // by the canonical key. The verifier normalizes accepted witnesses to the
 // global minimal model before they reach this layer; the stored witness is
 // replaced only when a new submission proves a strictly higher rank lower bound.
-// A curve new to the board is written only if it places in the top BOARD_TOP_K
-// on some metric for its rank, overall, among curves with the same torsion
+// A curve new to the board is written only if it places in the top
+// boardTopK(rank) on some metric for its rank, overall, among curves with the same torsion
 // subgroup or among those in one of its families (see judge/admitted);
 // existing rows are never evicted.
 
@@ -12,11 +12,11 @@ import { verifyPrimes, autoPrimes, type VerifyResult, type PrimesResult } from '
 import type { Gp } from './pari'
 import type { RecordFlags, PlotCurve, TableCurve } from './pages'
 import { curveFamilies, legacyFamily } from './family'
-import { BOARD_TOP_K, placement, qualifies, judge, admitted, admittedVia, recordsAmong, boardRecords, lessDecimal, lessAbsDecimal, type Metrics, type Placement } from './gate'
+import { BOARD_TOP_K, boardTopK, placement, qualifies, judge, admitted, admittedVia, recordsAmong, boardRecords, lessDecimal, lessAbsDecimal, type Metrics, type Placement } from './gate'
 
 // The entry gate and the decimal comparators live in ./gate (dependency-free
 // so they can be unit-tested without the verifier); re-exported for callers.
-export { BOARD_TOP_K, placement, qualifies, judge, admitted, lessDecimal, lessAbsDecimal, type Metrics, type Placement }
+export { BOARD_TOP_K, boardTopK, placement, qualifies, judge, admitted, lessDecimal, lessAbsDecimal, type Metrics, type Placement }
 
 export const COMMENT_MAX = 4000
 
@@ -322,7 +322,7 @@ export type RecordStatus =
       // True when this submission newly recorded the conductor for the curve (i.e.
       // the conductor was not previously on record). Not the conductor value itself.
       conductorRecorded?: boolean
-      // 'created' only: the curve missed the overall top BOARD_TOP_K and was
+      // 'created' only: the curve missed the overall top boardTopK(rank) and was
       // admitted on its placement among curves with the same torsion subgroup
       // (viaTorsion) and/or among those in some of its families (viaFamilies,
       // family keys from ./family; viaFamily: any). Each pool is judged on its
@@ -632,7 +632,7 @@ export async function recordCurve(
     }>()
 
   if (!existing) {
-    // Entry gate: a new curve must place in the top BOARD_TOP_K on some metric
+    // Entry gate: a new curve must place in the top boardTopK(rank) on some metric
     // among the curves of equal or higher rank already on the board, overall,
     // among those sharing its torsion subgroup or among those in one of its
     // families.
@@ -648,7 +648,8 @@ export async function recordCurve(
       { naive_height: height, faltings_height: faltings, conductor, discriminant: result.curve!.discriminant, torsion, families },
       withFamilies(rivals),
     )
-    if (!admitted(verdict)) {
+    const limit = boardTopK(rank)
+    if (!admitted(verdict, limit)) {
       const family = legacyFamily(c4, c6)
       return {
         status: 'declined',
@@ -660,10 +661,10 @@ export async function recordCurve(
         familyPlacements: verdict.families,
         family,
         familyPlacement: family == null ? null : verdict.families[family],
-        limit: BOARD_TOP_K,
+        limit,
       }
     }
-    const { viaTorsion, viaFamily, viaFamilies } = admittedVia(verdict)
+    const { viaTorsion, viaFamily, viaFamilies } = admittedVia(verdict, limit)
 
     const ins = await env.DB.prepare(
       `INSERT INTO curves

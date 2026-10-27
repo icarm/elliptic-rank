@@ -4,7 +4,7 @@
 
 import type { VerifyResult } from './verify'
 import { COMMENT_MAX, type CommentView, type ActivityItem, type BatchRecords, type CurveEvent, type Contribution, type RecordStatus } from './store'
-import { BOARD_TOP_K, boardRecords, type Placement, type Records } from './gate'
+import { BOARD_TOP_K, HIGH_RANK, HIGH_RANK_TOP_K, boardTopK, boardRecords, type Placement, type Records } from './gate'
 import { FAMILIES, curveFamilies, familyByKey, impliedByParent, type Family } from './family'
 
 export const ABOUT_MAX = 1000
@@ -175,7 +175,8 @@ const RANK_PAD = 0.5
 
 // The values that set a plot's vertical scale: those of the curves that place
 // in the top BOARD_TOP_K among curves of rank >= their own, i.e. the rule of
-// the entry gate. Scaling to these (rather than to every curve) keeps a
+// the entry gate (which admits more from HIGH_RANK up; the scales deliberately
+// don't follow it there). Scaling to these (rather than to every curve) keeps a
 // deliberately huge low-rank submission from stretching the axis for everyone,
 // while scaling to them all (rather than only the best per rank) keeps the top
 // ranks' full top-10 in view, since at rank 30+ almost every curve is in the
@@ -1543,7 +1544,7 @@ function leaderboardStatus(submit: SubmitInfo | null): string {
           ...(submit.viaFamilies ?? []).map((key) => familyByKey(key)?.name ?? null),
         ].filter((x) => x != null)
         msg = pools.length
-          ? `Added to the leaderboard as a top-${BOARD_TOP_K} curve among ${pools.join(' and among ')}.`
+          ? `Added to the leaderboard as a top-${boardTopK(submit.rank)} curve among ${pools.join(' and among ')}.`
           : 'Added to the leaderboard.'
       }
       break
@@ -1719,15 +1720,16 @@ export function apiDocsPage(user: User | null = null): string {
       <code>"created"</code>, <code>"improved"</code> (with <code>previousRank</code>),
       <code>"unchanged"</code> (a curve's record only changes when a witness proves a strictly higher
       rank), or <code>"declined"</code>. A curve not yet on the board is added only if it places in the
-      top <code>${BOARD_TOP_K}</code> on some metric among curves of rank &ge; its own, overall, among
-      those with the same torsion subgroup, or among those in one of its <a href="#families">families</a>.
+      top <code>${BOARD_TOP_K}</code> (top <code>${HIGH_RANK_TOP_K}</code> at rank ${HIGH_RANK} and above) on some
+      metric among curves of rank &ge; its own, overall, among those with the same torsion subgroup, or
+      among those in one of its <a href="#families">families</a>.
       A <code>"created"</code> result carries <code>viaTorsion</code>, <code>viaFamilies</code> and
-      <code>viaFamily</code>: when the curve placed in the overall top <code>${BOARD_TOP_K}</code> they are
+      <code>viaFamily</code>: when the curve placed in the overall top (<code>${BOARD_TOP_K}</code> or <code>${HIGH_RANK_TOP_K}</code>) they are
       <code>false</code>, <code>[]</code> and <code>false</code>; otherwise <code>viaTorsion</code> is
       <code>true</code> exactly when its placement within its torsion subgroup qualified,
       <code>viaFamilies</code> lists the keys of the families whose placement qualified, and
       <code>viaFamily</code> is <code>true</code> when that list is nonempty. Each is judged on its own, so
-      several can apply. A new curve that places in the top <code>${BOARD_TOP_K}</code> in none of those is
+      several can apply. A new curve that places in that top in none of those is
       verified but not stored, and <code>leaderboard</code> is
       <code>{ "status": "declined", "rank", "limit", "torsion", "families", "placement": { "naive", "faltings", "conductor", "disc" }, "torsionPlacement": { ... }, "familyPlacements": { "&lt;family&gt;": { ... }, ... } }</code>
       with each 1-based place overall, within the torsion subgroup and within each of the curve's
