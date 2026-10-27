@@ -263,6 +263,11 @@ export interface ActivityItem {
   content: string | null
   old_rank: number | null
   new_rank: number | null
+  // 'comment' only: the comments_log row, and the curve's commentary just
+  // before this edit — null when this was its first commentary, '' when it
+  // had been cleared — so the feed can show the edit as a diff.
+  comment_id: number | null
+  prev_content?: string | null
 }
 
 export const ACTIVITY_PAGE_SIZE = 30
@@ -276,17 +281,17 @@ export async function recentActivity(
 ): Promise<{ items: ActivityItem[]; page: number; hasOlder: boolean }> {
   const size = ACTIVITY_PAGE_SIZE
   const { results } = await env.DB.prepare(
-    `SELECT kind, ts, curve_id, rank, naive_height, faltings_height, conductor, discriminant, torsion, c4, c6, user, user_id, content, old_rank, new_rank FROM (
+    `SELECT kind, ts, curve_id, rank, naive_height, faltings_height, conductor, discriminant, torsion, c4, c6, user, user_id, content, old_rank, new_rank, comment_id FROM (
          SELECT 'submission' AS kind, c.created_at AS ts, c.id AS curve_id,
                 c.rank_lower_bound AS rank, c.naive_height, c.faltings_height, c.conductor, c.discriminant, c.torsion, c.c4, c.c6,
                 u.display_name AS user, u.id AS user_id, NULL AS content,
-                NULL AS old_rank, NULL AS new_rank
+                NULL AS old_rank, NULL AS new_rank, NULL AS comment_id
            FROM curves c LEFT JOIN users u ON u.id = c.submitter_user_id
          UNION ALL
          SELECT 'comment' AS kind, cl.created_at AS ts, cl.curve_id AS curve_id,
                 cv.rank_lower_bound AS rank, cv.naive_height, cv.faltings_height, cv.conductor, cv.discriminant, cv.torsion, cv.c4, cv.c6,
                 cu.display_name AS user, cu.id AS user_id, cl.content AS content,
-                NULL AS old_rank, NULL AS new_rank
+                NULL AS old_rank, NULL AS new_rank, cl.id AS comment_id
            FROM comments_log cl
            LEFT JOIN users cu ON cu.id = cl.user_id
            JOIN curves cv ON cv.id = cl.curve_id
@@ -294,7 +299,7 @@ export async function recentActivity(
          SELECT e.kind AS kind, e.created_at AS ts, e.curve_id AS curve_id,
                 ce.rank_lower_bound AS rank, ce.naive_height, ce.faltings_height, ce.conductor, ce.discriminant, ce.torsion, ce.c4, ce.c6,
                 eu.display_name AS user, eu.id AS user_id, NULL AS content,
-                e.old_rank, e.new_rank
+                e.old_rank, e.new_rank, NULL AS comment_id
            FROM curve_events e
            LEFT JOIN users eu ON eu.id = e.user_id
            JOIN curves ce ON ce.id = e.curve_id
@@ -310,7 +315,24 @@ export async function recentActivity(
   )
     .bind(size + 1, page * size)
     .all<ActivityItem>()
-  return { items: results.slice(0, size), page, hasOlder: results.length > size }
+  const items = results.slice(0, size)
+  // The version before each commentary edit on this page: one lookup per edit
+  // (at most a page's worth) on the (curve_id, id) index, rather than one per
+  // commentary row in the whole timeline inside the query above.
+  const ids = items.filter((a) => a.comment_id != null).map((a) => a.comment_id!)
+  if (ids.length > 0) {
+    const { results: prev } = await env.DB.prepare(
+      `SELECT c.id, (SELECT p.content FROM comments_log p
+                       WHERE p.curve_id = c.curve_id AND p.id < c.id
+                       ORDER BY p.id DESC LIMIT 1) AS prev_content
+         FROM comments_log c WHERE c.id IN (${ids.map(() => '?').join(', ')})`,
+    )
+      .bind(...ids)
+      .all<{ id: number; prev_content: string | null }>()
+    const byId = new Map(prev.map((r) => [r.id, r.prev_content]))
+    for (const a of items) if (a.comment_id != null) a.prev_content = byId.get(a.comment_id) ?? null
+  }
+  return { items, page, hasOlder: results.length > size }
 }
 
 export type RecordStatus =

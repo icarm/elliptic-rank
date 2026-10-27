@@ -4,7 +4,7 @@
 
 import type { VerifyResult } from './verify'
 import { COMMENT_MAX, type CommentView, type ActivityItem, type BatchRecords, type CurveEvent, type Contribution, type RecordStatus } from './store'
-import { diffWords, CURVE_REF } from './diff'
+import { diffWords, excerptDiff, clipText, CURVE_REF } from './diff'
 import { BOARD_TOP_K, HIGH_RANK, HIGH_RANK_TOP_K, boardTopK, boardRecords, type Placement, type Records } from './gate'
 import { FAMILIES, curveFamilies, familyByKey, impliedByParent, type Family } from './family'
 
@@ -1350,8 +1350,11 @@ export function curveDetailPage(
 // An edit to commentary shown as a word diff against the version before it:
 // removed text in <del>, inserted text in <ins>, each still rendered by
 // renderCommentContent so curve references keep their links.
-function renderCommentDiff(before: string, after: string): string {
-  return diffWords(before, after)
+// With `excerpt`, only the changes and some context around them (see
+// diff.excerptDiff), for the activity feed.
+function renderCommentDiff(before: string, after: string, excerpt = false): string {
+  const segs = diffWords(before, after)
+  return (excerpt ? excerptDiff(segs) : segs)
     .map((s) => {
       const html = renderCommentContent(s.text)
       return s.op === '-' ? `<del>${html}</del>` : s.op === '+' ? `<ins>${html}</ins>` : html
@@ -1488,11 +1491,29 @@ export function activityPage(
           <p class="activity-line">recorded the primes of bad reduction of ${link} &mdash; rank &ge; ${a.rank}, ${context}</p>
         </li>`
     }
+    // A first commentary (or one added after a clear) is shown as is; an edit
+    // to existing commentary as a diff excerpt against the version before it.
+    // A save that changed nothing gets no body.
     const cleared = !a.content || a.content.length === 0
+    const unchanged = !cleared && a.prev_content === a.content
+    const edited = !cleared && !!a.prev_content
+    const history = `(<a href="/curve/${a.curve_id}/commentary-history">history</a>)`
+    const line = cleared
+      ? `cleared commentary on ${link}`
+      : unchanged
+        ? `re-saved commentary on ${link} (no change)`
+        : edited
+          ? `edited commentary on ${link} ${history}`
+          : `commented on ${link}`
+    const body = cleared || unchanged
+      ? ''
+      : edited
+        ? `<div class="comment-body comment-diff">${renderCommentDiff(a.prev_content!, a.content!, true)}</div>`
+        : `<div class="comment-body">${renderCommentContent(clipText(a.content!, 280))}</div>`
     return `<li>
           ${meta}
-          <p class="activity-line">${cleared ? `cleared commentary on ${link}` : `commented on ${link}`}</p>
-          ${cleared ? '' : `<div class="comment-body">${renderCommentContent(clip(a.content!, 280))}</div>`}
+          <p class="activity-line">${line}</p>
+          ${body}
         </li>`
   }
   const list = items.length

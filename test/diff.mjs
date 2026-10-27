@@ -1,4 +1,4 @@
-import { diffWords, CURVE_REF } from '../src/diff.ts'
+import { diffWords, excerptDiff, clipText, CURVE_REF } from '../src/diff.ts'
 
 let failures = 0
 function check(name, cond, detail = '') {
@@ -95,6 +95,44 @@ for (let t = 0; t < 2000 && whole; t++) {
   if (!whole) check('curve references stay whole', false, JSON.stringify({ a, b, d: show(d) }))
 }
 check('2000 random pairs: curve references never split across segments', whole)
+
+// clipText cuts at whitespace, and never inside a curve reference.
+check('clipText: short text untouched', clipText('see curve #12', 280) === 'see curve #12')
+check('clipText: cuts at whitespace', clipText('alpha beta gamma delta', 13) === 'alpha beta…', clipText('alpha beta gamma delta', 13))
+check('clipText: never inside a curve reference', clipText('xxxxxxxxxxxx curve#5569', 20) === 'xxxxxxxxxxxx…', clipText('xxxxxxxxxxxx curve#5569', 20))
+// The nearest whitespace is the space inside `curve #5569`; cutting there would
+// split the reference, so the cut moves back to its start.
+check('clipText: hard cut moves back off a reference', clipText('aaaaaaaaaaaaaaaaaa,curve #5569', 28) === 'aaaaaaaaaaaaaaaaaa,…', clipText('aaaaaaaaaaaaaaaaaa,curve #5569', 28))
+
+// excerptDiff keeps the changes and some context, eliding the rest.
+const longA = 'Intro sentence that goes on for quite a while before anything changes here. ' +
+  'The middle stays the same for a long stretch of text, long enough to be elided. '.repeat(3) +
+  'Found by search; rank 31 proven. Closing remarks follow, which are also long enough to clip off.'
+const longB = longA.replace('Intro sentence', 'Opening sentence').replace('rank 31', 'rank 32')
+const ex = excerptDiff(diffWords(longA, longB), 30)
+const exText = show(ex)
+check('excerpt keeps both changes', ex.some((s) => s.op === '-' && s.text === 'Intro') && ex.some((s) => s.op === '+' && s.text === '32'), exText)
+check('excerpt elides the long unchanged middle and the tail', exText.includes(' … ') && exText.endsWith('…') && exText.length < longB.length / 2, exText)
+const exLead = excerptDiff(diffWords('word '.repeat(40) + 'old', 'word '.repeat(40) + 'new'), 30)
+check('excerpt trims leading context with …', exLead[0].op === '=' && exLead[0].text.startsWith('…') && exLead[0].text.length <= 32, show(exLead))
+const huge = excerptDiff(diffWords('x', 'y ' + 'z '.repeat(500)), 30, 100)
+check('excerpt stops at the budget with …', huge.map((s) => s.text).join('').length <= 102 && huge[huge.length - 1].text.endsWith('…'), show(huge))
+// Random texts: excerpts never split a curve reference, and every '-'/'+'
+// segment shown is the start of (or all of) a real change.
+seed = 11
+let exOk = true
+for (let t = 0; t < 2000 && exOk; t++) {
+  const a = text()
+  const b = text()
+  const segs = diffWords(a, b)
+  const exc = excerptDiff(segs, 10, 60)
+  // Each segment is linkified on its own, as renderCommentDiff does.
+  const linked = exc.flatMap((s) => [...s.text.matchAll(CURVE_REF)].map((m) => m[0]))
+  const real = new Set([...(a + ' ' + b).matchAll(CURVE_REF)].map((m) => m[0]))
+  exOk = linked.every((r) => real.has(r)) && refsWhole(exc.filter((s) => s.op !== '+')) && refsWhole(exc.filter((s) => s.op !== '-'))
+  if (!exOk) check('excerpt keeps references whole', false, JSON.stringify({ a, b, ex: show(exc) }))
+}
+check('2000 random excerpts: no split or invented curve references', exOk)
 
 if (failures) {
   console.log(`${failures} diff check(s) failed`)
