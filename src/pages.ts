@@ -4,7 +4,7 @@
 
 import type { VerifyResult } from './verify'
 import { COMMENT_MAX, type CommentView, type ActivityItem, type BatchRecords, type CurveEvent, type Contribution, type RecordStatus } from './store'
-import { diffWords } from './diff'
+import { diffWords, CURVE_REF } from './diff'
 import { BOARD_TOP_K, HIGH_RANK, HIGH_RANK_TOP_K, boardTopK, boardRecords, type Placement, type Records } from './gate'
 import { FAMILIES, curveFamilies, familyByKey, impliedByParent, type Family } from './family'
 
@@ -678,7 +678,7 @@ export function landingPage(
             <input type="text" name="primes" ${user ? '' : 'disabled'} />
           </label>
           <label class="field">
-            <span>commentary <span class="muted">&mdash; optional; how the curve was found, references, etc. Plain text; <code>curve#123</code> links to curve 123.</span></span>
+            <span>commentary <span class="muted">&mdash; optional; how the curve was found, references, etc. Plain text; <code>curve#123</code> or <code>curve #123</code> links to curve 123.</span></span>
             <textarea name="commentary" rows="3" ${user ? '' : 'disabled'}></textarea>
           </label>
           <div class="submit-row">${
@@ -1163,13 +1163,15 @@ function familyBadge(isRecord: boolean, rank: number, sort: string, family: Fami
   return ` <a class="record-badge torsion-badge" href="/curves?sort=${sort}&amp;minrank=${rank}&amp;family=${family.key}" title="smallest on the board among ${family.name} of rank &ge; ${rank}">&#9734; record for ${family.name}, rank &ge; ${rank}</a>`
 }
 
-// Escape commentary, turning `curve#<id>` tokens into links to that curve.
+// Escape commentary, turning `curve#<id>` and `curve #<id>` references (also
+// with a capital C) into links to that curve (see diff.CURVE_REF), keeping the
+// text as written.
 function renderCommentContent(content: string): string {
   let out = ''
   let last = 0
-  for (const m of content.matchAll(/curve#(\d+)/g)) {
+  for (const m of content.matchAll(CURVE_REF)) {
     out += escapeHtml(content.slice(last, m.index))
-    out += `<a href="/curve/${m[1]}">curve#${m[1]}</a>`
+    out += `<a href="/curve/${m[1]}">${m[0]}</a>`
     last = (m.index ?? 0) + m[0].length
   }
   return out + escapeHtml(content.slice(last))
@@ -1188,7 +1190,7 @@ function commentSection(curveId: number, comment: CommentView | null, user: User
           <summary>edit</summary>
           <form method="post" action="/curve/${curveId}/commentary">
             <textarea name="content" rows="6" maxlength="${COMMENT_MAX}">${escapeHtml(comment?.content ?? '')}</textarea>
-            <div><button type="submit">save</button> <span class="muted">plain text; <code>curve#123</code> links to curve 123; submit empty to clear</span></div>
+            <div><button type="submit">save</button> <span class="muted">plain text; <code>curve#123</code> or <code>curve #123</code> links to curve 123; submit empty to clear</span></div>
           </form>
         </details>`
     : `<p class="muted"><a href="/auth/github">Log in</a> to ${hasContent ? 'edit' : 'add'} commentary.</p>`
@@ -1347,7 +1349,7 @@ export function curveDetailPage(
 
 // An edit to commentary shown as a word diff against the version before it:
 // removed text in <del>, inserted text in <ins>, each still rendered by
-// renderCommentContent so curve#<id> tokens keep their links.
+// renderCommentContent so curve references keep their links.
 function renderCommentDiff(before: string, after: string): string {
   return diffWords(before, after)
     .map((s) => {
@@ -1819,7 +1821,7 @@ export function apiDocsPage(user: User | null = null): string {
       <p>Edit a curve's commentary. Form-encoded <code>content</code>; an empty value clears it. Each
       edit is kept in the curve's commentary history.</p>
       <p>Commentary is plain text (HTML is shown literally), except that <code>curve#123</code>
-      &mdash; no space &mdash; is displayed as a link to curve 123.</p>
+      or <code>curve #123</code> is displayed as a link to curve 123.</p>
       <pre><code>${escapeHtml(commentReq)}</code></pre>
 
       <h3 id="families">Curve families</h3>

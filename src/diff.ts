@@ -15,11 +15,18 @@ export interface DiffSegment {
 // replacement is about as readable anyway.
 const MAX_CELLS = 4_000_000
 
-// Runs of whitespace, words, and single punctuation marks, so that "curve#7."
-// → "curve#7," changes only the punctuation. '#' and '_' count as word
-// characters, so a `curve#123` link token is never split across segments.
+// A reference to a curve in commentary, `curve#123` or `curve #123` (or with a
+// capital C, as at the start of a sentence), which pages.renderCommentContent
+// links to that curve; group 1 is the id. It must not follow a word character
+// (as the tokenizer below counts them), so each match starts a token.
+export const CURVE_REF = /(?<![\p{L}\p{N}\p{M}#_])[Cc]urve ?#(\d+)/gu
+
+// Curve references, runs of whitespace, words, and single punctuation marks,
+// so that "curve#7." → "curve#7," changes only the punctuation. A curve
+// reference is one token, so its link is never split across segments; '#'
+// and '_' count as word characters.
 function tokenize(s: string): string[] {
-  return s.match(/\s+|[\p{L}\p{N}\p{M}#_]+|[^\s\p{L}\p{N}\p{M}#_]/gu) ?? []
+  return s.match(/[Cc]urve ?#\d+|\s+|[\p{L}\p{N}\p{M}#_]+|[^\s\p{L}\p{N}\p{M}#_]/gu) ?? []
 }
 
 // Diff `a` (old) against `b` (new): segments whose '=' and '-' texts
