@@ -4,6 +4,7 @@
 
 import type { VerifyResult } from './verify'
 import { COMMENT_MAX, type CommentView, type ActivityItem, type BatchRecords, type CurveEvent, type Contribution, type RecordStatus } from './store'
+import { diffWords } from './diff'
 import { BOARD_TOP_K, HIGH_RANK, HIGH_RANK_TOP_K, boardTopK, boardRecords, type Placement, type Records } from './gate'
 import { FAMILIES, curveFamilies, familyByKey, impliedByParent, type Family } from './family'
 
@@ -1344,25 +1345,50 @@ export function curveDetailPage(
   return layout(`curve #${curve.id} — Elliptic Curve Rank Leaderboard`, inner, user)
 }
 
+// An edit to commentary shown as a word diff against the version before it:
+// removed text in <del>, inserted text in <ins>, each still rendered by
+// renderCommentContent so curve#<id> tokens keep their links.
+function renderCommentDiff(before: string, after: string): string {
+  return diffWords(before, after)
+    .map((s) => {
+      const html = renderCommentContent(s.text)
+      return s.op === '-' ? `<del>${html}</del>` : s.op === '+' ? `<ins>${html}</ins>` : html
+    })
+    .join('')
+}
+
 export function commentHistoryPage(
   curve: CurveRow,
   entries: CommentView[],
   user: User | null = null,
 ): string {
+  // Entries are newest first, so each one's previous version is the next
+  // entry. The first version has nothing to diff against and is shown as is.
   const list = entries.length
     ? entries
-        .map(
-          (e) => `<li>
-          <p class="comment-meta">${e.author_id != null ? userLink(e.author_id, e.author) : '<span class="muted">(deleted user)</span>'} &middot; ${utcTime(e.created_at)}</p>
-          ${e.content.length > 0 ? `<div class="comment-body">${renderCommentContent(e.content)}</div>` : `<p class="muted">(cleared)</p>`}
-        </li>`,
-        )
+        .map((e, i) => {
+          const prev = entries[i + 1]
+          const note =
+            e.content.length === 0 ? ' &middot; cleared' : prev && prev.content === e.content ? ' &middot; no change' : ''
+          const body =
+            prev == null
+              ? e.content.length > 0
+                ? `<div class="comment-body">${renderCommentContent(e.content)}</div>`
+                : ''
+              : prev.content.length > 0 || e.content.length > 0
+                ? `<div class="comment-body comment-diff">${renderCommentDiff(prev.content, e.content)}</div>`
+                : ''
+          return `<li>
+          <p class="comment-meta">${e.author_id != null ? userLink(e.author_id, e.author) : '<span class="muted">(deleted user)</span>'} &middot; ${utcTime(e.created_at)}${note}</p>
+          ${body}
+        </li>`
+        })
         .join('\n')
     : `<li class="muted">No commentary yet.</li>`
   const inner = `
       <p class="page-nav"><a href="/curve/${curve.id}">&larr; curve #${curve.id}</a></p>
       <h2>Commentary history</h2>
-      <p class="page-subtitle">${entries.length} edit${entries.length === 1 ? '' : 's'}.</p>
+      <p class="page-subtitle">${entries.length} edit${entries.length === 1 ? '' : 's'}${entries.length > 1 ? ', newest first, each shown as changes from the version before it: <del>removed</del>, <ins>added</ins>' : ''}.</p>
       <ul class="comment-history">${list}</ul>`
   return layout('Commentary history — Elliptic Curve Rank Leaderboard', inner, user)
 }

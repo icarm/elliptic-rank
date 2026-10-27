@@ -9,6 +9,10 @@
   --panel-soft: #f0f6f5;  /* faintly recessed panels */
   --code-bg: #e9f2f0;
   --accent-soft: #e0f0ee; /* pale teal callouts */
+  --ins-bg: #d5f2dc;      /* commentary diffs: inserted text */
+  --ins-fg: #14532d;
+  --del-bg: #fbdcdc;      /* commentary diffs: removed text */
+  --del-fg: #7f1d1d;
   --header-bg: #15363a;   /* dark teal header band */
   --header-fg: #eff4f2;
   --header-muted: #a9c4c2;
@@ -970,6 +974,25 @@ a.record-badge:hover {
   margin: 1rem 0;
   padding-bottom: 1rem;
   border-bottom: 1px solid var(--border);
+}
+
+/* Word diffs on the commentary history page (and its legend). */
+.comment-diff ins, .comment-diff del,
+.page-subtitle ins, .page-subtitle del {
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+.comment-diff ins, .page-subtitle ins {
+  background: var(--ins-bg);
+  color: var(--ins-fg);
+  text-decoration: none;
+}
+
+.comment-diff del, .page-subtitle del {
+  background: var(--del-bg);
+  color: var(--del-fg);
+  text-decoration: line-through;
 }
 
 /* Recent activity */
