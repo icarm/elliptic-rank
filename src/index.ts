@@ -26,7 +26,7 @@ import {
   type SubmitInfo,
   type CurveRow,
 } from './pages'
-import { plotCurves, tableCurves, userCurves, loadWitness, recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, recordBadges, recordBadgesForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
+import { plotCurves, tableCurves, userCurves, loadWitness, recordCurve, backfillPrimes, postComment, commentHistory, recentActivity, parseCursor, cachedDatabaseJson, invalidateDatabaseJson, recordBadges, recordBadgesForCurves, curveEvents, allCurveEvents, userContributions, COMMENT_MAX, type CommentView, type CurveEvent } from './store'
 import { notifyRecord, notifyBackfillRecord } from './zulip'
 import { curveFamilies, legacyFamily } from './family'
 import { parsePoints, parseTokens } from './input'
@@ -83,13 +83,16 @@ app.get('/curves', async (c) => {
 })
 
 app.get('/recent', async (c) => {
-  const p = Math.max(0, Math.floor(Number(c.req.query('p')) || 0))
-  const { items, page, hasOlder } = await recentActivity(c.env, p)
+  // Pages used to be numbered (?p=N); those links now start at the top.
+  if (c.req.query('p') !== undefined) return c.redirect('/recent', 301)
+  const before = parseCursor(c.req.query('before')) ?? undefined
+  const after = parseCursor(c.req.query('after')) ?? undefined
+  const { items, older, newer } = await recentActivity(c.env, { before, after })
   const records = await recordBadgesForCurves(
     c.env,
     items.map((a) => ({ ...a, id: a.curve_id, rank_lower_bound: a.rank })),
   )
-  return c.html(activityPage(items, records, page, hasOlder, c.get('user')))
+  return c.html(activityPage(items, records, older, newer, c.get('user')))
 })
 
 app.get('/progress', async (c) => {
@@ -335,12 +338,18 @@ function curveJson(r: CurveJsonRow, history: CurveEvent[]) {
   }
 }
 
-// Full database as downloadable JSON.
+// Full database as downloadable JSON, served from its KV snapshot
+// (store.cachedDatabaseJson) and built from D1 only on a miss.
 app.get('/database.json', async (c) => {
-  const { results } = await c.env.DB.prepare(
+  const payload = await cachedDatabaseJson(c.env, () => buildDatabaseJson(c.env))
+  return jsonDownload(c.req.raw, payload, 'elliptic-rank-database.json')
+})
+
+async function buildDatabaseJson(env: Bindings): Promise<string> {
+  const { results } = await env.DB.prepare(
     `${CURVE_JSON_SELECT} ORDER BY c.rank_lower_bound DESC, c.naive_height ASC`,
   ).all<CurveJsonRow>()
-  const events = await allCurveEvents(c.env)
+  const events = await allCurveEvents(env)
   const curves = results.map((r) => curveJson(r, events.get(r.id) ?? []))
   // Attribution travels with the file: a downloaded copy may be shared around
   // far from this site, so the metadata comes first and names the source, the
@@ -361,9 +370,8 @@ app.get('/database.json', async (c) => {
   }
   // Pretty-printed (2-space indent) so the download is readable line-by-line —
   // a single 60+ KB line is awkward for humans and tools alike.
-  const payload = JSON.stringify({ ...meta, count: curves.length, curves }, null, 2)
-  return jsonDownload(c.req.raw, payload, 'elliptic-rank-database.json')
-})
+  return JSON.stringify({ ...meta, count: curves.length, curves }, null, 2)
+}
 
 // JSON API: submit a curve + witness points. Requires a bearer token; the
 // verified curve is recorded on the leaderboard if it passes the entry gate
@@ -601,6 +609,8 @@ app.post('/profile/name', async (c) => {
   const name = String(form.name ?? '').trim().slice(0, 100)
   if (name) {
     await c.env.DB.prepare('UPDATE users SET display_name = ? WHERE id = ?').bind(name, user.id).run()
+    // database.json names submitters and contributors.
+    await invalidateDatabaseJson(c.env)
     await updateSessionUser(c, { display_name: name })
   }
   return c.redirect('/profile', 302)

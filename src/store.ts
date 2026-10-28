@@ -50,8 +50,8 @@ const TABLE_COLUMNS = `${PLOT_COLUMNS}, ainvs`
 // still reads D1, so a submission is always judged against the current board.
 //
 // Edits made outside the app (scripts/backfill-*.mjs, `wrangler d1 execute`)
-// do not rebuild it: it expires after SNAPSHOT_TTL_S, or delete the key to
-// pick them up at once:
+// do not rebuild it: it expires after SNAPSHOT_TTL_S, or delete the key (and
+// the database.json one below) to pick them up at once:
 //   wrangler kv key delete --binding CACHE --remote curves-snapshot
 const SNAPSHOT_KEY = 'curves-snapshot'
 const SNAPSHOT_TTL_S = 3600
@@ -78,7 +78,35 @@ async function refreshCurves(env: Bindings): Promise<TableCurve[]> {
   const { results } = await env.DB.prepare(`SELECT ${TABLE_COLUMNS} FROM curves ORDER BY id ASC`).all<TableCurve>()
   await env.CACHE.put(SNAPSHOT_KEY, JSON.stringify(results), { expirationTtl: SNAPSHOT_TTL_S })
   memo = { at: Date.now(), curves: results }
+  await invalidateDatabaseJson(env)
   return results
+}
+
+// --- database.json snapshot ---
+//
+// /database.json joins every curve with its submitter and commentary and
+// reads every curve event — the costliest request the site serves, and one
+// that crawlers fetch over and over. So its body is kept in KV too, built on
+// a miss by the caller. Any write that changes it deletes the key:
+// refreshCurves (every curve write calls it), postComment, and a display-name
+// change. Staleness is bounded like the curves snapshot's (KV's ~60s edge
+// cache); a download that misses while a write lands can store the old body,
+// so the key also expires after DATABASE_JSON_TTL_S. The out-of-app edits
+// above need this key deleted as well:
+//   wrangler kv key delete --binding CACHE --remote database-json
+const DATABASE_JSON_KEY = 'database-json'
+const DATABASE_JSON_TTL_S = 600
+
+export async function cachedDatabaseJson(env: Bindings, build: () => Promise<string>): Promise<string> {
+  const cached = await env.CACHE.get(DATABASE_JSON_KEY)
+  if (cached != null) return cached
+  const body = await build()
+  await env.CACHE.put(DATABASE_JSON_KEY, body, { expirationTtl: DATABASE_JSON_TTL_S })
+  return body
+}
+
+export async function invalidateDatabaseJson(env: Bindings): Promise<void> {
+  await env.CACHE.delete(DATABASE_JSON_KEY)
 }
 
 // Every curve with its metrics, in submission (id) order, for the landing and
@@ -140,6 +168,7 @@ export async function postComment(
   await env.DB.prepare('UPDATE curves SET current_comment_id = ? WHERE id = ?')
     .bind(ins.meta.last_row_id, curveId)
     .run()
+  await invalidateDatabaseJson(env)
 }
 
 // Full edit history for a curve, newest first.
@@ -245,10 +274,12 @@ export function userContributions(env: Bindings, userId: number): Promise<Contri
 // commentary edit, or a later contribution (rank improvement / primes
 // recorded). All carry the curve's current rank and metrics, for context and
 // for judging its records; old_rank and new_rank are set only for
-// 'rank_improved'.
+// 'rank_improved'. `row_id` is the id of the row in its own table (curves,
+// comments_log or curve_events), the last key of the feed's order.
 export interface ActivityItem {
   kind: 'submission' | 'comment' | CurveEventKind
   ts: string
+  row_id: number
   curve_id: number
   rank: number
   naive_height: number
@@ -272,50 +303,142 @@ export interface ActivityItem {
 
 export const ACTIVITY_PAGE_SIZE = 30
 
-// Recent activity, newest first, paginated. Merges curve creations, commentary
-// edits, and later contributions in one timeline. `hasOlder` reports whether a further page
-// exists (we fetch one extra row to find out).
-export async function recentActivity(
-  env: Bindings,
-  page = 0,
-): Promise<{ items: ActivityItem[]; page: number; hasOlder: boolean }> {
-  const size = ACTIVITY_PAGE_SIZE
-  const { results } = await env.DB.prepare(
-    `SELECT kind, ts, curve_id, rank, naive_height, faltings_height, conductor, discriminant, torsion, c4, c6, user, user_id, content, old_rank, new_rank, comment_id FROM (
-         SELECT 'submission' AS kind, c.created_at AS ts, c.id AS curve_id,
+// A position in the feed: the (ts, kind, row_id) key of an item. The feed is
+// ordered by ts DESC, kind ASC, row_id DESC. The kind tiebreak: a submission
+// with initial commentary writes both rows at the same second-precision
+// timestamp; the comment ('comment' < 'submission') must sort first, i.e.
+// display above = after, in this newest-first feed, since the commentary
+// logically follows the curve. 'comment' likewise sorts before the
+// contribution kinds, so commentary attached to an improving re-submission
+// displays above the improvement.
+export interface ActivityCursor {
+  ts: string
+  kind: string
+  id: number
+}
+
+const ACTIVITY_KINDS = new Set(['submission', 'comment', 'rank_improved', 'primes_recorded'])
+
+// Cursors travel in /recent links as "kind.id.ts" (ts last: it holds spaces
+// and colons, and needs no delimiter of its own). null if malformed.
+export function encodeCursor(c: ActivityCursor): string {
+  return `${c.kind}.${c.id}.${c.ts}`
+}
+
+export function parseCursor(s: string | undefined): ActivityCursor | null {
+  const m = s?.match(/^([a-z_]+)\.(\d{1,15})\.(.{1,40})$/)
+  if (!m || !ACTIVITY_KINDS.has(m[1])) return null
+  return { kind: m[1], id: Number(m[2]), ts: m[3] }
+}
+
+function cursorOf(a: ActivityItem): ActivityCursor {
+  return { ts: a.ts, kind: a.kind, id: a.row_id }
+}
+
+// The feed's three sources, each with the columns its order and cursor
+// conditions refer to. Every branch carries the curve's current rank and
+// metrics.
+const ACTIVITY_SOURCES = [
+  {
+    ts: 'c.created_at',
+    kind: `'submission'`,
+    id: 'c.id',
+    select: `SELECT 'submission' AS kind, c.created_at AS ts, c.id AS row_id, c.id AS curve_id,
                 c.rank_lower_bound AS rank, c.naive_height, c.faltings_height, c.conductor, c.discriminant, c.torsion, c.c4, c.c6,
                 u.display_name AS user, u.id AS user_id, NULL AS content,
                 NULL AS old_rank, NULL AS new_rank, NULL AS comment_id
-           FROM curves c LEFT JOIN users u ON u.id = c.submitter_user_id
-         UNION ALL
-         SELECT 'comment' AS kind, cl.created_at AS ts, cl.curve_id AS curve_id,
+           FROM curves c LEFT JOIN users u ON u.id = c.submitter_user_id`,
+  },
+  {
+    ts: 'cl.created_at',
+    kind: `'comment'`,
+    id: 'cl.id',
+    select: `SELECT 'comment' AS kind, cl.created_at AS ts, cl.id AS row_id, cl.curve_id AS curve_id,
                 cv.rank_lower_bound AS rank, cv.naive_height, cv.faltings_height, cv.conductor, cv.discriminant, cv.torsion, cv.c4, cv.c6,
                 cu.display_name AS user, cu.id AS user_id, cl.content AS content,
                 NULL AS old_rank, NULL AS new_rank, cl.id AS comment_id
            FROM comments_log cl
            LEFT JOIN users cu ON cu.id = cl.user_id
-           JOIN curves cv ON cv.id = cl.curve_id
-         UNION ALL
-         SELECT e.kind AS kind, e.created_at AS ts, e.curve_id AS curve_id,
+           JOIN curves cv ON cv.id = cl.curve_id`,
+  },
+  {
+    ts: 'e.created_at',
+    kind: 'e.kind',
+    id: 'e.id',
+    select: `SELECT e.kind AS kind, e.created_at AS ts, e.id AS row_id, e.curve_id AS curve_id,
                 ce.rank_lower_bound AS rank, ce.naive_height, ce.faltings_height, ce.conductor, ce.discriminant, ce.torsion, ce.c4, ce.c6,
                 eu.display_name AS user, eu.id AS user_id, NULL AS content,
                 e.old_rank, e.new_rank, NULL AS comment_id
            FROM curve_events e
            LEFT JOIN users eu ON eu.id = e.user_id
-           JOIN curves ce ON ce.id = e.curve_id
-       )
-       -- kind ASC tiebreak: a submission with initial commentary writes both
-       -- rows at the same second-precision timestamp; the comment ('comment' <
-       -- 'submission') must sort first, i.e. display above = after, in this
-       -- newest-first feed, since the commentary logically follows the curve.
-       -- 'comment' likewise sorts before the contribution kinds, so commentary
-       -- attached to an improving re-submission displays above the improvement.
-       ORDER BY ts DESC, kind ASC
-       LIMIT ? OFFSET ?`,
+           JOIN curves ce ON ce.id = e.curve_id`,
+  },
+]
+
+// Up to `limit` feed items strictly older than `before` (newest first), or
+// strictly newer than `after` (oldest first), or from the top when neither is
+// given. Each source seeks to the cursor on its created_at index and reads at
+// most `limit` rows, so a page costs the same however deep it is (the old
+// LIMIT/OFFSET version merged and sorted the whole history for every page).
+async function activitySlice(
+  env: Bindings,
+  limit: number,
+  cursor: { before?: ActivityCursor; after?: ActivityCursor },
+): Promise<ActivityItem[]> {
+  const c = cursor.before ?? cursor.after
+  const older = cursor.after == null
+  // Newest-first order, or its reverse when walking forward from `after`.
+  const [desc, asc] = older ? ['DESC', 'ASC'] : ['ASC', 'DESC']
+  const [lt, gt] = older ? ['<', '>'] : ['>', '<']
+  const binds: unknown[] = []
+  const branches = ACTIVITY_SOURCES.map((s) => {
+    // The `ts <=` (or `>=`) conjunct is redundant but lets SQLite seek the
+    // index to the cursor rather than scan to it.
+    let where = ''
+    if (c) {
+      where = `WHERE ${s.ts} ${lt}= ? AND (${s.ts} ${lt} ? OR ${s.kind} ${gt} ? OR (${s.kind} = ? AND ${s.id} ${lt} ?))`
+      binds.push(c.ts, c.ts, c.kind, c.kind, c.id)
+    }
+    binds.push(limit)
+    return `SELECT * FROM (${s.select} ${where} ORDER BY ${s.ts} ${desc}, ${s.kind} ${asc}, ${s.id} ${desc} LIMIT ?)`
+  })
+  const { results } = await env.DB.prepare(
+    `SELECT kind, ts, row_id, curve_id, rank, naive_height, faltings_height, conductor, discriminant, torsion, c4, c6, user, user_id, content, old_rank, new_rank, comment_id
+       FROM (${branches.join(' UNION ALL ')})
+       ORDER BY ts ${desc}, kind ${asc}, row_id ${desc}
+       LIMIT ?`,
   )
-    .bind(size + 1, page * size)
+    .bind(...binds, limit)
     .all<ActivityItem>()
-  const items = results.slice(0, size)
+  return results
+}
+
+// One page of recent activity, newest first: from the top, or just older than
+// `before`, or just newer than `after`. Merges curve creations, commentary
+// edits, and later contributions in one timeline. `older` and `newer` are the
+// cursors for the adjacent pages, null where there is none (we fetch one extra
+// row to find out). A page reached by `after` that comes up short is the top
+// of the feed, served as such so it is full.
+export async function recentActivity(
+  env: Bindings,
+  cursor: { before?: ActivityCursor; after?: ActivityCursor } = {},
+): Promise<{ items: ActivityItem[]; older: ActivityCursor | null; newer: ActivityCursor | null }> {
+  const size = ACTIVITY_PAGE_SIZE
+  let items: ActivityItem[]
+  let older: ActivityCursor | null
+  let newer: ActivityCursor | null
+  const forward = cursor.after ? await activitySlice(env, size + 1, { after: cursor.after }) : []
+  if (forward.length > size) {
+    items = forward.slice(0, size).reverse()
+    newer = cursorOf(items[0])
+    older = cursorOf(items[items.length - 1])
+  } else {
+    const before = cursor.after ? undefined : cursor.before
+    const results = await activitySlice(env, size + 1, { before })
+    items = results.slice(0, size)
+    older = results.length > size ? cursorOf(items[items.length - 1]) : null
+    newer = before && items.length > 0 ? cursorOf(items[0]) : null
+  }
   // The version before each commentary edit on this page: one lookup per edit
   // (at most a page's worth) on the (curve_id, id) index, rather than one per
   // commentary row in the whole timeline inside the query above.
@@ -332,7 +455,7 @@ export async function recentActivity(
     const byId = new Map(prev.map((r) => [r.id, r.prev_content]))
     for (const a of items) if (a.comment_id != null) a.prev_content = byId.get(a.comment_id) ?? null
   }
-  return { items, page, hasOlder: results.length > size }
+  return { items, older, newer }
 }
 
 export type RecordStatus =

@@ -3,7 +3,7 @@
 // so GitHub login / profiles can slot in later without reworking the chrome.
 
 import type { VerifyResult } from './verify'
-import { COMMENT_MAX, type CommentView, type ActivityItem, type BatchRecords, type CurveEvent, type Contribution, type RecordStatus } from './store'
+import { COMMENT_MAX, encodeCursor, type ActivityCursor, type CommentView, type ActivityItem, type BatchRecords, type CurveEvent, type Contribution, type RecordStatus } from './store'
 import { diffWords, excerptDiff, clipText, CURVE_REF } from './diff'
 import { BOARD_TOP_K, HIGH_RANK, HIGH_RANK_TOP_K, boardTopK, boardRecords, type Placement, type Records } from './gate'
 import { FAMILIES, curveFamilies, familyByKey, impliedByParent, type Family } from './family'
@@ -1448,8 +1448,8 @@ function activityRecordBadges(
 export function activityPage(
   items: ActivityItem[],
   records: BatchRecords,
-  page: number,
-  hasOlder: boolean,
+  older: ActivityCursor | null,
+  newer: ActivityCursor | null,
   user: User | null = null,
 ): string {
   const entry = (a: ActivityItem): string => {
@@ -1519,18 +1519,18 @@ export function activityPage(
   const list = items.length
     ? `<ul class="activity">${items.map(entry).join('\n')}</ul>`
     : `<p class="muted">No activity yet.</p>`
-  const newer =
-    page > 0
-      ? `<a href="/recent${page - 1 === 0 ? '' : `?p=${page - 1}`}">&larr; newer</a>`
-      : `<span class="muted">&larr; newer</span>`
-  const older = hasOlder
-    ? `<a href="/recent?p=${page + 1}">older &rarr;</a>`
+  const newerLink = newer
+    ? `<a href="/recent?after=${encodeURIComponent(encodeCursor(newer))}">&larr; newer</a>`
+    : `<span class="muted">&larr; newer</span>`
+  const olderLink = older
+    ? `<a href="/recent?before=${encodeURIComponent(encodeCursor(older))}">older &rarr;</a>`
     : `<span class="muted">older &rarr;</span>`
+  const newest = newer ? `<a href="/recent">newest</a>` : `<span class="muted">newest</span>`
   const inner = `
       <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>Recent activity</h2>
       ${list}
-      <nav class="pager">${newer} <span class="muted">page ${page + 1}</span> ${older}</nav>
+      <nav class="pager">${newerLink} ${newest} ${olderLink}</nav>
       <script src="/relative-time.js" defer></script>`
   return layout('Recent activity — Elliptic Curve Rank Leaderboard', inner, user)
 }
