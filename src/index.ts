@@ -17,7 +17,7 @@ import {
   activityPage,
   curveTablePage,
   acknowledgePage,
-  bibliographyPage,
+  literaturePage,
   SITE_ORIGIN,
   progressPage,
   userPage,
@@ -266,7 +266,10 @@ app.get('/api', (c) => c.html(apiDocsPage(c.get('user'))))
 
 app.get('/acknowledge', (c) => c.html(acknowledgePage(c.get('user'))))
 
-app.get('/bibliography', (c) => c.html(bibliographyPage(c.get('user'))))
+app.get('/literature', (c) => c.html(literaturePage(c.get('user'))))
+// The page's first name, briefly live on 2026-11-19; keep old links working.
+// Browsers carry a #fragment across the redirect.
+app.get('/bibliography', (c) => c.redirect('/literature', 301))
 
 // Shared SELECT + JSON shape for the database download and the per-curve JSON.
 const CURVE_JSON_SELECT = `SELECT c.id, c.curve_key, c.ainvs, c.discriminant, c.naive_height, c.rank_lower_bound,

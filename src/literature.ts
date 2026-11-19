@@ -1,8 +1,8 @@
-// The curated bibliography rendered at /bibliography. Deliberately short: the
+// The curated reading list rendered at /literature. Deliberately short: the
 // works a newcomer needs to understand the rank records, how small high-rank
 // curves are found, and how ranks are bounded. Every entry's metadata was
 // checked against the publisher, DOI, or arXiv record; keep it that way when
-// adding entries. Ids are stable URL anchors (/bibliography#<id>), so don't
+// adding entries. Ids are stable URL anchors (/literature#<id>), so don't
 // rename them once deployed.
 
 export interface BibEntry {
@@ -32,7 +32,7 @@ export interface BibSection {
 const zb = (an: string) => `https://zbmath.org/?q=an:${an}`
 const NMBRTHRY = 'https://listserv.nodak.edu/cgi-bin/wa.exe?A2=NMBRTHRY;'
 
-export const BIBLIOGRAPHY: BibSection[] = [
+export const LITERATURE: BibSection[] = [
   {
     id: 'records',
     title: 'Rank records',
