@@ -2123,7 +2123,8 @@ export function literaturePage(user: User | null = null): string {
       records, the families and K3 surfaces the records come from, how curves and points are
       searched for, and how ranks are bounded.
       Sources for individual curves are cited in their commentary.
-      Suggestions are welcome on <a class="external" href="https://icarm.zulipchat.com/#narrow/channel/519875-general/topic/Elliptic.20Curve.20Rank.20Leaderboard/near/603443505">Zulip</a>.</p>
+      Suggestions are welcome on <a class="external" href="https://icarm.zulipchat.com/#narrow/channel/519875-general/topic/Elliptic.20Curve.20Rank.20Leaderboard/near/603443505">Zulip</a>
+      or <a class="external" href="https://github.com/icarm/elliptic-rank/issues">GitHub</a>.</p>
       <p class="bib-toc">${toc}</p>${sections}`
   return layout('Literature — Elliptic Curve Rank Leaderboard', inner, user)
 }
