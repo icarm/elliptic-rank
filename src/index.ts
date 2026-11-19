@@ -63,7 +63,10 @@ app.get('/', async (c) => {
     plotCurves(c.env),
     Number.isInteger(from) && from >= 0 ? loadWitness(c.env, from) : Promise.resolve(null),
   ])
-  return c.html(landingPage(c.get('user'), curves, c.req.query('metric'), c.req.query('show'), prefill, {
+  // The plot form sends show=all then, when "best only" is checked, show=best;
+  // the last one wins (see landingPage).
+  const show = c.req.queries('show')?.at(-1)
+  return c.html(landingPage(c.get('user'), curves, c.req.query('metric'), show, prefill, {
     subset: c.req.query('subset'),
     torsion: c.req.query('torsion'),
     family: c.req.query('family'),

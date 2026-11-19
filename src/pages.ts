@@ -72,7 +72,8 @@ const SITE_DESCRIPTION =
   'Can we find small elliptic curves of high rank? A leaderboard of certified ' +
   'Mordell–Weil rank lower bounds, ordered by conductor, discriminant, Faltings height, and naive height.'
 
-export function layout(title: string, bodyInner: string, user: User | null = null): string {
+// `head` is extra markup for <head>, e.g. a canonical link or robots meta.
+export function layout(title: string, bodyInner: string, user: User | null = null, head = ''): string {
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -91,7 +92,8 @@ export function layout(title: string, bodyInner: string, user: User | null = nul
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/favicon-180.png" />
-    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/style.css" />${head ? `
+    ${head}` : ''}
   </head>
   <body>
     <header>
@@ -222,7 +224,12 @@ function scaleValues(pts: { rank: number; x: number }[]): number[] {
 // and restricted to the plot's subset (its query parameter, e.g. "torsion=2x4"
 // or "family=mordell", see Subset) when there is one.
 // `qFmt` formats the (coarse) axis ticks; dot tooltips always show 4 decimals.
-function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => string, sort: string, subsetParam: string | null = null): string {
+// With `bestOnly`, only the best dot per rank column is drawn (the landing
+// page's default view); the axis scale is the same either way, so toggling
+// doesn't move the dots that stay. Leaving the rest out of the HTML, rather
+// than hiding them with CSS, keeps the page small enough for crawlers to read
+// past the plots: with every curve drawn, each plot is ~1 MB of anchors.
+function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => string, sort: string, subsetParam: string | null = null, bestOnly = false): string {
   if (pts.length === 0) {
     return `<p class="muted plot-empty">No curves with a recorded ${qLabel} yet.</p>`
   }
@@ -300,7 +307,7 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
   }
   // Non-records first, records last so they paint on top of any overlapping dot
   // and are therefore the easiest to click.
-  const visible = pts.filter((p) => p.x <= qmax)
+  const visible = pts.filter((p) => p.x <= qmax && (!bestOnly || isBest(p)))
   const dots = visible.filter((p) => !isRecord(p)).map(dot).join('')
   const records = visible.filter(isRecord).map(dot).join('')
   return `<svg class="rank-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${qLabel} versus rank scatter plot">
@@ -560,7 +567,9 @@ export function landingPage(
   const sel: 'conductor' | 'naive' | 'faltings' | 'disc' =
     metric === 'naive' || metric === 'faltings' || metric === 'disc' ? metric : 'conductor'
   // ?show=all plots every curve; the default shows only the best (lowest)
-  // curve at each rank bound.
+  // curve at each rank bound, and sends only those dots (see scatterPlot).
+  // Without JS the form below submits a hidden show=all followed by the "best
+  // only" checkbox's show=best when checked; the route passes the last value.
   const showAll = show === 'all'
   // ?torsion= or ?family= restricts the plots to one record pool (see Subset).
   // Only subsets some curve is in are offered; anything else means all curves.
@@ -574,7 +583,7 @@ export function landingPage(
       <section class="hero">
         <p class="lede">Can we find <em>small</em> elliptic curves of <em>high rank</em>?</p>
       </section>
-      <section class="board${showAll ? '' : ' best-only'}">
+      <section class="board">
         <div class="plot-tabs">
           <span class="plot-metrics" role="radiogroup" aria-label="plot measure">
             <label title="Natural log of the conductor. Recorded when a submission supplies the primes of bad reduction."><input type="radio" name="plot-metric" value="conductor"${sel === 'conductor' ? ' checked' : ''} /><span><span class="long">log conductor</span><span class="short">log N</span></span></label>
@@ -583,10 +592,11 @@ export function landingPage(
             <label title="log max(|c4|^3, |c6|^2) of the global minimal model. Recorded for every curve."><input type="radio" name="plot-metric" value="naive"${sel === 'naive' ? ' checked' : ''} /><span><span class="long">naive height</span><span class="short">naive</span></span></label>
           </span>
           <form class="plot-controls" method="get" action="/">
-            <input type="hidden" name="metric" value="${sel}" />${showAll ? '<input type="hidden" name="show" value="all" />' : ''}
+            <input type="hidden" name="metric" value="${sel}" />
             <label class="plot-subset" title="Plot only curves with one torsion subgroup or in one family."><span>within</span> <select id="plot-subset" name="subset" autocomplete="off">${subsetOptions(subsets, subset)}</select></label>
+            <input type="hidden" name="show" value="all" />
+            <label class="plot-filter" title="Plot only the best (lowest) curve at each rank bound."><input type="checkbox" id="plot-best-only" name="show" value="best" autocomplete="off"${showAll ? '' : ' checked'} /><span>best only</span></label>
             <noscript><button type="submit">apply</button></noscript>
-            <label class="plot-filter" title="Plot only the best (lowest) curve at each rank bound."><input type="checkbox" id="plot-best-only"${showAll ? '' : ' checked'} /><span>best only</span></label>
           </form>
         </div>
         <div class="plot-area">
@@ -597,6 +607,7 @@ export function landingPage(
               (v) => v.toFixed(0),
               'conductor',
               subsetSel,
+              !showAll,
             )}
           </div>
           <div class="plot-panel" data-metric="disc"${sel === 'disc' ? '' : ' hidden'}>
@@ -606,6 +617,7 @@ export function landingPage(
               (v) => v.toFixed(0),
               'disc',
               subsetSel,
+              !showAll,
             )}
           </div>
           <div class="plot-panel" data-metric="faltings"${sel === 'faltings' ? '' : ' hidden'}>
@@ -615,6 +627,7 @@ export function landingPage(
               (v) => v.toFixed(1),
               'faltings',
               subsetSel,
+              !showAll,
             )}
           </div>
           <div class="plot-panel" data-metric="naive"${sel === 'naive' ? '' : ' hidden'}>
@@ -624,11 +637,12 @@ export function landingPage(
               (v) => v.toFixed(0),
               'naive',
               subsetSel,
+              !showAll,
             )}
           </div>
           <p class="plot-loading">loading&hellip;</p>
         </div>
-        <noscript><style>.plot-tabs .plot-metrics, .plot-tabs .plot-filter { display: none; } .board .plot-panel[hidden] { display: block; }</style></noscript>
+        <noscript><style>.plot-tabs .plot-metrics { display: none; } .board .plot-panel[hidden] { display: block; }</style></noscript>
         <script src="/landing.js" defer></script>
       </section>
 
@@ -691,7 +705,14 @@ export function landingPage(
           }</div>
         </form>
       </section>`
-  return layout('Elliptic Curve Rank Leaderboard', inner, user)
+  // Search engines should index the light default page: the ?metric=,
+  // ?subset= and ?from= variants point at it as canonical, and the heavy
+  // ?show=all view is kept out of the index (noindex, not canonical, since
+  // Google treats the two together as conflicting signals).
+  const head = showAll
+    ? '<meta name="robots" content="noindex, follow" />'
+    : `<link rel="canonical" href="${SITE_ORIGIN}/" />`
+  return layout('Elliptic Curve Rank Leaderboard', inner, user, head)
 }
 
 export interface TableCurve extends PlotCurve {

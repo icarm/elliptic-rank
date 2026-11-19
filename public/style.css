@@ -474,8 +474,7 @@ pre code {
 
 /* Subset (torsion subgroup or family) selector and "best only" toggle,
    right-aligned after the metric tabs. best-per-rank is the default;
-   unchecking reveals the remaining dots (.best-only below hides all but the
-   best per rank column). */
+   unchecking reloads the page with every dot (?show=all). */
 .plot-controls {
   margin-left: auto;
   display: inline-flex;
@@ -540,10 +539,6 @@ pre code {
   background: var(--panel);
   color: var(--muted);
   font-size: 0.9rem;
-}
-
-.board.best-only .rank-plot .dot:not(.best) {
-  display: none;
 }
 
 .plot-metrics .short { display: none; }
