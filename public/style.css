@@ -219,6 +219,55 @@ main p code, .result code, pre code, .submit-help code {
   text-decoration: underline;
 }
 
+/* Bibliography */
+.bib-toc {
+  font-size: 0.95rem;
+}
+
+.bib-section h3 {
+  font-family: var(--serif);
+  font-size: 1.35rem;
+  font-weight: 600;
+  margin: 2rem 0 0.75rem;
+}
+
+ul.bib {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+ul.bib li {
+  margin: 0 0 1rem;
+  line-height: 1.5;
+  scroll-margin-top: 1rem;
+}
+
+ul.bib li:target {
+  background: var(--accent-soft);
+  outline: 0.4rem solid var(--accent-soft);
+}
+
+ul.bib cite {
+  font-style: italic;
+}
+
+.bib-links {
+  font-size: 0.9rem;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.bib-links a {
+  margin-right: 0.6rem;
+}
+
+.bib-note {
+  display: block;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+
 /* Submit / verify form */
 .submit {
   margin-top: 3rem;

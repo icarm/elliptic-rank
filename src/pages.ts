@@ -7,6 +7,7 @@ import { COMMENT_MAX, encodeCursor, type ActivityCursor, type CommentView, type 
 import { diffWords, excerptDiff, clipText, CURVE_REF } from './diff'
 import { BOARD_TOP_K, HIGH_RANK, HIGH_RANK_TOP_K, boardTopK, boardRecords, type Placement, type Records } from './gate'
 import { FAMILIES, curveFamilies, familyByKey, impliedByParent, type Family } from './family'
+import { BIBLIOGRAPHY, type BibEntry } from './bibliography'
 
 export const ABOUT_MAX = 1000
 
@@ -105,6 +106,7 @@ export function layout(title: string, bodyInner: string, user: User | null = nul
         <a href="/curves">all curves</a> &nbsp;&middot;&nbsp;
         <a href="/recent">recent activity</a> &nbsp;&middot;&nbsp;
         <a href="/api">API</a> &nbsp;&middot;&nbsp;
+        <a href="/bibliography">bibliography</a> &nbsp;&middot;&nbsp;
         <a class="external" href="https://github.com/icarm/elliptic-rank">source</a> &nbsp;&middot;&nbsp;
         <a class="external" href="https://icarm.zulipchat.com/#narrow/channel/519875-general/topic/Elliptic.20Curve.20Rank.20Leaderboard/near/603443505">zulip</a> &nbsp;&middot;&nbsp;
         <a class="external" href="https://icarm.io">icarm.io</a>
@@ -637,6 +639,7 @@ export function landingPage(
       <a class="external" href="https://web.math.pmf.unizg.hr/~duje/tors/rankhist.html">Dujella's rank tables</a>
       and a <a class="external" href="https://arxiv.org/pdf/math/0403374">2004 paper by Elkies and Watkins</a>.
       Whether ranks are unbounded is a long-standing open question.
+      For background, see the <a href="/bibliography">bibliography</a>.
       </p>
       <p class="browse-cta"><a href="/database.json" download>Download the database (JSON) &darr;</a> <span class="cta-sep">|</span> <a href="/curves">Browse all curves as a table &rarr;</a> <span class="cta-sep">|</span> <a href="/recent">See recent activity &rarr;</a> <span class="cta-sep">|</span> <a class="external" href="https://icarm.zulipchat.com/#narrow/channel/519875-general/topic/Elliptic.20Curve.20Rank.20Leaderboard/near/603443505">Discuss on Zulip</a></p>
 
@@ -2076,6 +2079,45 @@ export function notFoundPage(user: User | null = null): string {
     `<p class="page-nav"><a href="/">&larr; home</a></p><h2>Not found</h2><p>No such page.</p>`,
     user,
   )
+}
+
+function bibEntryHtml(e: BibEntry): string {
+  const links: string[] = []
+  if (e.doi) links.push(`<a class="external" href="https://doi.org/${escapeHtml(e.doi)}">doi:${escapeHtml(e.doi)}</a>`)
+  if (e.arxiv) links.push(`<a class="external" href="https://arxiv.org/abs/${escapeHtml(e.arxiv)}">arXiv:${escapeHtml(e.arxiv)}</a>`)
+  if (e.url) links.push(`<a class="external" href="${escapeHtml(e.url)}">${escapeHtml(new URL(e.url).hostname)}</a>`)
+  // Math-style venues carry the year inline ("Math. Comp. 88 (2019), …"); only
+  // append it when the venue doesn't already say it.
+  const year = e.year != null && !e.venue?.includes(String(e.year)) ? e.year : null
+  const tail = [e.venue, year].filter((x) => x != null).map(escapeHtml).join(', ')
+  return `
+          <li id="${escapeHtml(e.id)}">
+            <span class="bib-authors">${escapeHtml(e.authors)}</span>,
+            <cite>${escapeHtml(e.title)}</cite>${tail ? `, ${tail}` : ''}.
+            ${links.length ? `<span class="bib-links">${links.join(' ')}</span>` : ''}
+            <span class="bib-note">${escapeHtml(e.note)}</span>
+          </li>`
+}
+
+export function bibliographyPage(user: User | null = null): string {
+  const toc = BIBLIOGRAPHY.map((s) => `<a href="#${escapeHtml(s.id)}">${escapeHtml(s.title)}</a>`).join(' &middot; ')
+  const sections = BIBLIOGRAPHY.map(
+    (s) => `
+      <section class="bib-section" id="${escapeHtml(s.id)}">
+        <h3>${escapeHtml(s.title)}</h3>
+        <ul class="bib">${s.entries.map(bibEntryHtml).join('')}
+        </ul>
+      </section>`,
+  ).join('')
+  const inner = `
+      <p class="page-nav"><a href="/">&larr; home</a></p>
+      <h2>Bibliography</h2>
+      <p>A short list of the essential literature behind this leaderboard: the history of rank
+      records, the search for small curves of high rank, and the methods used to bound ranks.
+      Sources for individual curves are cited in their commentary.
+      Suggestions are welcome on <a class="external" href="https://icarm.zulipchat.com/#narrow/channel/519875-general/topic/Elliptic.20Curve.20Rank.20Leaderboard/near/603443505">Zulip</a>.</p>
+      <p class="bib-toc">${toc}</p>${sections}`
+  return layout('Bibliography — Elliptic Curve Rank Leaderboard', inner, user)
 }
 
 export function acknowledgePage(user: User | null = null): string {

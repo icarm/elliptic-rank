@@ -17,6 +17,7 @@ import {
   activityPage,
   curveTablePage,
   acknowledgePage,
+  bibliographyPage,
   SITE_ORIGIN,
   progressPage,
   userPage,
@@ -264,6 +265,8 @@ app.get('/curve/:id/commentary-history', async (c) => {
 app.get('/api', (c) => c.html(apiDocsPage(c.get('user'))))
 
 app.get('/acknowledge', (c) => c.html(acknowledgePage(c.get('user'))))
+
+app.get('/bibliography', (c) => c.html(bibliographyPage(c.get('user'))))
 
 // Shared SELECT + JSON shape for the database download and the per-curve JSON.
 const CURVE_JSON_SELECT = `SELECT c.id, c.curve_key, c.ainvs, c.discriminant, c.naive_height, c.rank_lower_bound,
