@@ -2085,7 +2085,13 @@ function bibEntryHtml(e: BibEntry): string {
   const links: string[] = []
   if (e.doi) links.push(`<a class="external" href="https://doi.org/${escapeHtml(e.doi)}">doi:${escapeHtml(e.doi)}</a>`)
   if (e.arxiv) links.push(`<a class="external" href="https://arxiv.org/abs/${escapeHtml(e.arxiv)}">arXiv:${escapeHtml(e.arxiv)}</a>`)
-  if (e.url) links.push(`<a class="external" href="${escapeHtml(e.url)}">${escapeHtml(new URL(e.url).hostname)}</a>`)
+  if (e.url) {
+    // Site-relative URLs (e.g. a record announced on a curve page) are labeled
+    // by path and aren't external.
+    const local = e.url.startsWith('/')
+    const label = local ? e.url : new URL(e.url).hostname
+    links.push(`<a${local ? '' : ' class="external"'} href="${escapeHtml(e.url)}">${escapeHtml(label)}</a>`)
+  }
   // Math-style venues carry the year inline ("Math. Comp. 88 (2019), …"); only
   // append it when the venue doesn't already say it.
   const year = e.year != null && !e.venue?.includes(String(e.year)) ? e.year : null
@@ -2104,7 +2110,8 @@ export function literaturePage(user: User | null = null): string {
   const sections = LITERATURE.map(
     (s) => `
       <section class="bib-section" id="${escapeHtml(s.id)}">
-        <h3>${escapeHtml(s.title)}</h3>
+        <h3>${escapeHtml(s.title)}</h3>${s.intro ? `
+        <p>${s.intro}</p>` : ''}
         <ul class="bib">${s.entries.map(bibEntryHtml).join('')}
         </ul>
       </section>`,
@@ -2113,7 +2120,8 @@ export function literaturePage(user: User | null = null): string {
       <p class="page-nav"><a href="/">&larr; home</a></p>
       <h2>Literature</h2>
       <p>A short list of the essential literature behind this leaderboard: the history of rank
-      records, the search for small curves of high rank, and the methods used to bound ranks.
+      records, the families and K3 surfaces the records come from, how curves and points are
+      searched for, and how ranks are bounded.
       Sources for individual curves are cited in their commentary.
       Suggestions are welcome on <a class="external" href="https://icarm.zulipchat.com/#narrow/channel/519875-general/topic/Elliptic.20Curve.20Rank.20Leaderboard/near/603443505">Zulip</a>.</p>
       <p class="bib-toc">${toc}</p>${sections}`
