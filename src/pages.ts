@@ -171,6 +171,35 @@ interface PlotPoint {
   id: number
   rank: number
   x: number
+  // Tiebreaks for which of several dots at the same spot is on top (see
+  // paintOrder); Infinity when the curve has no such value.
+  logN: number
+  faltings: number
+}
+
+// A curve's dot at the value `x` of the plotted quantity.
+function plotPoint(c: PlotCurve, x: number): PlotPoint {
+  return {
+    id: c.id,
+    rank: c.rank_lower_bound,
+    x,
+    logN: c.conductor != null ? logBigInt(c.conductor) : Infinity,
+    faltings: c.faltings_height ?? Infinity,
+  }
+}
+
+// The order dots are painted in: the last one painted is on top, and so is the
+// one a click on that spot opens. Largest value first, so the smaller of two
+// overlapping dots is on top. Curves that tie exactly (isogenous curves share a
+// conductor, a curve and its twist by -1 often share a height) are drawn at
+// the same point, and there the top one is the smallest by conductor, then by
+// Faltings height (which picks one curve out of an isogeny class), then the
+// earliest submitted: a choice that doesn't depend on submission order unless
+// the curves tie on everything. The /curves table breaks ties the same way
+// (curveTablePage), so the top dot is the first of the tied rows there.
+function paintOrder(a: PlotPoint, b: PlotPoint): number {
+  const desc = (u: number, v: number): number => (u < v ? 1 : u > v ? -1 : 0)
+  return desc(a.x, b.x) || desc(a.logN, b.logN) || desc(a.faltings, b.faltings) || b.id - a.id
 }
 
 // Empty rank-width on the left of the rank axis, so rank-0 dots sit inside
@@ -306,8 +335,8 @@ function scatterPlot(pts: PlotPoint[], qLabel: string, qFmt: (v: number) => stri
     return `<a href="/curve/${p.id}"><circle class="dot${isBest(p) ? ' best' : ''}" cx="${x}" cy="${y}" r="4"><title>curve #${p.id}: rank &ge; ${p.rank}, ${qLabel} ${p.x.toFixed(4)}</title></circle></a>`
   }
   // Non-records first, records last so they paint on top of any overlapping dot
-  // and are therefore the easiest to click.
-  const visible = pts.filter((p) => p.x <= qmax && (!bestOnly || isBest(p)))
+  // and are therefore the easiest to click; within each, in paintOrder.
+  const visible = pts.filter((p) => p.x <= qmax && (!bestOnly || isBest(p))).sort(paintOrder)
   const dots = visible.filter((p) => !isRecord(p)).map(dot).join('')
   const records = visible.filter(isRecord).map(dot).join('')
   return `<svg class="rank-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${qLabel} versus rank scatter plot">
@@ -602,7 +631,7 @@ export function landingPage(
         <div class="plot-area">
           <div class="plot-panel" data-metric="conductor"${sel === 'conductor' ? '' : ' hidden'}>
             ${scatterPlot(
-              curves.filter((c) => c.conductor != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.conductor as string) })),
+              curves.filter((c) => c.conductor != null).map((c) => plotPoint(c, logBigInt(c.conductor as string))),
               'log conductor',
               (v) => v.toFixed(0),
               'conductor',
@@ -612,7 +641,7 @@ export function landingPage(
           </div>
           <div class="plot-panel" data-metric="disc"${sel === 'disc' ? '' : ' hidden'}>
             ${scatterPlot(
-              curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: logBigInt(c.discriminant) })),
+              curves.map((c) => plotPoint(c, logBigInt(c.discriminant))),
               'log |Δ|',
               (v) => v.toFixed(0),
               'disc',
@@ -622,7 +651,7 @@ export function landingPage(
           </div>
           <div class="plot-panel" data-metric="faltings"${sel === 'faltings' ? '' : ' hidden'}>
             ${scatterPlot(
-              curves.filter((c) => c.faltings_height != null).map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.faltings_height as number })),
+              curves.filter((c) => c.faltings_height != null).map((c) => plotPoint(c, c.faltings_height as number)),
               'Faltings height',
               (v) => v.toFixed(1),
               'faltings',
@@ -632,7 +661,7 @@ export function landingPage(
           </div>
           <div class="plot-panel" data-metric="naive"${sel === 'naive' ? '' : ' hidden'}>
             ${scatterPlot(
-              curves.map((c) => ({ id: c.id, rank: c.rank_lower_bound, x: c.naive_height })),
+              curves.map((c) => plotPoint(c, c.naive_height)),
               'naive height',
               (v) => v.toFixed(0),
               'naive',
@@ -825,8 +854,10 @@ export function curveTablePage(
       case 'disc': return logBigInt(c.discriminant)
     }
   }
-  // Missing values last either way; ties (common for rank) by increasing
-  // conductor, then id. curves.js sorts the same way.
+  // Missing values last either way; ties (common for rank, and for the
+  // conductor within an isogeny class) by increasing conductor, then Faltings
+  // height, then id. curves.js sorts the same way, and so does the landing
+  // plots' paintOrder: the first of the rows that tie is the dot on top.
   const byNullsLast = (av: number | null, bv: number | null, dir: number): number => {
     if (av == null) return bv == null ? 0 : 1
     if (bv == null) return -1
@@ -834,7 +865,11 @@ export function curveTablePage(
   }
   const sorted = curves
     .map((c) => ({ c, v: sortVal(c), lc: c.conductor != null ? logBigInt(c.conductor) : null }))
-    .sort((a, b) => byNullsLast(a.v, b.v, sortDir) || byNullsLast(a.lc, b.lc, 1) || a.c.id - b.c.id)
+    .sort((a, b) =>
+      byNullsLast(a.v, b.v, sortDir) ||
+      byNullsLast(a.lc, b.lc, 1) ||
+      byNullsLast(a.c.faltings_height, b.c.faltings_height, 1) ||
+      a.c.id - b.c.id)
     .map((x) => x.c)
   const hasFilter = /^[0-9]+$/.test(query.minrank ?? '')
   const n = Number(query.minrank)

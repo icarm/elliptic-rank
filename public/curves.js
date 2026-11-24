@@ -44,11 +44,13 @@
   }
 
   function apply() {
-    // Ties (common for rank) by increasing conductor, then id, so the order
-    // does not depend on earlier sorts; same as curveTablePage.
+    // Ties (common for rank, and for the conductor within an isogeny class) by
+    // increasing conductor, then Faltings height, then id, so the order does
+    // not depend on earlier sorts; same as curveTablePage.
     rows.sort(function (a, b) {
       return compare(a.dataset[sortKey], b.dataset[sortKey], sortDir) ||
         compare(a.dataset.conductor, b.dataset.conductor, 1) ||
+        compare(a.dataset.faltings, b.dataset.faltings, 1) ||
         Number(a.dataset.id) - Number(b.dataset.id);
     });
     // Rank values are proven lower bounds. Empty input = no filter;
